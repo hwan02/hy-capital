@@ -1,0 +1,14 @@
+.dart_tool
+.git
+.github
+lib
+test
+android
+ios
+linux
+macos
+windows
+supabase
+.claude
+.idea
+node_modules

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "git clone https://github.com/flutter/flutter.git --depth 1 -b 3.38.7 \"$HOME/flutter\" && \"$HOME/flutter/bin/flutter\" config --no-cli-animations && \"$HOME/flutter/bin/flutter\" pub get && \"$HOME/flutter/bin/flutter\" build web --release --dart-define=AUTO_EMAIL=$AUTO_EMAIL --dart-define=AUTO_PASSWORD=$AUTO_PASSWORD",
+  "buildCommand": null,
   "outputDirectory": "build/web",
   "framework": null,
   "rewrites": [
