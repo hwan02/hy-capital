@@ -797,6 +797,7 @@ class KnowledgeNote {
   final String? source;
   final String? author;
   final String? asker;
+  final String? url; // 원문 링크
   final DateTime? sourceDate;
   final bool starred;
 
@@ -809,6 +810,7 @@ class KnowledgeNote {
     this.source,
     this.author,
     this.asker,
+    this.url,
     this.sourceDate,
     this.starred = false,
   });
@@ -827,9 +829,44 @@ class KnowledgeNote {
         source: m['source'],
         author: m['author'],
         asker: m['asker'],
+        url: m['url'],
         sourceDate: m['source_date'] == null
             ? null
             : DateTime.tryParse(m['source_date'].toString()),
+        starred: m['starred'] == true,
+      );
+}
+
+/// 롤모델 계정 — 벤치마킹할 인스타/유튜브/틱톡.
+class ReferenceAccount {
+  final String id;
+  final String platform;
+  final String name;
+  final String? url;
+  final String? category;
+  final double followers;
+  final String? memo;
+  final bool starred;
+
+  ReferenceAccount({
+    required this.id,
+    required this.platform,
+    required this.name,
+    this.url,
+    this.category,
+    this.followers = 0,
+    this.memo,
+    this.starred = false,
+  });
+
+  factory ReferenceAccount.fromMap(Map<String, dynamic> m) => ReferenceAccount(
+        id: m['id'],
+        platform: m['platform'] ?? 'Instagram',
+        name: m['name'] ?? '',
+        url: m['url'],
+        category: m['category'],
+        followers: _d(m['followers']),
+        memo: m['memo'],
         starred: m['starred'] == true,
       );
 }

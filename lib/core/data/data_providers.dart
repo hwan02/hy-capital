@@ -81,6 +81,21 @@ final knowledgeProvider = FutureProvider<List<KnowledgeNote>>((ref) async {
   }
 });
 
+/// 롤모델 계정. 테이블(0020) 미생성이면 빈 목록.
+final referenceAccountsProvider =
+    FutureProvider<List<ReferenceAccount>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  try {
+    final rows = await sb
+        .from('reference_accounts')
+        .select()
+        .order('created_at', ascending: false);
+    return rows.map<ReferenceAccount>(ReferenceAccount.fromMap).toList();
+  } catch (_) {
+    return const <ReferenceAccount>[];
+  }
+});
+
 final dividendProvider = FutureProvider<List<DividendHolding>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb
@@ -535,6 +550,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(landProvider);
   ref.invalidate(auctionProvider);
   ref.invalidate(knowledgeProvider);
+  ref.invalidate(referenceAccountsProvider);
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
   ref.invalidate(tasksProvider);

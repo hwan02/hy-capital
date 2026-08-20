@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
 import '../../core/edit/builtin_crud.dart';
@@ -490,6 +491,31 @@ class _NoteCardState extends State<_NoteCard> {
                         color: AppColors.textFaint, fontSize: 11)),
             ],
           ),
+          if ((n.url ?? '').isNotEmpty) ...[
+            const Gap(10),
+            InkWell(
+              onTap: () => launchUrl(Uri.parse(n.url!),
+                  mode: LaunchMode.externalApplication),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: kindColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.open_in_new_rounded, size: 13, color: kindColor),
+                  const Gap(6),
+                  Text('원문 보기',
+                      style: TextStyle(
+                          color: kindColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ),
+          ],
         ],
       ),
     );

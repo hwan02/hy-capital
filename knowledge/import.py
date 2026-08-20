@@ -59,6 +59,7 @@ def to_rows(doc, uid):
                 "tags": it.get("tags", []),
                 "source": src, "author": author,
                 "asker": it.get("asker"),
+                "url": it.get("url") or meta.get("url"),
                 "source_date": (it.get("asked_at") or date or "")[:10] or None,
             })
         else:               # 일반 글/메모
@@ -69,6 +70,7 @@ def to_rows(doc, uid):
                 "tags": it.get("tags", []),
                 "source": it.get("source") or src,
                 "author": it.get("author") or author,
+                "url": it.get("url") or meta.get("url"),
                 "source_date": (it.get("date") or date or "")[:10] or None,
             })
     return rows

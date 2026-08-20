@@ -24,22 +24,65 @@ Map<String, dynamic> _channelToMap(ShortsChannel c) => {
       'net_profit': c.netProfit,
     };
 
-class ShortsScreen extends ConsumerWidget {
+const _insta = Color(0xFFE1306C);
+
+/// 팔로워 수 표기 (1.2만 / 350만 / 8,500).
+String _followers(double v) {
+  if (v >= 10000) {
+    final man = v / 10000;
+    final t = man >= 100 ? man.toStringAsFixed(0) : man.toStringAsFixed(1);
+    return '${t.endsWith('.0') ? t.substring(0, t.length - 2) : t}만';
+  }
+  return v.round().toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
+}
+
+class ShortsScreen extends ConsumerStatefulWidget {
   const ShortsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShortsScreen> createState() => _ShortsScreenState();
+}
+
+class _ShortsScreenState extends ConsumerState<ShortsScreen> {
+  int _tab = 0; // 0=내 채널 · 1=롤모델
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(shortsProvider);
     return ModulePage(
       title: 'Shorts',
       icon: Icons.play_circle_fill_rounded,
-      color: AppColors.rose,
-      action: AddButton(
-        color: AppColors.rose,
-        onTap: () => editBuiltinRecord(context, ref, shortsSpec),
-      ),
+      color: _tab == 0 ? AppColors.rose : _insta,
+      action: _tab == 0
+          ? AddButton(
+              color: AppColors.rose,
+              onTap: () => editBuiltinRecord(context, ref, shortsSpec))
+          : AddButton(
+              color: _insta,
+              label: '롤모델',
+              onTap: () =>
+                  editBuiltinRecord(context, ref, referenceAccountSpec)),
       children: [
-        async.when(
+        Row(children: [
+          _ShortsTab(
+              label: '내 채널',
+              icon: Icons.play_circle_fill_rounded,
+              color: AppColors.rose,
+              selected: _tab == 0,
+              onTap: () => setState(() => _tab = 0)),
+          const Gap(8),
+          _ShortsTab(
+              label: '롤모델',
+              icon: Icons.star_rounded,
+              color: _insta,
+              selected: _tab == 1,
+              onTap: () => setState(() => _tab = 1)),
+        ]),
+        const Gap(18),
+        if (_tab == 1) const _RoleModelList(),
+        if (_tab == 0)
+          async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
           data: (channels) {
@@ -187,4 +230,232 @@ class _ChannelCard extends StatelessWidget {
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         ],
       );
+}
+
+/// Shorts 상단 전환 탭 (내 채널 / 롤모델).
+class _ShortsTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ShortsTab({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.16) : Colors.transparent,
+          border: Border.all(
+              color: selected ? color : AppColors.border,
+              width: selected ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 17, color: selected ? color : AppColors.textFaint),
+          const Gap(7),
+          Text(label,
+              style: TextStyle(
+                  color: selected ? color : AppColors.textSecondary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 롤모델 계정 목록 — 플랫폼별 필터 + 링크 열기.
+class _RoleModelList extends ConsumerStatefulWidget {
+  const _RoleModelList();
+
+  @override
+  ConsumerState<_RoleModelList> createState() => _RoleModelListState();
+}
+
+class _RoleModelListState extends ConsumerState<_RoleModelList> {
+  String _platform = '전체';
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(referenceAccountsProvider);
+    return async.when(
+      loading: AsyncStatus.loading,
+      error: AsyncStatus.error,
+      data: (all) {
+        if (all.isEmpty) {
+          return const EmptyState(
+            icon: Icons.star_outline_rounded,
+            message: '롤모델 계정이 없어요.\n벤치마킹할 인스타·유튜브 계정을 추가하세요.',
+          );
+        }
+        final platforms = <String>{for (final a in all) a.platform}.toList()
+          ..sort();
+        final list = _platform == '전체'
+            ? all
+            : all.where((a) => a.platform == _platform).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              _pf('전체', all.length),
+              for (final p in platforms)
+                _pf(p, all.where((a) => a.platform == p).length),
+            ]),
+            const Gap(14),
+            for (final a in list) ...[
+              _RoleModelCard(
+                acct: a,
+                onEdit: () => editBuiltinRecord(
+                    context, ref, referenceAccountSpec,
+                    initial: {
+                      'name': a.name,
+                      'platform': a.platform,
+                      'url': a.url,
+                      'category': a.category,
+                      'followers': a.followers,
+                      'memo': a.memo,
+                    },
+                    id: a.id),
+                onDelete: () => deleteBuiltinRecord(
+                    context, ref, referenceAccountSpec, a.id,
+                    name: a.name),
+              ),
+              const Gap(12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _pf(String label, int n) {
+    final sel = _platform == label;
+    return InkWell(
+      onTap: () => setState(() => _platform = label),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color: sel ? _insta.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: sel ? _insta : AppColors.border, width: sel ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text('$label $n',
+            style: TextStyle(
+                color: sel ? _insta : AppColors.textSecondary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+class _RoleModelCard extends StatelessWidget {
+  final ReferenceAccount acct;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _RoleModelCard(
+      {required this.acct, required this.onEdit, required this.onDelete});
+
+  static const _pfColor = {
+    'Instagram': _insta,
+    'YouTube': AppColors.rose,
+    'TikTok': AppColors.sky,
+  };
+  static const _pfIcon = {
+    'Instagram': Icons.camera_alt_rounded,
+    'YouTube': Icons.smart_display_rounded,
+    'TikTok': Icons.music_note_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _pfColor[acct.platform] ?? AppColors.textFaint;
+    final hasUrl = (acct.url ?? '').isNotEmpty;
+    return GlassCard(
+      accent: c,
+      onTap: hasUrl
+          ? () => launchUrl(Uri.parse(acct.url!),
+              mode: LaunchMode.externalApplication)
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(_pfIcon[acct.platform] ?? Icons.public_rounded,
+                size: 18, color: c),
+            const Gap(8),
+            Expanded(
+              child: Text(acct.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+            if (acct.followers > 0)
+              Text('팔로워 ${_followers(acct.followers)}',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12)),
+            RecordMenu(onEdit: onEdit, onDelete: onDelete),
+          ]),
+          const Gap(8),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(acct.platform,
+                  style: TextStyle(
+                      color: c, fontSize: 10.5, fontWeight: FontWeight.w800)),
+            ),
+            if ((acct.category ?? '').isNotEmpty) ...[
+              const Gap(6),
+              Text(acct.category!,
+                  style: const TextStyle(
+                      color: AppColors.textFaint, fontSize: 11.5)),
+            ],
+            const Spacer(),
+            if (hasUrl)
+              Row(children: [
+                Icon(Icons.open_in_new_rounded, size: 13, color: c),
+                const Gap(4),
+                Text('열기',
+                    style: TextStyle(
+                        color: c, fontSize: 12, fontWeight: FontWeight.w700)),
+              ]),
+          ]),
+          if ((acct.memo ?? '').isNotEmpty) ...[
+            const Gap(10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(acct.memo!,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      height: 1.5)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

@@ -126,6 +126,25 @@ const auctionSpec = BuiltinSpec(
   ],
 );
 
+const referenceAccountSpec = BuiltinSpec(
+  table: 'reference_accounts',
+  title: '롤모델 계정',
+  accent: Color(0xFFE1306C),
+  fields: [
+    FieldSpec(key: 'name', label: '계정명 / 채널명', type: FieldType.text, required: true),
+    FieldSpec(
+        key: 'platform',
+        label: '플랫폼',
+        type: FieldType.select,
+        required: true,
+        options: ['Instagram', 'YouTube', 'TikTok', '기타']),
+    FieldSpec(key: 'url', label: '링크 (프로필·릴스 URL)', type: FieldType.text),
+    FieldSpec(key: 'category', label: '분야 (부동산·재테크·브이로그 등)', type: FieldType.text),
+    FieldSpec(key: 'followers', label: '팔로워 수', type: FieldType.number),
+    FieldSpec(key: 'memo', label: '벤치마킹 포인트', type: FieldType.longtext),
+  ],
+);
+
 const dividendSpec = BuiltinSpec(
   table: 'dividend_holdings',
   title: '배당 종목',
