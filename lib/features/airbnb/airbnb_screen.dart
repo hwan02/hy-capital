@@ -150,7 +150,7 @@ class _UnitCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w700)),
               ),
               const Gap(10),
               Pill(statusLabel, color: statusColor),
@@ -158,7 +158,7 @@ class _UnitCard extends StatelessWidget {
               if (unit.expectedOpen != null)
                 Text('오픈 ${Dates.ymd(unit.expectedOpen!)}',
                     style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12)),
+                        color: AppColors.textSecondary, fontSize: AppFont.label)),
               RecordMenu(onEdit: onEdit, onDelete: onDelete),
             ],
           ),
@@ -169,7 +169,7 @@ class _UnitCard extends StatelessWidget {
               children: [
                 Text('준비금 ${Won.compact(unit.reserveFund)} / 목표 ${Won.compact(unit.targetFund)}원',
                     style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12.5)),
+                        color: AppColors.textSecondary, fontSize: AppFont.label)),
                 Text('${(unit.progress * 100).toStringAsFixed(0)}%',
                     style: const TextStyle(
                         color: AppColors.sky, fontWeight: FontWeight.w800)),
@@ -241,13 +241,13 @@ class _UnitMonthly extends ConsumerWidget {
               const Gap(8),
               Text('${now.month}월 거래 내역이 아직 없어요',
                   style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: 12)),
+                      color: AppColors.textFaint, fontSize: AppFont.label)),
             ],
             const Gap(16),
             const Divider(color: AppColors.border, height: 1),
             const Gap(14),
             const Text('월별 순이익',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
             const Gap(14),
             SizedBox(
               height: 116,
@@ -267,7 +267,7 @@ class _UnitMonthly extends ConsumerWidget {
                                     color: m.netProfit >= 0
                                         ? AppColors.primary
                                         : AppColors.rose,
-                                    fontSize: 12,
+                                    fontSize: AppFont.label,
                                     fontWeight: FontWeight.w800)),
                             const Gap(6),
                             Container(
@@ -284,7 +284,7 @@ class _UnitMonthly extends ConsumerWidget {
                             Text(Dates.ym(m.month),
                                 style: const TextStyle(
                                     color: AppColors.textFaint,
-                                    fontSize: 11.5)),
+                                    fontSize: AppFont.caption)),
                           ],
                         ),
                       ),
@@ -304,11 +304,11 @@ class _UnitMonthly extends ConsumerWidget {
           children: [
             Text(label,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.caption)),
             const Gap(3),
             Text('$won원',
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+                    fontSize: AppFont.section, fontWeight: FontWeight.w800, color: color)),
           ],
         ),
       );

@@ -213,7 +213,7 @@ class _EditSubHeader extends StatelessWidget {
         Text(title,
             style: const TextStyle(
                 color: AppColors.textFaint,
-                fontSize: 11.5,
+                fontSize: AppFont.caption,
                 fontWeight: FontWeight.w700)),
         const Spacer(),
         InkWell(
@@ -225,7 +225,7 @@ class _EditSubHeader extends StatelessWidget {
               Icon(Icons.add_rounded, size: 15, color: AppColors.sky),
               Gap(2),
               Text('추가',
-                  style: TextStyle(color: AppColors.sky, fontSize: 12)),
+                  style: TextStyle(color: AppColors.sky, fontSize: AppFont.label)),
             ]),
           ),
         ),
@@ -254,10 +254,10 @@ class _AllocRow extends StatelessWidget {
                 const BoxDecoration(color: AppColors.sky, shape: BoxShape.circle),
           ),
           const Gap(8),
-          Expanded(child: Text(a.category, style: const TextStyle(fontSize: 13))),
+          Expanded(child: Text(a.category, style: const TextStyle(fontSize: AppFont.label))),
           Text(allocText(a),
               style: TextStyle(
-                  fontSize: 13,
+                  fontSize: AppFont.label,
                   fontWeight: FontWeight.w700,
                   color: a.kind == 'rule'
                       ? AppColors.textSecondary
@@ -356,7 +356,7 @@ class _PhaseTile extends ConsumerWidget {
                         style: TextStyle(
                             color: color,
                             fontWeight: FontWeight.w800,
-                            fontSize: 13)),
+                            fontSize: AppFont.label)),
               ),
               if (!isLast)
                 Expanded(
@@ -379,7 +379,7 @@ class _PhaseTile extends ConsumerWidget {
                         Expanded(
                           child: Text(phase.title,
                               style: const TextStyle(
-                                  fontSize: 15.5,
+                                  fontSize: AppFont.section,
                                   fontWeight: FontWeight.w800)),
                         ),
                         Pill(status, color: color),
@@ -397,7 +397,7 @@ class _PhaseTile extends ConsumerWidget {
                       const Gap(6),
                       Text(phase.summary!,
                           style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12.5)),
+                              color: AppColors.textSecondary, fontSize: AppFont.label)),
                     ],
                     const Gap(10),
                     // 날짜
@@ -416,14 +416,14 @@ class _PhaseTile extends ConsumerWidget {
                                   ? '목표일 설정'
                                   : '목표 ${Dates.ymd(phase.targetDate!)} · ${Dates.dday(phase.targetDate!)}',
                               style: const TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 12),
+                                  color: AppColors.textSecondary, fontSize: AppFont.label),
                             ),
                             if (phase.achievedDate != null) ...[
                               const Gap(10),
                               Text('달성 ${Dates.ymd(phase.achievedDate!)}',
                                   style: const TextStyle(
                                       color: AppColors.primary,
-                                      fontSize: 12,
+                                      fontSize: AppFont.label,
                                       fontWeight: FontWeight.w700)),
                             ],
                           ],
@@ -449,7 +449,7 @@ class _PhaseTile extends ConsumerWidget {
                         padding: EdgeInsets.symmetric(vertical: 4),
                         child: Text('조건 없음',
                             style: TextStyle(
-                                color: AppColors.textFaint, fontSize: 12)),
+                                color: AppColors.textFaint, fontSize: AppFont.label)),
                       ),
                     // 배분 (나가는 돈 기본세팅 / 현금흐름 구성 목표)
                     const Gap(12),
@@ -550,7 +550,7 @@ class _ConditionRow extends StatelessWidget {
                 Expanded(
                   child: Text(cond.label,
                       style: TextStyle(
-                          fontSize: 13,
+                          fontSize: AppFont.label,
                           color: color,
                           fontWeight: FontWeight.w600,
                           decoration:
@@ -559,7 +559,7 @@ class _ConditionRow extends StatelessWidget {
                 if (cond.achievedDate != null)
                   Text(Dates.ymd(cond.achievedDate!),
                       style: const TextStyle(
-                          color: AppColors.primary, fontSize: 11)),
+                          color: AppColors.primary, fontSize: AppFont.caption)),
                 if (onEdit != null && onDelete != null)
                   RecordMenu(onEdit: onEdit!, onDelete: onDelete!),
               ],
@@ -578,7 +578,7 @@ class _ConditionRow extends StatelessWidget {
                     const Gap(4),
                     Text(sub,
                         style: const TextStyle(
-                            color: AppColors.textFaint, fontSize: 11)),
+                            color: AppColors.textFaint, fontSize: AppFont.caption)),
                   ],
                 ),
               ),
@@ -717,11 +717,11 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
               const Expanded(
                 child: Text('기본세팅',
                     style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w800)),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w800)),
               ),
               const Text('이번 달',
                   style:
-                      TextStyle(color: AppColors.textFaint, fontSize: 12)),
+                      TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
             ],
           ),
           const Gap(10),
@@ -742,7 +742,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
           const Gap(8),
           Text('Phase ${phase.phaseNo} · ${phase.title}',
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12.5)),
+                  color: AppColors.textSecondary, fontSize: AppFont.label)),
           const Gap(14),
           // 이번 달 실제 나간 돈 총액 (거래내역 기준)
           Container(
@@ -755,12 +755,12 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
               children: [
                 const Text('이번 달 실제 나간 돈',
                     style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
+                        color: AppColors.textSecondary, fontSize: AppFont.label)),
                 const Spacer(),
                 Text('${Won.compact(actualTotal)}원',
                     style: const TextStyle(
                         color: AppColors.sky,
-                        fontSize: 17,
+                        fontSize: AppFont.title,
                         fontWeight: FontWeight.w900)),
               ],
             ),
@@ -770,7 +770,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
               planMonthly > 0
                   ? '기본세팅 월 정기 계획 ${Won.compact(planMonthly)}원 · 아래는 항목별 계획/실제'
                   : '아래는 기본세팅(계획) 대비 이번 달 실제',
-              style: const TextStyle(color: AppColors.textFaint, fontSize: 11.5)),
+              style: const TextStyle(color: AppColors.textFaint, fontSize: AppFont.caption)),
           const Gap(12),
           const Divider(color: AppColors.border, height: 1),
           const Gap(6),
@@ -824,13 +824,13 @@ class _PlanActualRow extends StatelessWidget {
                 text: '$planLabel  /  ',
                 style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 13.5,
+                    fontSize: AppFont.body,
                     fontWeight: FontWeight.w600)),
             TextSpan(
                 text: actualText,
                 style: TextStyle(
                     color: actualColor,
-                    fontSize: 13.5,
+                    fontSize: AppFont.body,
                     fontWeight: FontWeight.w800)),
           ]),
         );
@@ -842,7 +842,7 @@ class _PlanActualRow extends StatelessWidget {
               child: Text(alloc.category,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      fontSize: AppFont.body, fontWeight: FontWeight.w700)),
             ),
             planActual(planLabel),
             const Gap(4),
@@ -867,7 +867,7 @@ class _PlanActualRow extends StatelessWidget {
             Text(
                 '현재 ${Won.compact(accumulated)}원 / 총 목표 ${Won.compact(target)}원 (${(pct * 100).toStringAsFixed(0)}%)',
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
           ],
         ),
       );
@@ -915,7 +915,7 @@ class _PhaseChip extends StatelessWidget {
             Text(label,
                 style: TextStyle(
                     color: selected ? base : AppColors.textSecondary,
-                    fontSize: 12.5,
+                    fontSize: AppFont.label,
                     fontWeight: FontWeight.w800)),
             if (isCurrent) ...[
               const Gap(4),
@@ -978,7 +978,7 @@ class _PlanRoadmapCompactState extends ConsumerState<PlanRoadmapCompact> {
               const Icon(Icons.route_rounded, color: AppColors.gold, size: 18),
               const Gap(8),
               const Text('재무 로드맵',
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800)),
+                  style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
               const Spacer(),
               Pill('현재 Phase ${current.phaseNo}', color: AppColors.gold),
             ],
@@ -1016,7 +1016,7 @@ class _PlanRoadmapCompactState extends ConsumerState<PlanRoadmapCompact> {
               Expanded(
                 child: Text(sel.title,
                     style: const TextStyle(
-                        fontSize: 14.5, fontWeight: FontWeight.w800)),
+                        fontSize: AppFont.body, fontWeight: FontWeight.w800)),
               ),
             ],
           ),
@@ -1024,14 +1024,14 @@ class _PlanRoadmapCompactState extends ConsumerState<PlanRoadmapCompact> {
             const Gap(6),
             Text(sel.summary!,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
           ],
           const Gap(10),
           if (selConds.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 6),
               child: Text('이 단계는 별도 전환 조건이 없습니다',
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12.5)),
+                  style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
             )
           else
             for (final c in selConds)
@@ -1071,7 +1071,7 @@ class _StepDot extends StatelessWidget {
           ? const Icon(Icons.check_rounded, size: 14, color: AppColors.primary)
           : Text('${phase.phaseNo}',
               style: TextStyle(
-                  color: color, fontWeight: FontWeight.w800, fontSize: 12.5)),
+                  color: color, fontWeight: FontWeight.w800, fontSize: AppFont.label)),
     );
   }
 }

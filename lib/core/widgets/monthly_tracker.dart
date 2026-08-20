@@ -195,12 +195,12 @@ class _AllView extends StatelessWidget {
           children: [
             Text('${Won.compact(total)}원',
                 style: TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.w900, color: accent)),
+                    fontSize: AppFont.display, fontWeight: FontWeight.w900, color: accent)),
             const Gap(8),
             const Padding(
               padding: EdgeInsets.only(bottom: 3),
               child: Text('누적 순이익',
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
             ),
           ],
         ),
@@ -224,7 +224,7 @@ class _AllView extends StatelessWidget {
                           Text('${Won.compact(e.amount)}원',
                               style: const TextStyle(
                                   color: AppColors.textSecondary,
-                                  fontSize: 11,
+                                  fontSize: AppFont.caption,
                                   fontWeight: FontWeight.w700)),
                           const Gap(5),
                           Container(
@@ -237,7 +237,7 @@ class _AllView extends StatelessWidget {
                           const Gap(6),
                           Text(Dates.ym(e.month),
                               style: const TextStyle(
-                                  color: AppColors.textFaint, fontSize: 11)),
+                                  color: AppColors.textFaint, fontSize: AppFont.caption)),
                         ],
                       ),
                     ),
@@ -274,11 +274,11 @@ class _MonthView extends StatelessWidget {
         children: [
           Text('${Dates.ym(month)} 순이익',
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13)),
+                  color: AppColors.textSecondary, fontSize: AppFont.label)),
           const Gap(6),
           Text('${Won.compact(amount)}원',
               style: TextStyle(
-                  fontSize: 32, fontWeight: FontWeight.w900, color: accent)),
+                  fontSize: AppFont.hero, fontWeight: FontWeight.w900, color: accent)),
         ],
       ),
     );
@@ -312,7 +312,7 @@ class _Chip extends StatelessWidget {
                 style: TextStyle(
                     color: selected ? Colors.white : AppColors.textSecondary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13)),
+                    fontSize: AppFont.label)),
           ),
         ),
       ),

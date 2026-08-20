@@ -136,7 +136,7 @@ class _ProjectCard extends StatelessWidget {
               Expanded(
                 child: Text(project.name,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w700)),
               ),
               Pill(statusLabel, color: statusColor),
               RecordMenu(onEdit: onEdit, onDelete: onDelete),
@@ -158,7 +158,7 @@ class _ProjectCard extends StatelessWidget {
                 Text(
                     '사업자금 ${Won.compact(project.reserveFund)} / 목표 ${Won.compact(project.targetFund)}원',
                     style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12.5)),
+                        color: AppColors.textSecondary, fontSize: AppFont.label)),
                 Text('${(project.fundProgress * 100).toStringAsFixed(0)}%',
                     style: const TextStyle(
                         color: Color(0xFFB4844E),
@@ -191,11 +191,11 @@ class _ProjectCard extends StatelessWidget {
           children: [
             Text(label,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.caption)),
             const Gap(3),
             Text(value,
                 style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
           ],
         ),
       );
@@ -207,10 +207,10 @@ class _ProjectCard extends StatelessWidget {
           const Gap(8),
           Text('$label  ',
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12.5)),
+                  color: AppColors.textSecondary, fontSize: AppFont.label)),
           Expanded(
             child: Text(value,
-                style: const TextStyle(fontSize: 12.5, height: 1.4)),
+                style: const TextStyle(fontSize: AppFont.label, height: 1.4)),
           ),
         ],
       );

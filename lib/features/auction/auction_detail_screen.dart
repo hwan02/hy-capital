@@ -166,7 +166,7 @@ class _SurveyTab extends StatelessWidget {
                           ? '현재시세 (자동) ${Won.compact(p.currentPrice)}원'
                           : '시세 평균가를 채우면 현재시세가 자동 계산돼요',
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700)),
+                          fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
@@ -261,7 +261,7 @@ class _PhotosTabState extends State<_PhotosTab> {
           ),
           const Gap(8),
           const Text('물건상세·감정평가·현황조사서·임차인 현황 등 캡처를 여러 장 올리세요.',
-              style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
           const Gap(18),
           if (imgs.isEmpty)
             const Padding(
@@ -417,10 +417,10 @@ class _CalcTabState extends State<_CalcTab> {
                   children: [
                     const Text('예상 입찰가',
                         style: TextStyle(
-                            fontSize: 13, color: AppColors.textSecondary)),
+                            fontSize: AppFont.label, color: AppColors.textSecondary)),
                     Text('${Won.compact(bid)}원',
                         style: const TextStyle(
-                            fontSize: 20,
+                            fontSize: AppFont.display,
                             fontWeight: FontWeight.w900,
                             color: _teal)),
                   ],
@@ -437,7 +437,7 @@ class _CalcTabState extends State<_CalcTab> {
                   Text(
                       '현재시세 ${Won.compact(cp)}원 대비 ${((cp - bid) / cp * 100).toStringAsFixed(0)}% 할인',
                       style: const TextStyle(
-                          color: AppColors.textFaint, fontSize: 12)),
+                          color: AppColors.textFaint, fontSize: AppFont.label)),
               ],
             ),
           ),
@@ -461,7 +461,7 @@ class _CalcTabState extends State<_CalcTab> {
           ],
           const Gap(20),
           const Text('금액 입력',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+              style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
           const Gap(8),
           Wrap(
             spacing: 8,
@@ -482,7 +482,7 @@ class _CalcTabState extends State<_CalcTab> {
           Row(
             children: [
               const Text('판단',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: AppFont.label, color: AppColors.textSecondary)),
               const Gap(12),
               for (final v in ['GO', 'HOLD', 'PASS']) ...[
                 _verdictChip(v),
@@ -546,11 +546,11 @@ class _CalcTabState extends State<_CalcTab> {
           children: [
             Text(label,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.caption)),
             const Gap(3),
             Text(value,
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w900, color: color)),
+                    fontSize: AppFont.section, fontWeight: FontWeight.w900, color: color)),
           ],
         ),
       );
@@ -577,7 +577,7 @@ class _CalcTabState extends State<_CalcTab> {
         child: Text(v,
             style: TextStyle(
                 color: on ? c : AppColors.textSecondary,
-                fontSize: 12.5,
+                fontSize: AppFont.label,
                 fontWeight: FontWeight.w800)),
       ),
     );
@@ -599,7 +599,7 @@ class _CalcTabState extends State<_CalcTab> {
                 child: Text(text,
                     style: const TextStyle(
                         color: AppColors.rose,
-                        fontSize: 12.5,
+                        fontSize: AppFont.label,
                         fontWeight: FontWeight.w700))),
           ],
         ),
@@ -639,7 +639,7 @@ class _MemoTabState extends State<_MemoTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('#시세 #부동산전화 #대출 #권리 #임차인 #명도 #현장 #수리 #입찰',
-              style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
           const Gap(10),
           TextField(
             controller: _c,
@@ -725,15 +725,15 @@ class _MoneyFieldState extends State<_MoneyField> {
         widget.onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0);
         setState(() {});
       },
-      style: const TextStyle(fontSize: 13),
+      style: const TextStyle(fontSize: AppFont.body),
       decoration: InputDecoration(
         labelText: widget.label,
-        labelStyle: const TextStyle(fontSize: 11.5),
+        labelStyle: const TextStyle(fontSize: AppFont.caption),
         isDense: true,
         contentPadding: const EdgeInsets.fromLTRB(10, 12, 8, 8),
         suffixText: n > 0 ? Won.compact(n) : null,
         suffixStyle: const TextStyle(
-            color: _teal, fontWeight: FontWeight.w800, fontSize: 11.5),
+            color: _teal, fontWeight: FontWeight.w800, fontSize: AppFont.caption),
         filled: true,
         fillColor: AppColors.surfaceAlt,
         border: OutlineInputBorder(

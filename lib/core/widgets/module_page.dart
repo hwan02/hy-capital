@@ -65,7 +65,7 @@ class ModulePage extends ConsumerWidget {
                             Text(
                               title,
                               style: const TextStyle(
-                                fontSize: 24,
+                                fontSize: AppFont.display,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.5,
                               ),
@@ -76,7 +76,7 @@ class ModulePage extends ConsumerWidget {
                                 subtitle!,
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
-                                  fontSize: 13,
+                                  fontSize: AppFont.label,
                                 ),
                               ),
                             ],

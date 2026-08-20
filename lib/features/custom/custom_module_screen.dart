@@ -158,7 +158,7 @@ class _RecordCard extends StatelessWidget {
                       ? '(제목 없음)'
                       : titleVal.toString(),
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
+                      fontSize: AppFont.section, fontWeight: FontWeight.w700),
                 ),
               ),
               _MenuButton(onEdit: onEdit, onDelete: onDelete),
@@ -176,11 +176,11 @@ class _RecordCard extends StatelessWidget {
                     children: [
                       Text(f.label,
                           style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 11.5)),
+                              color: AppColors.textSecondary, fontSize: AppFont.caption)),
                       const Gap(3),
                       Text(f.display(record.data[f.key]),
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w700)),
+                              fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                     ],
                   ),
               ],

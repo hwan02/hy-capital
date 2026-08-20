@@ -276,11 +276,11 @@ class _AiCfoScreenState extends ConsumerState<AiCfoScreen> {
                               child: Text(r.summary ?? '리포트',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13)),
+                                  style: const TextStyle(fontSize: AppFont.label)),
                             ),
                             Text(Dates.ymd(r.reportDate),
                                 style: const TextStyle(
-                                    color: AppColors.textFaint, fontSize: 12)),
+                                    color: AppColors.textFaint, fontSize: AppFont.label)),
                           ],
                         ),
                       ),
@@ -353,13 +353,13 @@ class _LatestReport extends StatelessWidget {
                       style: const TextStyle(
                           color: AppColors.violet,
                           fontWeight: FontWeight.w700,
-                          fontSize: 12.5)),
+                          fontSize: AppFont.label)),
                 ],
               ),
               const Gap(12),
               Text(report.summary ?? '',
                   style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: AppFont.title,
                       fontWeight: FontWeight.w700,
                       height: 1.45)),
             ],
@@ -390,11 +390,11 @@ class _LatestReport extends StatelessWidget {
                         Text(i.label,
                             style: const TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 12)),
+                                fontSize: AppFont.label)),
                         const Gap(4),
                         Text(i.value!,
                             style: const TextStyle(
-                                fontSize: 14.5,
+                                fontSize: AppFont.body,
                                 fontWeight: FontWeight.w600,
                                 height: 1.4)),
                       ],

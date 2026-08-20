@@ -153,7 +153,7 @@ class _ModuleEditorState extends ConsumerState<_ModuleEditor> {
                 children: [
                   Text(widget.existing == null ? '새 모듈 만들기' : '모듈 설정',
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800)),
+                          fontSize: AppFont.title, fontWeight: FontWeight.w800)),
                   const Spacer(),
                   if (widget.existing != null)
                     IconButton(
@@ -265,7 +265,7 @@ class _Label extends StatelessWidget {
   const _Label(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14));
+      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: AppFont.body));
 }
 
 class _IconPicker extends StatelessWidget {
@@ -377,7 +377,7 @@ class _FieldRow extends StatelessWidget {
                 ),
                 Text(kFieldTypeLabels[spec.type] ?? '',
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11.5)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
               ],
             ),
           ),

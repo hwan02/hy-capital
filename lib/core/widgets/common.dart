@@ -60,7 +60,7 @@ class SectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: AppFont.title,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -70,7 +70,7 @@ class SectionHeader extends StatelessWidget {
                   subtitle!,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 12.5,
+                    fontSize: AppFont.label,
                   ),
                 ),
               ],
@@ -127,7 +127,7 @@ class StatTile extends StatelessWidget {
                   delta!,
                   style: TextStyle(
                     color: deltaPositive ? AppColors.primary : AppColors.rose,
-                    fontSize: 12,
+                    fontSize: AppFont.label,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -141,7 +141,7 @@ class StatTile extends StatelessWidget {
               value,
               maxLines: 1,
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: AppFont.display,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
               ),
@@ -154,7 +154,7 @@ class StatTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textSecondary,
-              fontSize: 12.5,
+              fontSize: AppFont.label,
             ),
           ),
         ],
@@ -208,7 +208,7 @@ class Pill extends StatelessWidget {
         text,
         style: TextStyle(
           color: color,
-          fontSize: 11.5,
+          fontSize: AppFont.caption,
           fontWeight: FontWeight.w700,
         ),
       ),

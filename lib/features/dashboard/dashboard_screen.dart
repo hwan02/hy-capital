@@ -110,7 +110,7 @@ class _FreedomHero extends ConsumerWidget {
                         style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,
-                            fontSize: 13,
+                            fontSize: AppFont.label,
                             letterSpacing: 1.4)),
                   ],
                 ),
@@ -187,7 +187,7 @@ class _FreedomHero extends ConsumerWidget {
       children: [
         Text(label,
             style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 13)),
+                color: AppColors.textSecondary, fontSize: AppFont.label)),
         const Gap(4),
         Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -195,13 +195,13 @@ class _FreedomHero extends ConsumerWidget {
           children: [
             Text(value,
                 style: const TextStyle(
-                    fontSize: 23, fontWeight: FontWeight.w900)),
+                    fontSize: AppFont.display, fontWeight: FontWeight.w900)),
             if (delta != null) ...[
               const Gap(8),
               Text(delta,
                   style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: 15,
+                      fontSize: AppFont.section,
                       fontWeight: FontWeight.w800)),
             ],
           ],
@@ -227,7 +227,7 @@ class _MonthlyStrip extends StatelessWidget {
       children: [
         const Text('월별 현금흐름 · 월급 제외',
             style: TextStyle(
-                fontSize: 12.5,
+                fontSize: AppFont.label,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w700)),
         const Gap(12),
@@ -241,13 +241,13 @@ class _MonthlyStrip extends StatelessWidget {
                   width: 52,
                   child: Text(Dates.ym(r.month),
                       style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13)),
+                          color: AppColors.textSecondary, fontSize: AppFont.label)),
                 ),
                 const Gap(14),
                 Text('${Won.compact(r.nonSalary)}원',
                     style: const TextStyle(
                         color: AppColors.primary,
-                        fontSize: 22,
+                        fontSize: AppFont.display,
                         fontWeight: FontWeight.w900)),
               ],
             ),
@@ -288,16 +288,16 @@ class _FreedomGauge extends StatelessWidget {
             children: [
               Text('$cur',
                   style: const TextStyle(
-                      fontSize: 40, fontWeight: FontWeight.w900, height: 1)),
+                      fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1)),
               const Gap(2),
               Text('/ $tgt만',
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 14)),
+                      color: AppColors.textSecondary, fontSize: AppFont.body)),
               const Gap(3),
               Text('${m.freedomScore.toStringAsFixed(0)}% 달성',
                   style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: 13.5,
+                      fontSize: AppFont.body,
                       fontWeight: FontWeight.w800)),
             ],
           ),
@@ -373,7 +373,7 @@ class _MoneyFlowSummary extends ConsumerWidget {
               const Expanded(child: SectionHeader('자금 흐름')),
               Text(lm == null ? '' : Dates.ym(lm),
                   style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: 12.5)),
+                      color: AppColors.textFaint, fontSize: AppFont.label)),
               const Gap(6),
               const Icon(Icons.chevron_right, color: AppColors.textFaint, size: 18),
             ],
@@ -431,7 +431,7 @@ class _MiniDonut extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
         const Gap(16),
         if (total <= 0)
           SizedBox(
@@ -462,7 +462,7 @@ class _MiniDonut extends StatelessWidget {
                     )),
                     Text('${Won.compact(total)}원',
                         style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w900, color: color)),
+                            fontSize: AppFont.section, fontWeight: FontWeight.w900, color: color)),
                   ],
                 ),
               ),
@@ -489,19 +489,19 @@ class _MiniDonut extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                      fontSize: 13, fontWeight: FontWeight.w600)),
+                                      fontSize: AppFont.label, fontWeight: FontWeight.w600)),
                             ),
                             const Gap(8),
                             Text('${(s.value / total * 100).toStringAsFixed(0)}%',
                                 style: TextStyle(
                                     color: color,
-                                    fontSize: 13,
+                                    fontSize: AppFont.label,
                                     fontWeight: FontWeight.w800)),
                             const Gap(8),
                             Text('${Won.compact(s.value)}원',
                                 style: const TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 13,
+                                    fontSize: AppFont.label,
                                     fontWeight: FontWeight.w700)),
                           ],
                         ),
@@ -546,7 +546,7 @@ class _CapitalProgress extends ConsumerWidget {
               children: [
                 Text(it.label,
                     style: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w600)),
+                        fontSize: AppFont.body, fontWeight: FontWeight.w600)),
                 Text('${(it.progress * 100).toStringAsFixed(0)}%',
                     style: TextStyle(color: it.color, fontWeight: FontWeight.w800)),
               ],
@@ -556,7 +556,7 @@ class _CapitalProgress extends ConsumerWidget {
             const Gap(4),
             Text('${Won.compact(it.reserve)} / ${Won.compact(it.target)}원',
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.caption)),
             const Gap(16),
           ],
         ],
@@ -610,12 +610,12 @@ class _NextGoalsCard extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w700)),
+                            fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                   ),
                   if (g.targetDate != null)
                     Text(Dates.dday(g.targetDate!),
                         style: const TextStyle(
-                            color: AppColors.textFaint, fontSize: 11.5)),
+                            color: AppColors.textFaint, fontSize: AppFont.caption)),
                 ],
               ),
               const Gap(7),
@@ -626,12 +626,12 @@ class _NextGoalsCard extends ConsumerWidget {
                 children: [
                   Text(_goalValue(g),
                       style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11.5)),
+                          color: AppColors.textSecondary, fontSize: AppFont.caption)),
                   Text('${(g.progress * 100).toStringAsFixed(0)}%',
                       style: const TextStyle(
                           color: AppColors.violet,
                           fontWeight: FontWeight.w800,
-                          fontSize: 12)),
+                          fontSize: AppFont.label)),
                 ],
               ),
               const Gap(16),
@@ -667,7 +667,7 @@ class _BusinessEngines extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.only(bottom: 12, left: 2),
           child: Text('사업 엔진 · 평균 / 이번 달',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w700)),
         ),
         ResponsiveGrid(
           minTileWidth: 180,
@@ -688,7 +688,7 @@ class _BusinessEngines extends StatelessWidget {
                         const Gap(8),
                         Text(e.name,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: 13.5)),
+                                fontWeight: FontWeight.w600, fontSize: AppFont.body)),
                         const Spacer(),
                         const Icon(Icons.chevron_right,
                             color: AppColors.textFaint, size: 16),
@@ -698,17 +698,17 @@ class _BusinessEngines extends StatelessWidget {
                     if (e.name == '토지') ...[
                       Text('${e.avg.toStringAsFixed(0)}건',
                           style: TextStyle(
-                              fontSize: 19,
+                              fontSize: AppFont.title,
                               fontWeight: FontWeight.w800,
                               color: e.color)),
                       const Text('프로젝트',
                           style: TextStyle(
-                              color: AppColors.textFaint, fontSize: 10.5)),
+                              color: AppColors.textFaint, fontSize: AppFont.micro)),
                       const Gap(5),
                       Text(e.avg > 0 ? '진행 중' : '없음',
                           style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 12,
+                              fontSize: AppFont.label,
                               fontWeight: FontWeight.w600)),
                     ] else ...[
                       FittedBox(
@@ -717,20 +717,20 @@ class _BusinessEngines extends StatelessWidget {
                         child: Text('${Won.compact(e.avg)}원',
                             maxLines: 1,
                             style: TextStyle(
-                                fontSize: 19,
+                                fontSize: AppFont.title,
                                 fontWeight: FontWeight.w800,
                                 color: e.color)),
                       ),
                       const Text('평균(월)',
                           style: TextStyle(
-                              color: AppColors.textFaint, fontSize: 10.5)),
+                              color: AppColors.textFaint, fontSize: AppFont.micro)),
                       const Gap(5),
                       Text('이번 달 ${Won.compact(e.thisMonth)}원',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 12,
+                              fontSize: AppFont.label,
                               fontWeight: FontWeight.w600)),
                     ],
                   ],
@@ -813,7 +813,7 @@ class _TodayTasks extends ConsumerWidget {
                               t.title,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: AppFont.body,
                                 decoration: t.done
                                     ? TextDecoration.lineThrough
                                     : null,

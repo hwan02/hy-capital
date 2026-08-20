@@ -256,7 +256,7 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
           SizedBox(
             width: 150,
             child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFont.body)),
           ),
           Expanded(child: ProgressBar(value: pct, color: color)),
           const Gap(12),
@@ -264,14 +264,14 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
             width: 90,
             child: Text('${Won.compact(val)}원',
                 textAlign: TextAlign.right,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: AppFont.body)),
           ),
           SizedBox(
             width: 44,
             child: Text('${(pct * 100).toStringAsFixed(0)}%',
                 textAlign: TextAlign.right,
                 style: const TextStyle(
-                    color: AppColors.textFaint, fontSize: 12)),
+                    color: AppColors.textFaint, fontSize: AppFont.label)),
           ),
         ],
       ),
@@ -302,7 +302,7 @@ class _MonthChip extends StatelessWidget {
                 style: TextStyle(
                     color: selected ? const Color(0xFF04130A) : AppColors.textSecondary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13)),
+                    fontSize: AppFont.label)),
           ),
         ),
       ),
@@ -349,7 +349,7 @@ class _MonthlyBars extends StatelessWidget {
                                       color: m.netProfit >= 0
                                           ? AppColors.primary
                                           : AppColors.rose,
-                                      fontSize: 12.5,
+                                      fontSize: AppFont.label,
                                       fontWeight: FontWeight.w800)),
                             ),
                             const Gap(6),
@@ -370,7 +370,7 @@ class _MonthlyBars extends StatelessWidget {
                             Text(Dates.ym(m.month),
                                 style: const TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 11.5,
+                                    fontSize: AppFont.caption,
                                     fontWeight: FontWeight.w600)),
                           ],
                         ),
@@ -403,7 +403,7 @@ class _TxnRow extends StatelessWidget {
             width: 60,
             child: Text(Dates.md(txn.date),
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
           ),
           const Gap(8),
           Expanded(
@@ -416,7 +416,7 @@ class _TxnRow extends StatelessWidget {
                       : (txn.nights > 0 ? '${txn.nights.toStringAsFixed(0)}박 예약' : '지출'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFont.body),
                 ),
                 const Gap(2),
                 Text(
@@ -424,7 +424,7 @@ class _TxnRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11.5)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
               ],
             ),
           ),
@@ -432,7 +432,7 @@ class _TxnRow extends StatelessWidget {
               style: TextStyle(
                   color: pos ? AppColors.primary : AppColors.rose,
                   fontWeight: FontWeight.w800,
-                  fontSize: 14)),
+                  fontSize: AppFont.body)),
           RecordMenu(onEdit: onEdit, onDelete: onDelete),
         ],
       ),

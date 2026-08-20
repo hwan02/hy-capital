@@ -183,7 +183,7 @@ class _RecordFormState extends State<_RecordForm> {
                 children: [
                   Text(widget.title,
                       style: const TextStyle(
-                          fontSize: 19, fontWeight: FontWeight.w800)),
+                          fontSize: AppFont.title, fontWeight: FontWeight.w800)),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
@@ -334,7 +334,7 @@ class _RecordFormState extends State<_RecordForm> {
                     ? const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w800,
-                        fontSize: 14)
+                        fontSize: AppFont.body)
                     : const TextStyle(color: AppColors.textFaint),
               ),
               validator: (v) => f.required && (v == null || v.trim().isEmpty)
@@ -409,7 +409,7 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
               ),
               Text('${month.year}년 ${month.month}월',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
+                      fontSize: AppFont.section, fontWeight: FontWeight.w800)),
               IconButton(
                 icon: const Icon(Icons.chevron_right_rounded),
                 onPressed: () => setState(
@@ -430,7 +430,7 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
                           child: Text(w,
                               style: const TextStyle(
                                   color: AppColors.textFaint,
-                                  fontSize: 12,
+                                  fontSize: AppFont.label,
                                   fontWeight: FontWeight.w700)),
                         ),
                       ),
@@ -468,7 +468,7 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
                                     fontWeight: isSel
                                         ? FontWeight.w800
                                         : FontWeight.w500,
-                                    fontSize: 13.5)),
+                                    fontSize: AppFont.body)),
                           ),
                         );
                       }),
@@ -477,7 +477,7 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
                 const Gap(6),
                 const Text('날짜를 더블클릭하면 바로 선택돼요',
                     style:
-                        TextStyle(color: AppColors.textFaint, fontSize: 11)),
+                        TextStyle(color: AppColors.textFaint, fontSize: AppFont.caption)),
               ],
             ),
           ),
@@ -512,7 +512,7 @@ Future<DateTime?> pickMonth(BuildContext context, {DateTime? initial}) {
               onPressed: () => setState(() => year--),
             ),
             Text('$year년',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                style: const TextStyle(fontSize: AppFont.title, fontWeight: FontWeight.w800)),
             IconButton(
               icon: const Icon(Icons.chevron_right_rounded),
               onPressed: () => setState(() => year++),
@@ -562,7 +562,7 @@ Future<int?> pickYear(BuildContext context, {int? initial}) {
               onPressed: () => setState(() => year--),
             ),
             Text('$year년',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                style: const TextStyle(fontSize: AppFont.display, fontWeight: FontWeight.w800)),
             IconButton(
               icon: const Icon(Icons.chevron_right_rounded),
               onPressed: () => setState(() => year++),

@@ -64,13 +64,13 @@ class GoalsScreen extends ConsumerWidget {
                           children: [
                             Text('$done / ${goals.length} 목표 달성',
                                 style: const TextStyle(
-                                    fontSize: 16,
+                                    fontSize: AppFont.section,
                                     fontWeight: FontWeight.w800)),
                             const Gap(4),
                             const Text('경제적 자유까지의 마일스톤',
                                 style: TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 12.5)),
+                                    fontSize: AppFont.label)),
                           ],
                         ),
                       ),
@@ -131,7 +131,7 @@ class _GoalCard extends StatelessWidget {
               Expanded(
                 child: Text(goal.title,
                     style: const TextStyle(
-                        fontSize: 15.5, fontWeight: FontWeight.w700)),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w700)),
               ),
               if (goal.targetDate != null)
                 Pill(Dates.dday(goal.targetDate!),
@@ -147,7 +147,7 @@ class _GoalCard extends StatelessWidget {
             children: [
               Text(_value,
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12.5)),
+                      color: AppColors.textSecondary, fontSize: AppFont.label)),
               Text('${(goal.progress * 100).toStringAsFixed(0)}%',
                   style:
                       TextStyle(color: color, fontWeight: FontWeight.w800)),

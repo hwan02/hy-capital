@@ -190,7 +190,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                   const Gap(10),
                   Text(title,
                       style: const TextStyle(
-                          fontSize: 14.5, fontWeight: FontWeight.w700)),
+                          fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                   if (badge != null) ...[
                     const Gap(8),
                     Container(
@@ -203,7 +203,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                       child: Text(badge,
                           style: TextStyle(
                               color: color,
-                              fontSize: 11,
+                              fontSize: AppFont.caption,
                               fontWeight: FontWeight.w800)),
                     ),
                   ],
@@ -250,7 +250,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                     size: 15, color: greenC),
                 const Gap(4),
                 Text('최저·최고·전세·월세 상세',
-                    style: TextStyle(color: greenC, fontSize: 12.5)),
+                    style: TextStyle(color: greenC, fontSize: AppFont.label)),
               ]),
             ),
           ),
@@ -271,7 +271,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
             controller: _c['nakchal'],
             minLines: 2,
             maxLines: 4,
-            style: const TextStyle(fontSize: 14),
+            style: const TextStyle(fontSize: AppFont.body),
             decoration: _dec('감정가 대비 낙찰가, 날짜 등'),
           ),
         ],
@@ -301,7 +301,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
             controller: _c['field_note'],
             minLines: 2,
             maxLines: 5,
-            style: const TextStyle(fontSize: 14),
+            style: const TextStyle(fontSize: AppFont.body),
             decoration: _dec('예: 소유자 점유, 관리비 50만 미납, 우편물 확인'),
           ),
           const Gap(10),
@@ -316,7 +316,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
               Gap(8),
               Expanded(
                   child: Text('현장 사진은 위 [사진] 탭에서 올리세요',
-                      style: TextStyle(color: _teal, fontSize: 12.5))),
+                      style: TextStyle(color: _teal, fontSize: AppFont.label))),
             ]),
           ),
         ],
@@ -330,12 +330,12 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
           children: [
             Text(label,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
             const Gap(5),
             TextField(
               controller: _c[key],
               style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w600),
               decoration: _dec('예: 4.5억 / 45,000만'),
             ),
           ],
@@ -355,13 +355,13 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                 children: [
                   Text(label,
                       style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12.5)),
+                          color: AppColors.textSecondary, fontSize: AppFont.label)),
                   const Gap(5),
                   TextField(
                     controller: _c[key],
                     minLines: multiline ? 1 : 1,
                     maxLines: multiline ? 3 : 1,
-                    style: const TextStyle(fontSize: 14),
+                    style: const TextStyle(fontSize: AppFont.body),
                     decoration: _dec('없음 / 내용'),
                   ),
                 ],
@@ -383,11 +383,11 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
               children: [
                 Text(sub,
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
                 const Gap(3),
                 TextField(
                   controller: _c[key],
-                  style: const TextStyle(fontSize: 13.5),
+                  style: const TextStyle(fontSize: AppFont.body),
                   decoration: _dec(''),
                 ),
               ],
@@ -412,7 +412,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
           const Gap(12),
           Text(label,
               style: TextStyle(
-                  fontSize: 14.5,
+                  fontSize: AppFont.body,
                   color: on ? AppColors.textPrimary : AppColors.textSecondary,
                   fontWeight: on ? FontWeight.w600 : FontWeight.w400)),
         ]),
@@ -452,7 +452,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                   const Gap(6),
                   Text(label,
                       style: TextStyle(
-                          fontSize: 13,
+                          fontSize: AppFont.label,
                           fontWeight: FontWeight.w700,
                           color: (_checks[key] ?? false)
                               ? AppColors.textPrimary
@@ -467,7 +467,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
         padding: const EdgeInsets.only(bottom: 6),
         child: Text(t,
             style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w700)),
+                fontSize: AppFont.label, fontWeight: FontWeight.w700)),
       );
 
   InputDecoration _dec(String hint) => InputDecoration(

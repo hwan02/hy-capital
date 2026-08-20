@@ -322,7 +322,7 @@ class _MonthChip extends StatelessWidget {
                 style: TextStyle(
                     color: selected ? const Color(0xFF1B1400) : AppColors.textSecondary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13)),
+                    fontSize: AppFont.label)),
           ),
         ),
       ),
@@ -369,7 +369,7 @@ class _DonutCard extends StatelessWidget {
             ],
           )),
           Text('${Won.compact(total)}원',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+              style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -393,16 +393,16 @@ class _DonutCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600)),
+                          fontSize: AppFont.body, fontWeight: FontWeight.w600)),
                 ),
                 const Gap(10),
                 Text('${(s.value / total * 100).toStringAsFixed(0)}%',
                     style: TextStyle(
-                        color: color, fontSize: 14, fontWeight: FontWeight.w800)),
+                        color: color, fontSize: AppFont.body, fontWeight: FontWeight.w800)),
                 const Gap(10),
                 Text('${Won.compact(s.value)}원',
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
+                        fontWeight: FontWeight.w700, fontSize: AppFont.body)),
               ],
             ),
           ),
@@ -431,11 +431,11 @@ class _DonutCard extends StatelessWidget {
           Row(
             children: [
               Text(title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
               const Spacer(),
               Text('${Won.compact(total)}원',
                   style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+                      fontSize: AppFont.section, fontWeight: FontWeight.w900, color: color)),
             ],
           ),
           const Gap(18),
@@ -490,7 +490,7 @@ class _MonthlyFlowBars extends StatelessWidget {
                             Text('${byMonth[k]! >= 0 ? '+' : ''}${Won.compact(byMonth[k]!)}',
                                 style: const TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 11.5,
+                                    fontSize: AppFont.caption,
                                     fontWeight: FontWeight.w700)),
                             const Gap(6),
                             Container(
@@ -505,7 +505,7 @@ class _MonthlyFlowBars extends StatelessWidget {
                             const Gap(8),
                             Text(Dates.ym(DateTime.parse(k)),
                                 style: const TextStyle(
-                                    color: AppColors.textFaint, fontSize: 11.5)),
+                                    color: AppColors.textFaint, fontSize: AppFont.caption)),
                           ],
                         ),
                       ),
@@ -539,7 +539,7 @@ class _EntryRow extends StatelessWidget {
             width: 56,
             child: Text(Dates.md(entry.date),
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12.5)),
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
           ),
           const Gap(8),
           Container(
@@ -554,14 +554,14 @@ class _EntryRow extends StatelessWidget {
                 Text(entry.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFont.body)),
                 if (entry.memo?.isNotEmpty == true) ...[
                   const Gap(2),
                   Text(entry.memo!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: AppColors.textFaint, fontSize: 11.5)),
+                          color: AppColors.textFaint, fontSize: AppFont.caption)),
                 ],
               ],
             ),
@@ -570,7 +570,7 @@ class _EntryRow extends StatelessWidget {
               style: TextStyle(
                   color: isIn ? AppColors.primary : AppColors.rose,
                   fontWeight: FontWeight.w800,
-                  fontSize: 14)),
+                  fontSize: AppFont.body)),
           RecordMenu(onEdit: onEdit, onDelete: onDelete),
         ],
       ),

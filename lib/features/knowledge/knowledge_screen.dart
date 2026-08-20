@@ -81,7 +81,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                 TextField(
                   controller: _q,
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 15),
+                  style: const TextStyle(fontSize: AppFont.section),
                   decoration: InputDecoration(
                     hintText: '검색 (예: 취득세, 공주가 1억, 매매사업자, 분담금)',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
@@ -130,7 +130,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                 const Gap(14),
                 Text('${list.length}건',
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 12.5)),
+                        color: AppColors.textFaint, fontSize: AppFont.label)),
                 const Gap(8),
                 if (list.isEmpty)
                   const Padding(
@@ -177,7 +177,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
           Text('$label $n',
               style: TextStyle(
                   color: sel ? _amber : AppColors.textSecondary,
-                  fontSize: 12.5,
+                  fontSize: AppFont.label,
                   fontWeight: FontWeight.w700)),
         ]),
       ),
@@ -198,7 +198,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
           child: Text('$label $n',
               style: TextStyle(
                   color: sel ? _amber : AppColors.textSecondary,
-                  fontSize: 12.5,
+                  fontSize: AppFont.label,
                   fontWeight: FontWeight.w700)),
         ),
       );
@@ -224,7 +224,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
             Text('$n',
                 style: TextStyle(
                     color: _starOnly ? AppColors.gold : AppColors.textSecondary,
-                    fontSize: 12.5,
+                    fontSize: AppFont.label,
                     fontWeight: FontWeight.w700)),
           ]),
         ),
@@ -244,10 +244,10 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('삭제할까요?', style: TextStyle(fontSize: 16)),
+        title: const Text('삭제할까요?', style: TextStyle(fontSize: AppFont.section)),
         content: Text(n.title,
             maxLines: 3,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            style: const TextStyle(fontSize: AppFont.label, color: AppColors.textSecondary)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -281,7 +281,7 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: Text(note == null ? '메모 추가' : '메모 수정',
-            style: const TextStyle(fontSize: 16)),
+            style: const TextStyle(fontSize: AppFont.section)),
         content: SizedBox(
           width: 460,
           child: SingleChildScrollView(
@@ -405,7 +405,7 @@ class _NoteCardState extends State<_NoteCard> {
                 Text(kindLabel,
                     style: TextStyle(
                         color: kindColor,
-                        fontSize: 10.5,
+                        fontSize: AppFont.micro,
                         fontWeight: FontWeight.w800)),
               ]),
             ),
@@ -416,7 +416,7 @@ class _NoteCardState extends State<_NoteCard> {
               Text('원문',
                   style: TextStyle(
                       color: kindColor,
-                      fontSize: 11,
+                      fontSize: AppFont.caption,
                       fontWeight: FontWeight.w700)),
             ],
           ]),
@@ -429,7 +429,7 @@ class _NoteCardState extends State<_NoteCard> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: AppFont.body,
                         fontWeight: FontWeight.w700,
                         height: 1.35)),
               ),
@@ -465,7 +465,7 @@ class _NoteCardState extends State<_NoteCard> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: AppFont.label,
                         height: 1.5,
                         color: AppColors.textSecondary),
                   ),
@@ -476,7 +476,7 @@ class _NoteCardState extends State<_NoteCard> {
               onTap: () => setState(() => _open = !_open),
               child: Text(_open ? '접기' : '더 보기',
                   style: const TextStyle(
-                      color: _amber, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      color: _amber, fontSize: AppFont.label, fontWeight: FontWeight.w700)),
             ),
           ],
           const Gap(8),
@@ -496,18 +496,18 @@ class _NoteCardState extends State<_NoteCard> {
                   child: Text(t,
                       style: const TextStyle(
                           color: _amber,
-                          fontSize: 11,
+                          fontSize: AppFont.caption,
                           fontWeight: FontWeight.w700)),
                 ),
               if (n.source != null)
                 Text(
                     '· ${n.source}${n.sourceDate == null ? '' : ' · ${n.sourceDate!.year}.${n.sourceDate!.month}.${n.sourceDate!.day}'}',
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
               if (n.asker != null)
                 Text('· 질문 ${n.asker}',
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
             ],
           ),
         ],
@@ -566,7 +566,7 @@ class _RichBody extends StatelessWidget {
             child: Text(l.replaceAll(RegExp(r'[【】]'), ''),
                 style: TextStyle(
                     color: accent,
-                    fontSize: 11.5,
+                    fontSize: AppFont.caption,
                     fontWeight: FontWeight.w800)),
           ),
         ));
@@ -579,7 +579,7 @@ class _RichBody extends StatelessWidget {
             Expanded(
               child: Text(l.substring(1).trim(),
                   style: const TextStyle(
-                      fontSize: 13.5,
+                      fontSize: AppFont.body,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary)),
             ),
@@ -602,7 +602,7 @@ class _RichBody extends StatelessWidget {
             Expanded(
               child: Text(l.substring(1).trim(),
                   style: const TextStyle(
-                      fontSize: 12.5,
+                      fontSize: AppFont.label,
                       height: 1.5,
                       color: AppColors.textSecondary)),
             ),
@@ -613,7 +613,7 @@ class _RichBody extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 3),
           child: Text(l,
               style: const TextStyle(
-                  fontSize: 13, height: 1.6, color: AppColors.textSecondary)),
+                  fontSize: AppFont.label, height: 1.6, color: AppColors.textSecondary)),
         ));
       }
     }

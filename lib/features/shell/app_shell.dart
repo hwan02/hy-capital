@@ -111,7 +111,7 @@ class _SideNav extends ConsumerWidget {
                       style: TextStyle(
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1,
-                          fontSize: 15)),
+                          fontSize: AppFont.section)),
                 ],
               ),
             ),
@@ -195,7 +195,7 @@ class _NavItem extends StatelessWidget {
                           ? AppColors.textPrimary
                           : AppColors.textSecondary,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 13.5,
+                      fontSize: AppFont.body,
                     ),
                   ),
                 ),
@@ -231,7 +231,7 @@ class _AddModuleButton extends StatelessWidget {
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
-                    fontSize: 13.5)),
+                    fontSize: AppFont.body)),
           ],
         ),
       ),

@@ -148,7 +148,7 @@ class DividendScreen extends ConsumerWidget {
                     Expanded(
                       child: Text('환율 USD ${_comma(rate)}원 · 실시간',
                           style: const TextStyle(
-                              color: AppColors.textFaint, fontSize: 12)),
+                              color: AppColors.textFaint, fontSize: AppFont.label)),
                     ),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
@@ -259,7 +259,7 @@ class _PortfolioPie extends StatelessWidget {
                             '${(entries[i].value / total * 100).toStringAsFixed(0)}%',
                         titleStyle: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: AppFont.label,
                             fontWeight: FontWeight.w800),
                         titlePositionPercentageOffset: 0.58,
                       ),
@@ -289,17 +289,17 @@ class _PortfolioPie extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 13)),
+                                  fontWeight: FontWeight.w600, fontSize: AppFont.label)),
                         ),
                         const Gap(10),
                         Text(
                             '${(entries[i].value / total * 100).toStringAsFixed(0)}%',
                             style: const TextStyle(
-                                color: AppColors.textFaint, fontSize: 12.5)),
+                                color: AppColors.textFaint, fontSize: AppFont.label)),
                         const Gap(10),
                         Text('${Won.compact(entries[i].value)}원',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13)),
+                                fontWeight: FontWeight.w700, fontSize: AppFont.label)),
                       ],
                     ),
                   ),
@@ -360,7 +360,7 @@ class _MarketGroup extends StatelessWidget {
                   child: Text('평가 ${Won.compact(value)}원 · 월 ${Won.compact(monthly)}원',
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12.5)),
+                          color: AppColors.textSecondary, fontSize: AppFont.label)),
                 ),
                 const Gap(10),
                 OutlinedButton.icon(
@@ -403,19 +403,19 @@ class _MarketGroup extends StatelessWidget {
                                 child: Text(d.ticker,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.w700, fontSize: 14.5)),
+                                        fontWeight: FontWeight.w700, fontSize: AppFont.body)),
                               ),
                               const Gap(8),
                               Text('${d.shares.toStringAsFixed(0)}주',
                                   style: const TextStyle(
-                                      color: AppColors.textFaint, fontSize: 11.5)),
+                                      color: AppColors.textFaint, fontSize: AppFont.caption)),
                             ],
                           ),
                           const Gap(2),
                           Text(
                               '평가 ${Won.compact(d.krw(d.marketValue, rate))}원 · 손익 ${Pct.signed(d.returnPct)} · 배당률 ${Pct.of(d.annualYield, digits: 1)}',
                               style: const TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 12)),
+                                  color: AppColors.textSecondary, fontSize: AppFont.label)),
                         ],
                       ),
                     ),
@@ -424,10 +424,10 @@ class _MarketGroup extends StatelessWidget {
                       children: [
                         Text('${Won.compact(d.krw(d.monthlyDividend, rate))}원',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 14)),
+                                fontWeight: FontWeight.w800, fontSize: AppFont.body)),
                         const Text('월(추정)',
                             style: TextStyle(
-                                color: AppColors.textFaint, fontSize: 11)),
+                                color: AppColors.textFaint, fontSize: AppFont.caption)),
                       ],
                     ),
                     RecordMenu(onEdit: () => onEdit(d), onDelete: () => onDelete(d)),
@@ -564,7 +564,7 @@ class _DividendMonthly extends ConsumerWidget {
                               child: Text('${Won.compact(byMonth[k]!)}원',
                                   style: const TextStyle(
                                       color: AppColors.textPrimary,
-                                      fontSize: 12.5,
+                                      fontSize: AppFont.label,
                                       fontWeight: FontWeight.w800)),
                             ),
                             const Gap(6),
@@ -583,7 +583,7 @@ class _DividendMonthly extends ConsumerWidget {
                             Text(k,
                                 style: const TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 11.5,
+                                    fontSize: AppFont.caption,
                                     fontWeight: FontWeight.w600)),
                           ],
                         ),

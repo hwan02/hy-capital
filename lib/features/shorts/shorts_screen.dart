@@ -180,7 +180,7 @@ class _ChannelCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 14.5, fontWeight: FontWeight.w700)),
+                        fontSize: AppFont.body, fontWeight: FontWeight.w700)),
               ),
               const Gap(8),
               Pill(channel.platform, color: AppColors.rose),
@@ -214,10 +214,10 @@ class _ChannelCard extends StatelessWidget {
         children: [
           Text(label,
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11.5)),
+                  color: AppColors.textSecondary, fontSize: AppFont.caption)),
           const Gap(3),
           Text(value,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w800)),
         ],
       );
 }
@@ -257,7 +257,7 @@ class _ShortsTab extends StatelessWidget {
           Text(label,
               style: TextStyle(
                   color: selected ? color : AppColors.textSecondary,
-                  fontSize: 13.5,
+                  fontSize: AppFont.body,
                   fontWeight: FontWeight.w800)),
         ]),
       ),
@@ -349,7 +349,7 @@ class _RoleModelListState extends ConsumerState<_RoleModelList> {
         child: Text('$label $n',
             style: TextStyle(
                 color: sel ? _insta : AppColors.textSecondary,
-                fontSize: 12.5,
+                fontSize: AppFont.label,
                 fontWeight: FontWeight.w700)),
       ),
     );
@@ -399,13 +399,13 @@ class _RoleModelCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700)),
+                    fontSize: AppFont.label, fontWeight: FontWeight.w700)),
           ),
           if (acct.followers > 0) ...[
             const Gap(6),
             Text(_followers(acct.followers),
                 style: const TextStyle(
-                    color: AppColors.textFaint, fontSize: 10.5)),
+                    color: AppColors.textFaint, fontSize: AppFont.micro)),
           ],
           if (hasUrl) ...[
             const Gap(5),

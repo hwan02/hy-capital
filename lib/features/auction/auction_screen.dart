@@ -22,7 +22,7 @@ Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
     context: context,
     builder: (_) => AlertDialog(
       backgroundColor: AppColors.surface,
-      title: const Text('경매 물건 추가', style: TextStyle(fontSize: 16)),
+      title: const Text('경매 물건 추가', style: TextStyle(fontSize: AppFont.section)),
       content: TextField(
         controller: c,
         autofocus: true,
@@ -279,7 +279,7 @@ class _Chip extends StatelessWidget {
         child: Text(label,
             style: TextStyle(
                 color: selected ? _teal : AppColors.textSecondary,
-                fontSize: 12.5,
+                fontSize: AppFont.label,
                 fontWeight: FontWeight.w700)),
       ),
     );
@@ -324,7 +324,7 @@ class _AuctionCardState extends State<_AuctionCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                            fontSize: AppFont.section, fontWeight: FontWeight.w700)),
                     if ((p.address ?? '').isNotEmpty || (p.caseNo ?? '').isNotEmpty) ...[
                       const Gap(3),
                       Text(
@@ -334,7 +334,7 @@ class _AuctionCardState extends State<_AuctionCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              color: AppColors.textFaint, fontSize: 12)),
+                              color: AppColors.textFaint, fontSize: AppFont.label)),
                     ],
                   ],
                 ),
@@ -388,7 +388,7 @@ class _AuctionCardState extends State<_AuctionCard> {
               child: Text(p.memo!,
                   style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12.5,
+                      fontSize: AppFont.label,
                       height: 1.55)),
             ),
           ],
@@ -413,7 +413,7 @@ class _AuctionCardState extends State<_AuctionCard> {
                       Text(_open ? '접기' : '추천포인트·입지·이력',
                           style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 12,
+                              fontSize: AppFont.label,
                               fontWeight: FontWeight.w700)),
                     ]),
                   ),
@@ -425,12 +425,12 @@ class _AuctionCardState extends State<_AuctionCard> {
                 const Gap(3),
                 Text('${p.images.length}',
                     style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11.5)),
+                        color: AppColors.textFaint, fontSize: AppFont.caption)),
                 const Gap(8),
               ],
               const Text('상세 열기',
                   style: TextStyle(
-                      color: _teal, fontSize: 12, fontWeight: FontWeight.w700)),
+                      color: _teal, fontSize: AppFont.label, fontWeight: FontWeight.w700)),
               const Icon(Icons.chevron_right_rounded, size: 16, color: _teal),
             ],
           ),
@@ -446,11 +446,11 @@ class _AuctionCardState extends State<_AuctionCard> {
         children: [
           Text(label,
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11.5)),
+                  color: AppColors.textSecondary, fontSize: AppFont.caption)),
           const Gap(3),
           Text(value,
               style: TextStyle(
-                  fontSize: 15,
+                  fontSize: AppFont.section,
                   fontWeight: FontWeight.w800,
                   color: color ?? AppColors.textPrimary)),
         ],
@@ -477,12 +477,12 @@ class _ScorePill extends StatelessWidget {
         children: [
           Text(verdict,
               style: TextStyle(
-                  color: color, fontSize: 12.5, fontWeight: FontWeight.w900)),
+                  color: color, fontSize: AppFont.label, fontWeight: FontWeight.w900)),
           if (score > 0) ...[
             const Gap(6),
             Text('${score.toStringAsFixed(0)}점',
                 style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+                    color: color, fontSize: AppFont.label, fontWeight: FontWeight.w700)),
           ],
         ],
       ),
@@ -513,7 +513,7 @@ class _Warn extends StatelessWidget {
             child: Text(text,
                 style: const TextStyle(
                     color: AppColors.rose,
-                    fontSize: 12.5,
+                    fontSize: AppFont.label,
                     fontWeight: FontWeight.w700)),
           ),
         ],
@@ -558,7 +558,7 @@ class _TopTab extends StatelessWidget {
           Text(label,
               style: TextStyle(
                   color: selected ? color : AppColors.textSecondary,
-                  fontSize: 13.5,
+                  fontSize: AppFont.body,
                   fontWeight: FontWeight.w800)),
         ]),
       ),

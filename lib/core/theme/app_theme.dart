@@ -39,6 +39,36 @@ class AppColors {
   };
 }
 
+/// 글자 크기 체계 — 앱 전체에서 **이 값만** 사용한다.
+/// 새 UI를 만들 때 임의의 숫자(13, 14.5 …)를 쓰지 말고 아래 토큰을 고른다.
+class AppFont {
+  AppFont._();
+
+  /// 34 — Freedom Score 등 화면의 주인공 숫자 하나.
+  static const hero = 34.0;
+
+  /// 22 — 카드 대표 금액·핵심 지표 숫자.
+  static const display = 22.0;
+
+  /// 18 — 화면 제목.
+  static const title = 18.0;
+
+  /// 16 — 섹션 제목, 카드 제목.
+  static const section = 16.0;
+
+  /// 14 — 본문, 목록 항목, 입력값. 기본값.
+  static const body = 14.0;
+
+  /// 12.5 — 라벨, 버튼, 탭, 표 헤더.
+  static const label = 12.5;
+
+  /// 11.5 — 보조 설명, 단위, 날짜.
+  static const caption = 11.5;
+
+  /// 10.5 — 배지·칩 안의 아주 작은 글자.
+  static const micro = 10.5;
+}
+
 class AppTheme {
   static ThemeData get dark {
     final base = ThemeData.dark(useMaterial3: true);
@@ -100,7 +130,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: AppFont.section),
         ),
       ),
     );
