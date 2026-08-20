@@ -27,18 +27,39 @@ class GoalsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(goalsProvider);
+    void add() => editBuiltinRecord(context, ref, goalsSpec);
     return ModulePage(
       title: 'Goals',
       icon: Icons.flag_rounded,
       color: AppColors.violet,
-      action: AddButton(
-        color: AppColors.violet,
-        onTap: () => editBuiltinRecord(context, ref, goalsSpec),
+      action: AddButton(color: AppColors.violet, onTap: add),
+      // 로드맵이 길어서 맨 위까지 올라가지 않아도 목표를 추가할 수 있게.
+      fab: FloatingActionButton(
+        onPressed: add,
+        backgroundColor: AppColors.violet,
+        foregroundColor: Colors.white,
+        tooltip: '개별 목표 추가',
+        child: const Icon(Icons.add_rounded),
       ),
       children: [
         const PlanRoadmap(),
         const Gap(28),
-        const SectionHeader('개별 목표'),
+        SectionHeader(
+          '개별 목표',
+          trailing: TextButton.icon(
+            onPressed: add,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.violet,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text('목표 추가',
+                style: TextStyle(
+                    fontSize: AppFont.label, fontWeight: FontWeight.w700)),
+          ),
+        ),
         const Gap(14),
         async.when(
           loading: AsyncStatus.loading,

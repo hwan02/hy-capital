@@ -13,6 +13,9 @@ class ModulePage extends ConsumerWidget {
   final Color color;
   final List<Widget> children;
   final Widget? action;
+
+  /// 화면 우하단에 고정되는 버튼. 페이지가 길어도 스크롤 없이 누를 수 있다.
+  final Widget? fab;
   final double maxWidth;
 
   const ModulePage({
@@ -23,12 +26,13 @@ class ModulePage extends ConsumerWidget {
     required this.color,
     required this.children,
     this.action,
+    this.fab,
     this.maxWidth = 1100,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return RefreshIndicator(
+    final page = RefreshIndicator(
       onRefresh: () async => invalidateAll(ref),
       // 텍스트 드래그 선택·복사 허용 (웹 기본은 선택 불가).
       child: SelectionArea(
@@ -97,6 +101,12 @@ class ModulePage extends ConsumerWidget {
         }),
       ),
     );
+
+    if (fab == null) return page;
+    return Stack(children: [
+      page,
+      Positioned(right: 18, bottom: 22, child: fab!),
+    ]);
   }
 }
 
