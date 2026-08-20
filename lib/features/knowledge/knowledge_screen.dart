@@ -102,7 +102,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                 ),
                 const Gap(12),
                 // 종류 구분 (강의 Q&A / 칼럼 / 내 메모)
-                Row(children: [
+                Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final k in const [
                     ('all', '전체', Icons.apps_rounded),
                     ('qa', '강의 Q&A', Icons.forum_rounded),
@@ -111,25 +111,21 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                   ]) ...[
                     _kindTab(k.$1, k.$2, k.$3,
                         all.where((n) => k.$1 == 'all' || n.kind == k.$1).length),
-                    const Gap(6),
                   ],
                 ]),
                 const Gap(12),
                 // 태그 필터
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
                     _chip('전체', all.length, _tag == '전체',
                         () => setState(() => _tag = '전체')),
-                    const Gap(6),
                     _starChip(all.where((n) => n.starred).length),
-                    const Gap(6),
-                    for (final t in tags) ...[
+                    for (final t in tags)
                       _chip(t, counts[t]!, _tag == t,
                           () => setState(() => _tag = _tag == t ? '전체' : t)),
-                      const Gap(6),
-                    ],
-                  ]),
+                  ],
                 ),
                 const Gap(14),
                 Text('${list.length}건',

@@ -374,76 +374,56 @@ class _RoleModelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _pfColor[acct.platform] ?? AppColors.textFaint;
     final hasUrl = (acct.url ?? '').isNotEmpty;
+    final sub = [
+      if ((acct.category ?? '').isNotEmpty) acct.category!,
+      if (acct.followers > 0) '팔로워 ${_followers(acct.followers)}',
+    ].join(' · ');
     return GlassCard(
       accent: c,
-      onTap: hasUrl
-          ? () => _openLink(acct.url!)
-          : null,
+      padding: const EdgeInsets.fromLTRB(12, 9, 6, 9),
+      onTap: hasUrl ? () => _openLink(acct.url!) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
             Icon(_pfIcon[acct.platform] ?? Icons.public_rounded,
-                size: 16, color: c),
+                size: 15, color: c),
             const Gap(7),
-            Expanded(
+            Flexible(
               child: Text(acct.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700)),
+                      fontSize: 13.5, fontWeight: FontWeight.w700)),
             ),
-            if (acct.followers > 0)
-              Text('팔로워 ${_followers(acct.followers)}',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
-            RecordMenu(onEdit: onEdit, onDelete: onDelete),
-          ]),
-          const Gap(6),
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(acct.platform,
-                  style: TextStyle(
-                      color: c, fontSize: 10.5, fontWeight: FontWeight.w800)),
-            ),
-            if ((acct.category ?? '').isNotEmpty) ...[
+            const Gap(6),
+            Text(acct.platform,
+                style: TextStyle(
+                    color: c, fontSize: 10.5, fontWeight: FontWeight.w700)),
+            if (sub.isNotEmpty) ...[
               const Gap(6),
-              Text(acct.category!,
-                  style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: 11.5)),
+              Flexible(
+                child: Text(sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textFaint, fontSize: 11)),
+              ),
             ],
             const Spacer(),
             if (hasUrl)
-              Row(children: [
-                Icon(Icons.open_in_new_rounded, size: 13, color: c),
-                const Gap(4),
-                Text('열기',
-                    style: TextStyle(
-                        color: c, fontSize: 12, fontWeight: FontWeight.w700)),
-              ]),
+              Icon(Icons.open_in_new_rounded, size: 14, color: c),
+            RecordMenu(onEdit: onEdit, onDelete: onDelete),
           ]),
           if ((acct.memo ?? '').isNotEmpty) ...[
-            const Gap(8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Text(acct.memo!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      height: 1.45)),
-            ),
+            const Gap(6),
+            Text(acct.memo!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.4)),
           ],
         ],
       ),

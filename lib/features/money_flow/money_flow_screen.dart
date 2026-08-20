@@ -152,11 +152,10 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
               children: [
                 // 월 탭
                 if (months.isNotEmpty)
-                  SizedBox(
-                    height: 38,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
                         _MonthChip(
                           label: '전체',
                           selected: _month == null,
@@ -170,8 +169,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                                 _month!.month == m.month,
                             onTap: () => setState(() => _month = m),
                           ),
-                      ],
-                    ),
+                    ],
                   ),
                 const Gap(16),
                 // 도넛 2개 (크기 동일 · 순흐름은 제목 옆에)

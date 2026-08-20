@@ -129,11 +129,10 @@ class _MonthlyTrackerState extends ConsumerState<MonthlyTracker> {
               const Gap(14),
               // 전체 / 월별 탭
               if (months.isNotEmpty)
-                SizedBox(
-                  height: 38,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
                       _Chip(
                         label: '전체',
                         color: accent,
@@ -149,8 +148,7 @@ class _MonthlyTrackerState extends ConsumerState<MonthlyTracker> {
                               _month!.month == m.month,
                           onTap: () => setState(() => _month = m),
                         ),
-                    ],
-                  ),
+                  ],
                 ),
               const Gap(16),
               if (entries.isEmpty)
