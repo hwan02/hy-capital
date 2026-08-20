@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import 'knowledge_files.dart';
 
 const _amber = Color(0xFFF59E0B);
 
@@ -350,7 +351,7 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
     }
   }
 
-class _NoteCard extends StatefulWidget {
+class _NoteCard extends ConsumerStatefulWidget {
   final KnowledgeNote note;
   final String keyword;
   final VoidCallback onStar;
@@ -365,10 +366,10 @@ class _NoteCard extends StatefulWidget {
   });
 
   @override
-  State<_NoteCard> createState() => _NoteCardState();
+  ConsumerState<_NoteCard> createState() => _NoteCardState();
 }
 
-class _NoteCardState extends State<_NoteCard> {
+class _NoteCardState extends ConsumerState<_NoteCard> {
   bool _open = false;
 
   @override
@@ -434,6 +435,15 @@ class _NoteCardState extends State<_NoteCard> {
                         height: 1.35)),
               ),
               const Gap(6),
+              InkWell(
+                onTap: () => attachKnowledgeFiles(context, ref, n),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(3),
+                  child: Icon(Icons.attach_file_rounded,
+                      size: 17, color: AppColors.textFaint),
+                ),
+              ),
               InkWell(
                 onTap: widget.onStar,
                 borderRadius: BorderRadius.circular(20),
@@ -510,6 +520,8 @@ class _NoteCardState extends State<_NoteCard> {
                         color: AppColors.textFaint, fontSize: AppFont.caption)),
             ],
           ),
+          // 첨부 PDF — 누르면 새 탭, 길게 누르면 삭제.
+          KnowledgeFileChips(note: n),
         ],
       ),
     );

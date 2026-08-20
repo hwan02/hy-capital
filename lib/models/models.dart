@@ -788,6 +788,35 @@ class PlanCondition {
 }
 
 /// 부동산 지식 자료실 항목 (강의 Q&A · 칼럼 · 메모).
+/// 자료실 항목에 첨부된 파일 하나. 본체는 Storage 'knowledge' 버킷에 있고
+/// 여기에는 경로만 담는다. 열 때 서명 URL 을 만든다.
+class KnowledgeFile {
+  final String name;
+  final String path;
+  final int size;
+
+  const KnowledgeFile(
+      {required this.name, required this.path, this.size = 0});
+
+  factory KnowledgeFile.fromMap(Map<String, dynamic> m) => KnowledgeFile(
+        name: (m['name'] ?? '파일').toString(),
+        path: (m['path'] ?? '').toString(),
+        size: (m['size'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'name': name, 'path': path, 'size': size};
+
+  /// 3.2MB · 940KB 형태.
+  String get sizeLabel {
+    if (size <= 0) return '';
+    if (size >= 1 << 20) return '${(size / (1 << 20)).toStringAsFixed(1)}MB';
+    return '${(size / 1024).round()}KB';
+  }
+
+  bool get isPdf => name.toLowerCase().endsWith('.pdf');
+}
+
 class KnowledgeNote {
   final String id;
   final String kind; // qa|article|note|video
@@ -800,6 +829,7 @@ class KnowledgeNote {
   final String? url; // 원문 링크
   final DateTime? sourceDate;
   final bool starred;
+  final List<KnowledgeFile> files; // 첨부 PDF 등
 
   KnowledgeNote({
     required this.id,
@@ -813,6 +843,7 @@ class KnowledgeNote {
     this.url,
     this.sourceDate,
     this.starred = false,
+    this.files = const [],
   });
 
   /// 검색 대상 문자열 (제목+본문+태그+출처).
@@ -834,6 +865,12 @@ class KnowledgeNote {
             ? null
             : DateTime.tryParse(m['source_date'].toString()),
         starred: m['starred'] == true,
+        files: (m['files'] as List?)
+                ?.map((e) =>
+                    KnowledgeFile.fromMap(Map<String, dynamic>.from(e as Map)))
+                .where((f) => f.path.isNotEmpty)
+                .toList() ??
+            const [],
       );
 }
 
