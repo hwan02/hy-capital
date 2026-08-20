@@ -460,13 +460,20 @@ class _NoteCardState extends State<_NoteCard> {
           const Gap(6),
           InkWell(
             onTap: long ? () => setState(() => _open = !_open) : null,
-            child: Text(
-              body,
-              maxLines: _open || !long ? null : 2,
-              overflow: _open || !long ? null : TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 13, height: 1.5, color: AppColors.textSecondary),
-            ),
+            child: _open
+                ? _RichBody(body: body, accent: kindColor)
+                : Text(
+                    body
+                        .replaceAll(RegExp(r'[【】■·]'), '')
+                        .replaceAll(RegExp(r'\s+'), ' ')
+                        .trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: AppColors.textSecondary),
+                  ),
           ),
           if (long) ...[
             const Gap(4),
@@ -532,5 +539,90 @@ class KnowledgeScreen extends ConsumerWidget {
       ),
       children: const [KnowledgeView()],
     );
+  }
+}
+
+
+/// 자료실 본문을 구조화해서 보여준다.
+/// 【블록제목】 → 라벨 · ■ 소제목 → 굵게 · · 불릿 → 들여쓰기 목록
+class _RichBody extends StatelessWidget {
+  final String body;
+  final Color accent;
+  const _RichBody({required this.body, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final out = <Widget>[];
+    for (final raw in body.split('\n')) {
+      final l = raw.trim();
+      if (l.isEmpty) {
+        out.add(const Gap(8));
+        continue;
+      }
+      if (l.startsWith('【') && l.endsWith('】')) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(l.replaceAll(RegExp(r'[【】]'), ''),
+                style: TextStyle(
+                    color: accent,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800)),
+          ),
+        ));
+      } else if (l.startsWith('■')) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 5),
+          child: Row(children: [
+            Container(width: 3, height: 13, color: accent),
+            const Gap(7),
+            Expanded(
+              child: Text(l.substring(1).trim(),
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary)),
+            ),
+          ]),
+        ));
+      } else if (l.startsWith('·') || l.startsWith('•') || l.startsWith('-')) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4, left: 2),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Container(
+                width: 3,
+                height: 3,
+                decoration: BoxDecoration(
+                    color: AppColors.textFaint, shape: BoxShape.circle),
+              ),
+            ),
+            const Gap(7),
+            Expanded(
+              child: Text(l.substring(1).trim(),
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.5,
+                      color: AppColors.textSecondary)),
+            ),
+          ]),
+        ));
+      } else {
+        out.add(Padding(
+          padding: const EdgeInsets.only(bottom: 3),
+          child: Text(l,
+              style: const TextStyle(
+                  fontSize: 13, height: 1.6, color: AppColors.textSecondary)),
+        ));
+      }
+    }
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: out);
   }
 }
