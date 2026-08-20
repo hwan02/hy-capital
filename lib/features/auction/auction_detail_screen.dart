@@ -173,11 +173,14 @@ class _SurveyTab extends StatelessWidget {
           ),
           const Gap(18),
           AuctionChecklistForm(key: formKey, initial: p.checklist),
-          const Gap(20),
-          SizedBox(
-            width: double.infinity,
+          const Gap(18),
+          Align(
+            alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _teal),
+              style: FilledButton.styleFrom(
+                  backgroundColor: _teal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               onPressed: () async {
                 final st = formKey.currentState;
                 if (st == null) return;
@@ -441,8 +444,8 @@ class _CalcTabState extends State<_CalcTab> {
           const Gap(16),
           // 실시간 결과
           Wrap(
-            spacing: 24,
-            runSpacing: 14,
+            spacing: 16,
+            runSpacing: 10,
             children: [
               _metric('필요현금', '${Won.compact(cashNeeded)}원', AppColors.gold),
               _metric('예상순수익', '${Won.compact(netProfit)}원',
@@ -458,17 +461,23 @@ class _CalcTabState extends State<_CalcTab> {
           ],
           const Gap(20),
           const Text('금액 입력',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-          const Gap(10),
-          _money('예상 매도가', sale, (v) => setState(() => sale = v)),
-          _money('경락잔금대출', loan, (v) => setState(() => loan = v)),
-          _money('취득·등기비', acq, (v) => setState(() => acq = v)),
-          _money('수리/인테리어', repair, (v) => setState(() => repair = v)),
-          _money('명도비', evict, (v) => setState(() => evict = v)),
-          _money('기타/예비비', other, (v) => setState(() => other = v)),
-          _money('매도비용(중개 등)', saleCost, (v) => setState(() => saleCost = v)),
-          _money('대출이자/금융비용', finance, (v) => setState(() => finance = v)),
-          _money('목표수익', target, (v) => setState(() => target = v)),
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+          const Gap(8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _money('예상 매도가', sale, (v) => setState(() => sale = v)),
+              _money('경락잔금대출', loan, (v) => setState(() => loan = v)),
+              _money('취득·등기비', acq, (v) => setState(() => acq = v)),
+              _money('수리/인테리어', repair, (v) => setState(() => repair = v)),
+              _money('명도비', evict, (v) => setState(() => evict = v)),
+              _money('기타/예비비', other, (v) => setState(() => other = v)),
+              _money('매도비용', saleCost, (v) => setState(() => saleCost = v)),
+              _money('대출이자', finance, (v) => setState(() => finance = v)),
+              _money('목표수익', target, (v) => setState(() => target = v)),
+            ],
+          ),
           const Gap(16),
           Row(
             children: [
@@ -493,11 +502,14 @@ class _CalcTabState extends State<_CalcTab> {
               ),
             ],
           ),
-          const Gap(20),
-          SizedBox(
-            width: double.infinity,
+          const Gap(16),
+          Align(
+            alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _teal),
+              style: FilledButton.styleFrom(
+                  backgroundColor: _teal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               onPressed: () async {
                 await widget.onSave({
                   'bid_price': bid,
@@ -528,7 +540,7 @@ class _CalcTabState extends State<_CalcTab> {
   }
 
   Widget _metric(String label, String value, Color color) => SizedBox(
-        width: 140,
+        width: 112,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -538,14 +550,14 @@ class _CalcTabState extends State<_CalcTab> {
             const Gap(3),
             Text(value,
                 style: TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w900, color: color)),
+                    fontSize: 15, fontWeight: FontWeight.w900, color: color)),
           ],
         ),
       );
 
   Widget _money(String label, double value, ValueChanged<double> onChanged) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+      SizedBox(
+        width: 196,
         child: _MoneyField(label: label, initial: value, onChanged: onChanged),
       );
 
@@ -643,11 +655,14 @@ class _MemoTabState extends State<_MemoTab> {
                   borderSide: BorderSide.none),
             ),
           ),
-          const Gap(16),
-          FilledButton.icon(
+          const Gap(14),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
             style: FilledButton.styleFrom(
                 backgroundColor: _teal,
-                padding: const EdgeInsets.symmetric(vertical: 14)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
             onPressed: () async {
               await widget.onSave({'memo': _c.text});
               if (context.mounted) {
@@ -657,6 +672,7 @@ class _MemoTabState extends State<_MemoTab> {
             },
             icon: const Icon(Icons.save_rounded, size: 18),
             label: const Text('메모 저장'),
+            ),
           ),
         ],
       ),
@@ -709,16 +725,19 @@ class _MoneyFieldState extends State<_MoneyField> {
         widget.onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0);
         setState(() {});
       },
+      style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         labelText: widget.label,
+        labelStyle: const TextStyle(fontSize: 11.5),
         isDense: true,
+        contentPadding: const EdgeInsets.fromLTRB(10, 12, 8, 8),
         suffixText: n > 0 ? Won.compact(n) : null,
         suffixStyle: const TextStyle(
-            color: _teal, fontWeight: FontWeight.w800, fontSize: 13),
+            color: _teal, fontWeight: FontWeight.w800, fontSize: 11.5),
         filled: true,
         fillColor: AppColors.surfaceAlt,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(9),
             borderSide: BorderSide.none),
       ),
     );
