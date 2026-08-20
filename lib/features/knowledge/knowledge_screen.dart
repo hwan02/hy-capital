@@ -1,0 +1,428 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
+
+import '../../core/data/data_providers.dart';
+import '../../core/edit/builtin_crud.dart';
+import '../../core/supabase/supabase_providers.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/common.dart';
+import '../../core/widgets/module_page.dart';
+import '../../models/models.dart';
+
+const _amber = Color(0xFFF59E0B);
+
+/// 부동산 지식 자료실 — 강의 Q&A·칼럼·메모를 키워드/태그로 검색.
+class KnowledgeScreen extends ConsumerStatefulWidget {
+  const KnowledgeScreen({super.key});
+
+  @override
+  ConsumerState<KnowledgeScreen> createState() => _KnowledgeScreenState();
+}
+
+class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
+  final _q = TextEditingController();
+  String _tag = '전체';
+  bool _starOnly = false;
+
+  @override
+  void dispose() {
+    _q.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(knowledgeProvider);
+    return ModulePage(
+      title: '자료실',
+      icon: Icons.menu_book_rounded,
+      color: _amber,
+      action: AddButton(
+        color: _amber,
+        label: '메모',
+        onTap: () => _editNote(context, ref),
+      ),
+      children: [
+        async.when(
+          loading: AsyncStatus.loading,
+          error: AsyncStatus.error,
+          data: (all) {
+            if (all.isEmpty) {
+              return const EmptyState(
+                icon: Icons.menu_book_rounded,
+                message: '자료가 없어요.\n강의 Q&A·칼럼을 불러오거나 메모를 추가하세요.',
+              );
+            }
+            // 태그 집계
+            final counts = <String, int>{};
+            for (final n in all) {
+              for (final t in n.tags) {
+                counts[t] = (counts[t] ?? 0) + 1;
+              }
+            }
+            final tags = counts.keys.toList()
+              ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+            final kw = _q.text.trim().toLowerCase();
+            final list = all.where((n) {
+              if (_starOnly && !n.starred) return false;
+              if (_tag != '전체' && !n.tags.contains(_tag)) return false;
+              if (kw.isEmpty) return true;
+              return kw.split(RegExp(r'\s+')).every(n.haystack.contains);
+            }).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 검색창
+                TextField(
+                  controller: _q,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: '검색 (예: 취득세, 공주가 1억, 매매사업자, 분담금)',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: kw.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () =>
+                                setState(() => _q.clear()),
+                          ),
+                    filled: true,
+                    fillColor: AppColors.surfaceAlt,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const Gap(12),
+                // 태그 필터
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    _chip('전체', all.length, _tag == '전체',
+                        () => setState(() => _tag = '전체')),
+                    const Gap(6),
+                    _starChip(all.where((n) => n.starred).length),
+                    const Gap(6),
+                    for (final t in tags) ...[
+                      _chip(t, counts[t]!, _tag == t,
+                          () => setState(() => _tag = _tag == t ? '전체' : t)),
+                      const Gap(6),
+                    ],
+                  ]),
+                ),
+                const Gap(14),
+                Text('${list.length}건',
+                    style: const TextStyle(
+                        color: AppColors.textFaint, fontSize: 12.5)),
+                const Gap(8),
+                if (list.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 30),
+                    child: Text('검색 결과가 없어요',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textFaint)),
+                  ),
+                for (final n in list) ...[
+                  _NoteCard(
+                    note: n,
+                    keyword: kw,
+                    onStar: () => _toggleStar(ref, n),
+                    onEdit: n.kind == 'note'
+                        ? () => _editNote(context, ref, note: n)
+                        : null,
+                    onDelete: () => _delete(context, ref, n),
+                  ),
+                  const Gap(10),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _chip(String label, int n, bool sel, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
+            color: sel ? _amber.withValues(alpha: 0.18) : Colors.transparent,
+            border: Border.all(
+                color: sel ? _amber : AppColors.border, width: sel ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text('$label $n',
+              style: TextStyle(
+                  color: sel ? _amber : AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700)),
+        ),
+      );
+
+  Widget _starChip(int n) => InkWell(
+        onTap: () => setState(() => _starOnly = !_starOnly),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color:
+                _starOnly ? AppColors.gold.withValues(alpha: 0.18) : Colors.transparent,
+            border: Border.all(
+                color: _starOnly ? AppColors.gold : AppColors.border,
+                width: _starOnly ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.star_rounded,
+                size: 14,
+                color: _starOnly ? AppColors.gold : AppColors.textSecondary),
+            const Gap(4),
+            Text('$n',
+                style: TextStyle(
+                    color: _starOnly ? AppColors.gold : AppColors.textSecondary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      );
+
+  Future<void> _toggleStar(WidgetRef ref, KnowledgeNote n) async {
+    await ref
+        .read(supabaseProvider)
+        .from('knowledge_notes')
+        .update({'starred': !n.starred}).eq('id', n.id);
+    invalidateAll(ref);
+  }
+
+  Future<void> _delete(
+      BuildContext context, WidgetRef ref, KnowledgeNote n) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('삭제할까요?', style: TextStyle(fontSize: 16)),
+        content: Text(n.title,
+            maxLines: 3,
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('삭제')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref
+        .read(supabaseProvider)
+        .from('knowledge_notes')
+        .delete()
+        .eq('id', n.id);
+    invalidateAll(ref);
+  }
+
+  Future<void> _editNote(BuildContext context, WidgetRef ref,
+      {KnowledgeNote? note}) async {
+    final t = TextEditingController(text: note?.title ?? '');
+    final b = TextEditingController(text: note?.body ?? '');
+    final g = TextEditingController(text: note?.tags.join(', ') ?? '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(note == null ? '메모 추가' : '메모 수정',
+            style: const TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                  controller: t,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '제목')),
+              const Gap(10),
+              TextField(
+                  controller: b,
+                  minLines: 4,
+                  maxLines: 12,
+                  decoration: const InputDecoration(labelText: '내용')),
+              const Gap(10),
+              TextField(
+                  controller: g,
+                  decoration: const InputDecoration(
+                      labelText: '태그 (쉼표로 구분)', hintText: '재개발, 세금')),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _amber),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true || t.text.trim().isEmpty) return;
+    final sb = ref.read(supabaseProvider);
+    final tags = g.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final data = {
+      'kind': 'note',
+      'title': t.text.trim(),
+      'body': b.text.trim(),
+      'tags': tags,
+      'source': '내 메모',
+    };
+    try {
+      if (note == null) {
+        await sb.from('knowledge_notes').insert({
+          ...data,
+          'user_id': sb.auth.currentUser!.id,
+          'source_date': DateTime.now().toIso8601String().substring(0, 10),
+        });
+      } else {
+        await sb.from('knowledge_notes').update(data).eq('id', note.id);
+      }
+      invalidateAll(ref);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $e'), backgroundColor: AppColors.rose),
+        );
+      }
+    }
+  }
+}
+
+class _NoteCard extends StatefulWidget {
+  final KnowledgeNote note;
+  final String keyword;
+  final VoidCallback onStar;
+  final VoidCallback? onEdit;
+  final VoidCallback onDelete;
+  const _NoteCard({
+    required this.note,
+    required this.keyword,
+    required this.onStar,
+    this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<_NoteCard> createState() => _NoteCardState();
+}
+
+class _NoteCardState extends State<_NoteCard> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.note;
+    final body = n.body ?? '';
+    final long = body.length > 110;
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(n.title,
+                    style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.4)),
+              ),
+              const Gap(6),
+              InkWell(
+                onTap: widget.onStar,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Icon(
+                      n.starred
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      size: 19,
+                      color: n.starred ? AppColors.gold : AppColors.textFaint),
+                ),
+              ),
+              RecordMenu(
+                  onEdit: widget.onEdit ?? widget.onStar,
+                  onDelete: widget.onDelete),
+            ],
+          ),
+          const Gap(8),
+          InkWell(
+            onTap: long ? () => setState(() => _open = !_open) : null,
+            child: Text(
+              body,
+              maxLines: _open || !long ? null : 3,
+              overflow: _open || !long ? null : TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13.5, height: 1.6, color: AppColors.textSecondary),
+            ),
+          ),
+          if (long) ...[
+            const Gap(4),
+            InkWell(
+              onTap: () => setState(() => _open = !_open),
+              child: Text(_open ? '접기' : '더 보기',
+                  style: const TextStyle(
+                      color: _amber, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            ),
+          ],
+          const Gap(10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final t in n.tags)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(t,
+                      style: const TextStyle(
+                          color: _amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                ),
+              if (n.source != null)
+                Text(
+                    '· ${n.source}${n.sourceDate == null ? '' : ' · ${n.sourceDate!.year}.${n.sourceDate!.month}.${n.sourceDate!.day}'}',
+                    style: const TextStyle(
+                        color: AppColors.textFaint, fontSize: 11)),
+              if (n.asker != null)
+                Text('· 질문 ${n.asker}',
+                    style: const TextStyle(
+                        color: AppColors.textFaint, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -67,6 +67,20 @@ final auctionProvider = FutureProvider<List<AuctionProperty>>((ref) async {
   }
 });
 
+/// 부동산 지식 자료실 — 강의 Q&A·칼럼·메모. 테이블(0018) 미생성이면 빈 목록.
+final knowledgeProvider = FutureProvider<List<KnowledgeNote>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  try {
+    final rows = await sb
+        .from('knowledge_notes')
+        .select()
+        .order('source_date', ascending: false);
+    return rows.map<KnowledgeNote>(KnowledgeNote.fromMap).toList();
+  } catch (_) {
+    return const <KnowledgeNote>[];
+  }
+});
+
 final dividendProvider = FutureProvider<List<DividendHolding>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb
@@ -520,6 +534,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(shortsProvider);
   ref.invalidate(landProvider);
   ref.invalidate(auctionProvider);
+  ref.invalidate(knowledgeProvider);
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
   ref.invalidate(tasksProvider);

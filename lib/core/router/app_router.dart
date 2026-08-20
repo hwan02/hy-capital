@@ -14,6 +14,7 @@ import '../../features/shorts/shorts_screen.dart';
 import '../../features/land/land_screen.dart';
 import '../../features/auction/auction_screen.dart';
 import '../../features/auction/auction_detail_screen.dart';
+import '../../features/knowledge/knowledge_screen.dart';
 import '../../features/dividend/dividend_screen.dart';
 import '../../features/goals/goals_screen.dart';
 import '../../features/custom/custom_module_screen.dart';
@@ -65,6 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (_, state) => _noTransition(
                 AuctionDetailScreen(id: state.pathParameters['id']!)),
           ),
+          GoRoute(path: '/knowledge', pageBuilder: (_, __) => _noTransition(const KnowledgeScreen())),
           GoRoute(path: '/dividend', pageBuilder: (_, __) => _noTransition(const DividendScreen())),
           GoRoute(path: '/goals', pageBuilder: (_, __) => _noTransition(const GoalsScreen())),
           GoRoute(

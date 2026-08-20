@@ -786,3 +786,50 @@ class PlanCondition {
         sortOrder: _i(m['sort_order']),
       );
 }
+
+/// 부동산 지식 자료실 항목 (강의 Q&A · 칼럼 · 메모).
+class KnowledgeNote {
+  final String id;
+  final String kind; // qa|article|note|video
+  final String title;
+  final String? body;
+  final List<String> tags;
+  final String? source;
+  final String? author;
+  final String? asker;
+  final DateTime? sourceDate;
+  final bool starred;
+
+  KnowledgeNote({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.body,
+    this.tags = const [],
+    this.source,
+    this.author,
+    this.asker,
+    this.sourceDate,
+    this.starred = false,
+  });
+
+  /// 검색 대상 문자열 (제목+본문+태그+출처).
+  String get haystack =>
+      '$title ${body ?? ''} ${tags.join(' ')} ${source ?? ''} ${author ?? ''}'
+          .toLowerCase();
+
+  factory KnowledgeNote.fromMap(Map<String, dynamic> m) => KnowledgeNote(
+        id: m['id'],
+        kind: m['kind'] ?? 'note',
+        title: m['title'] ?? '',
+        body: m['body'],
+        tags: (m['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        source: m['source'],
+        author: m['author'],
+        asker: m['asker'],
+        sourceDate: m['source_date'] == null
+            ? null
+            : DateTime.tryParse(m['source_date'].toString()),
+        starred: m['starred'] == true,
+      );
+}
