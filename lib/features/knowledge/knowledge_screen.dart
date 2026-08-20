@@ -390,8 +390,7 @@ class _NoteCardState extends State<_NoteCard> {
     return GlassCard(
       accent: kindColor,
       onTap: hasUrl
-          ? () => launchUrl(Uri.parse(n.url!),
-              mode: LaunchMode.externalApplication)
+          ? () => _openLink(n.url!)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,4 +624,15 @@ class _RichBody extends StatelessWidget {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start, children: out);
   }
+}
+
+/// 웹에서 새 탭으로 링크 열기. (Flutter web 은 webOnlyWindowName 없으면 새 창이 안 열린다)
+Future<void> _openLink(String url) async {
+  var u = url.trim();
+  if (!u.startsWith('http')) u = 'https://$u';
+  await launchUrl(
+    Uri.parse(u),
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }

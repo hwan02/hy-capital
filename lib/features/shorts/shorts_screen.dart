@@ -168,8 +168,7 @@ class _ChannelCard extends StatelessWidget {
     return GlassCard(
       accent: AppColors.rose,
       onTap: hasLink
-          ? () => launchUrl(Uri.parse(channel.link!),
-              mode: LaunchMode.externalApplication)
+          ? () => _openLink(channel.link!)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,8 +377,7 @@ class _RoleModelCard extends StatelessWidget {
     return GlassCard(
       accent: c,
       onTap: hasUrl
-          ? () => launchUrl(Uri.parse(acct.url!),
-              mode: LaunchMode.externalApplication)
+          ? () => _openLink(acct.url!)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,4 +449,15 @@ class _RoleModelCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 웹에서 새 탭으로 링크 열기. (Flutter web 은 webOnlyWindowName 없으면 새 창이 안 열린다)
+Future<void> _openLink(String url) async {
+  var u = url.trim();
+  if (!u.startsWith('http')) u = 'https://$u';
+  await launchUrl(
+    Uri.parse(u),
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }
