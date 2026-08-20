@@ -12,15 +12,21 @@ import '../../models/models.dart';
 
 const _amber = Color(0xFFF59E0B);
 
-/// 부동산 지식 자료실 — 강의 Q&A·칼럼·메모를 키워드/태그로 검색.
-class KnowledgeScreen extends ConsumerStatefulWidget {
-  const KnowledgeScreen({super.key});
+/// 자료실 메모 추가/수정 다이얼로그 (외부에서도 호출 가능).
+Future<void> showKnowledgeNoteEditor(BuildContext context, WidgetRef ref,
+        {KnowledgeNote? note}) =>
+    _noteDialog(context, ref, note: note);
+
+/// 부동산 지식 자료실 본문 — 강의 Q&A·칼럼·메모를 키워드/태그로 검색.
+/// 경매 화면의 '자료실' 탭에서도 그대로 재사용한다.
+class KnowledgeView extends ConsumerStatefulWidget {
+  const KnowledgeView({super.key});
 
   @override
-  ConsumerState<KnowledgeScreen> createState() => _KnowledgeScreenState();
+  ConsumerState<KnowledgeView> createState() => _KnowledgeViewState();
 }
 
-class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
+class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
   final _q = TextEditingController();
   String _tag = '전체';
   bool _starOnly = false;
@@ -34,15 +40,8 @@ class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(knowledgeProvider);
-    return ModulePage(
-      title: '자료실',
-      icon: Icons.menu_book_rounded,
-      color: _amber,
-      action: AddButton(
-        color: _amber,
-        label: '메모',
-        onTap: () => _editNote(context, ref),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         async.when(
           loading: AsyncStatus.loading,
@@ -133,7 +132,7 @@ class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
                     keyword: kw,
                     onStar: () => _toggleStar(ref, n),
                     onEdit: n.kind == 'note'
-                        ? () => _editNote(context, ref, note: n)
+                        ? () => _noteDialog(context, ref, note: n)
                         : null,
                     onDelete: () => _delete(context, ref, n),
                   ),
@@ -231,8 +230,11 @@ class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
     invalidateAll(ref);
   }
 
-  Future<void> _editNote(BuildContext context, WidgetRef ref,
-      {KnowledgeNote? note}) async {
+}
+
+/// 메모 추가/수정 다이얼로그.
+Future<void> _noteDialog(BuildContext context, WidgetRef ref,
+    {KnowledgeNote? note}) async {
     final t = TextEditingController(text: note?.title ?? '');
     final b = TextEditingController(text: note?.body ?? '');
     final g = TextEditingController(text: note?.tags.join(', ') ?? '');
@@ -309,7 +311,6 @@ class _KnowledgeScreenState extends ConsumerState<KnowledgeScreen> {
       }
     }
   }
-}
 
 class _NoteCard extends StatefulWidget {
   final KnowledgeNote note;
@@ -423,6 +424,27 @@ class _NoteCardState extends State<_NoteCard> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 자료실 단독 페이지 (직접 URL 접근용). 사이드 메뉴에는 노출하지 않고
+/// 경매 화면의 '자료실' 탭으로 접근한다.
+class KnowledgeScreen extends ConsumerWidget {
+  const KnowledgeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ModulePage(
+      title: '자료실',
+      icon: Icons.menu_book_rounded,
+      color: _amber,
+      action: AddButton(
+        color: _amber,
+        label: '메모',
+        onTap: () => _noteDialog(context, ref),
+      ),
+      children: const [KnowledgeView()],
     );
   }
 }

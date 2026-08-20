@@ -12,6 +12,7 @@ import '../../core/supabase/supabase_providers.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
+import '../knowledge/knowledge_screen.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -98,20 +99,43 @@ class AuctionScreen extends ConsumerStatefulWidget {
 
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
+  int _tab = 0; // 0=물건 · 1=자료실
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
+    const amber = Color(0xFFF59E0B);
     return ModulePage(
       title: '경매',
       icon: Icons.gavel_rounded,
-      color: _teal,
-      action: AddButton(
-        color: _teal,
-        onTap: () => _quickAdd(context, ref),
-      ),
+      color: _tab == 0 ? _teal : amber,
+      action: _tab == 0
+          ? AddButton(color: _teal, onTap: () => _quickAdd(context, ref))
+          : AddButton(
+              color: amber,
+              label: '메모',
+              onTap: () => showKnowledgeNoteEditor(context, ref)),
       children: [
-        async.when(
+        // 물건 / 자료실 전환
+        Row(children: [
+          _TopTab(
+              label: '물건',
+              icon: Icons.gavel_rounded,
+              color: _teal,
+              selected: _tab == 0,
+              onTap: () => setState(() => _tab = 0)),
+          const Gap(8),
+          _TopTab(
+              label: '자료실',
+              icon: Icons.menu_book_rounded,
+              color: amber,
+              selected: _tab == 1,
+              onTap: () => setState(() => _tab = 1)),
+        ]),
+        const Gap(18),
+        if (_tab == 1) const KnowledgeView(),
+        if (_tab == 0)
+          async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
           data: (items) {
@@ -455,6 +479,50 @@ class _Warn extends StatelessWidget {
                     fontWeight: FontWeight.w700)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// 경매 화면 상단 전환 탭 (물건 / 자료실).
+class _TopTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TopTab({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.16) : Colors.transparent,
+          border: Border.all(
+              color: selected ? color : AppColors.border,
+              width: selected ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 17, color: selected ? color : AppColors.textFaint),
+          const Gap(7),
+          Text(label,
+              style: TextStyle(
+                  color: selected ? color : AppColors.textSecondary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800)),
+        ]),
       ),
     );
   }
