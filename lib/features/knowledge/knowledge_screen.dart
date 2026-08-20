@@ -29,6 +29,7 @@ class KnowledgeView extends ConsumerStatefulWidget {
 class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
   final _q = TextEditingController();
   String _tag = '전체';
+  String _kind = 'all'; // all | qa | article | note
   bool _starOnly = false;
 
   @override
@@ -66,6 +67,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
             final kw = _q.text.trim().toLowerCase();
             final list = all.where((n) {
               if (_starOnly && !n.starred) return false;
+              if (_kind != 'all' && n.kind != _kind) return false;
               if (_tag != '전체' && !n.tags.contains(_tag)) return false;
               if (kw.isEmpty) return true;
               return kw.split(RegExp(r'\s+')).every(n.haystack.contains);
@@ -97,6 +99,20 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                     ),
                   ),
                 ),
+                const Gap(12),
+                // 종류 구분 (강의 Q&A / 칼럼 / 내 메모)
+                Row(children: [
+                  for (final k in const [
+                    ('all', '전체', Icons.apps_rounded),
+                    ('qa', '강의 Q&A', Icons.forum_rounded),
+                    ('article', '칼럼', Icons.article_rounded),
+                    ('note', '내 메모', Icons.edit_note_rounded),
+                  ]) ...[
+                    _kindTab(k.$1, k.$2, k.$3,
+                        all.where((n) => k.$1 == 'all' || n.kind == k.$1).length),
+                    const Gap(6),
+                  ],
+                ]),
                 const Gap(12),
                 // 태그 필터
                 SingleChildScrollView(
@@ -143,6 +159,31 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _kindTab(String kind, String label, IconData icon, int n) {
+    final sel = _kind == kind;
+    return InkWell(
+      onTap: () => setState(() => _kind = kind),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: sel ? _amber.withValues(alpha: 0.16) : AppColors.surfaceAlt,
+          border: Border.all(color: sel ? _amber : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 15, color: sel ? _amber : AppColors.textFaint),
+          const Gap(5),
+          Text('$label $n',
+              style: TextStyle(
+                  color: sel ? _amber : AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700)),
+        ]),
+      ),
     );
   }
 
@@ -338,10 +379,37 @@ class _NoteCardState extends State<_NoteCard> {
     final n = widget.note;
     final body = n.body ?? '';
     final long = body.length > 110;
+    final (kindLabel, kindColor, kindIcon) = switch (n.kind) {
+      'qa' => ('강의 Q&A', AppColors.sky, Icons.forum_rounded),
+      'article' => ('칼럼', _amber, Icons.article_rounded),
+      'note' => ('내 메모', AppColors.primary, Icons.edit_note_rounded),
+      _ => ('자료', AppColors.textFaint, Icons.description_rounded),
+    };
     return GlassCard(
+      accent: kindColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 종류 배지
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: kindColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(kindIcon, size: 12, color: kindColor),
+                const Gap(4),
+                Text(kindLabel,
+                    style: TextStyle(
+                        color: kindColor,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800)),
+              ]),
+            ),
+          ]),
+          const Gap(8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
