@@ -320,9 +320,9 @@ class _LectureQuestionsScreenState extends State<LectureQuestionsScreen> {
             tooltip: '전체 복사',
             icon: const Icon(Icons.copy_all_rounded, size: 20),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await Clipboard.setData(ClipboardData(text: _asPlainText()));
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
+              messenger.showSnackBar(
                 const SnackBar(content: Text('질문 전체를 복사했어요')),
               );
             },
