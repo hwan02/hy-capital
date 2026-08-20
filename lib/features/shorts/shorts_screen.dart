@@ -303,26 +303,30 @@ class _RoleModelListState extends ConsumerState<_RoleModelList> {
                 _pf(p, all.where((a) => a.platform == p).length),
             ]),
             const Gap(14),
-            for (final a in list) ...[
-              _RoleModelCard(
-                acct: a,
-                onEdit: () => editBuiltinRecord(
-                    context, ref, referenceAccountSpec,
-                    initial: {
-                      'name': a.name,
-                      'platform': a.platform,
-                      'url': a.url,
-                      'category': a.category,
-                      'followers': a.followers,
-                      'memo': a.memo,
-                    },
-                    id: a.id),
-                onDelete: () => deleteBuiltinRecord(
-                    context, ref, referenceAccountSpec, a.id,
-                    name: a.name),
-              ),
-              const Gap(12),
-            ],
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final a in list)
+                  _RoleModelCard(
+                    acct: a,
+                    onEdit: () => editBuiltinRecord(
+                        context, ref, referenceAccountSpec,
+                        initial: {
+                          'name': a.name,
+                          'platform': a.platform,
+                          'url': a.url,
+                          'category': a.category,
+                          'followers': a.followers,
+                          'memo': a.memo,
+                        },
+                        id: a.id),
+                    onDelete: () => deleteBuiltinRecord(
+                        context, ref, referenceAccountSpec, a.id,
+                        name: a.name),
+                  ),
+              ],
+            ),
           ],
         );
       },
@@ -374,58 +378,57 @@ class _RoleModelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _pfColor[acct.platform] ?? AppColors.textFaint;
     final hasUrl = (acct.url ?? '').isNotEmpty;
-    final sub = [
-      if ((acct.category ?? '').isNotEmpty) acct.category!,
-      if (acct.followers > 0) '팔로워 ${_followers(acct.followers)}',
-    ].join(' · ');
-    return GlassCard(
-      accent: c,
-      padding: const EdgeInsets.fromLTRB(12, 9, 6, 9),
+    return InkWell(
       onTap: hasUrl ? () => _openLink(acct.url!) : null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(_pfIcon[acct.platform] ?? Icons.public_rounded,
-                size: 15, color: c),
-            const Gap(7),
-            Flexible(
-              child: Text(acct.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w700)),
-            ),
-            const Gap(6),
-            Text(acct.platform,
-                style: TextStyle(
-                    color: c, fontSize: 10.5, fontWeight: FontWeight.w700)),
-            if (sub.isNotEmpty) ...[
-              const Gap(6),
-              Flexible(
-                child: Text(sub,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textFaint, fontSize: 11)),
-              ),
-            ],
-            const Spacer(),
-            if (hasUrl)
-              Icon(Icons.open_in_new_rounded, size: 14, color: c),
-            RecordMenu(onEdit: onEdit, onDelete: onDelete),
-          ]),
-          if ((acct.memo ?? '').isNotEmpty) ...[
-            const Gap(6),
-            Text(acct.memo!,
-                maxLines: 2,
+      onLongPress: onEdit,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: c.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(_pfIcon[acct.platform] ?? Icons.public_rounded,
+              size: 14, color: c),
+          const Gap(6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 170),
+            child: Text(acct.name,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
-                    height: 1.4)),
+                    fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+          if (acct.followers > 0) ...[
+            const Gap(6),
+            Text(_followers(acct.followers),
+                style: const TextStyle(
+                    color: AppColors.textFaint, fontSize: 10.5)),
           ],
-        ],
+          if (hasUrl) ...[
+            const Gap(5),
+            Icon(Icons.open_in_new_rounded, size: 12, color: c),
+          ],
+          const Gap(2),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            splashRadius: 14,
+            constraints: const BoxConstraints(minWidth: 90),
+            color: AppColors.surfaceAlt,
+            onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', height: 36, child: Text('수정')),
+              PopupMenuItem(value: 'delete', height: 36, child: Text('삭제')),
+            ],
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: Icon(Icons.more_horiz_rounded,
+                  color: AppColors.textFaint, size: 15),
+            ),
+          ),
+        ]),
       ),
     );
   }
