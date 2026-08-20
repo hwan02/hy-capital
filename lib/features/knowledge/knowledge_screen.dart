@@ -386,8 +386,13 @@ class _NoteCardState extends State<_NoteCard> {
       'note' => ('내 메모', AppColors.primary, Icons.edit_note_rounded),
       _ => ('자료', AppColors.textFaint, Icons.description_rounded),
     };
+    final hasUrl = (n.url ?? '').isNotEmpty;
     return GlassCard(
       accent: kindColor,
+      onTap: hasUrl
+          ? () => launchUrl(Uri.parse(n.url!),
+              mode: LaunchMode.externalApplication)
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -409,17 +414,29 @@ class _NoteCardState extends State<_NoteCard> {
                         fontWeight: FontWeight.w800)),
               ]),
             ),
+            if (hasUrl) ...[
+              const Gap(6),
+              Icon(Icons.open_in_new_rounded, size: 13, color: kindColor),
+              const Gap(3),
+              Text('원문',
+                  style: TextStyle(
+                      color: kindColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+            ],
           ]),
-          const Gap(8),
+          const Gap(6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(n.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        height: 1.4)),
+                        height: 1.35)),
               ),
               const Gap(6),
               InkWell(
@@ -440,15 +457,15 @@ class _NoteCardState extends State<_NoteCard> {
                   onDelete: widget.onDelete),
             ],
           ),
-          const Gap(8),
+          const Gap(6),
           InkWell(
             onTap: long ? () => setState(() => _open = !_open) : null,
             child: Text(
               body,
-              maxLines: _open || !long ? null : 3,
+              maxLines: _open || !long ? null : 2,
               overflow: _open || !long ? null : TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 13.5, height: 1.6, color: AppColors.textSecondary),
+                  fontSize: 13, height: 1.5, color: AppColors.textSecondary),
             ),
           ),
           if (long) ...[
@@ -460,10 +477,10 @@ class _NoteCardState extends State<_NoteCard> {
                       color: _amber, fontSize: 12.5, fontWeight: FontWeight.w700)),
             ),
           ],
-          const Gap(10),
+          const Gap(8),
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: 5,
+            runSpacing: 5,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (final t in n.tags)
@@ -491,31 +508,6 @@ class _NoteCardState extends State<_NoteCard> {
                         color: AppColors.textFaint, fontSize: 11)),
             ],
           ),
-          if ((n.url ?? '').isNotEmpty) ...[
-            const Gap(10),
-            InkWell(
-              onTap: () => launchUrl(Uri.parse(n.url!),
-                  mode: LaunchMode.externalApplication),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: kindColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.open_in_new_rounded, size: 13, color: kindColor),
-                  const Gap(6),
-                  Text('원문 보기',
-                      style: TextStyle(
-                          color: kindColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ]),
-              ),
-            ),
-          ],
         ],
       ),
     );

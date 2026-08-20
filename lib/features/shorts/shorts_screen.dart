@@ -164,8 +164,13 @@ class _ChannelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasLink = channel.link?.isNotEmpty == true;
     return GlassCard(
       accent: AppColors.rose,
+      onTap: hasLink
+          ? () => launchUrl(Uri.parse(channel.link!),
+              mode: LaunchMode.externalApplication)
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -176,37 +181,23 @@ class _ChannelCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        fontSize: 14.5, fontWeight: FontWeight.w700)),
               ),
-              const Gap(10),
+              const Gap(8),
               Pill(channel.platform, color: AppColors.rose),
-              if (channel.link?.isNotEmpty == true) ...[
-                const Gap(8),
-                InkWell(
-                  onTap: () => launchUrl(Uri.parse(channel.link!),
-                      mode: LaunchMode.externalApplication),
-                  borderRadius: BorderRadius.circular(6),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.link_rounded, size: 15, color: AppColors.sky),
-                        Gap(3),
-                        Text('채널 열기',
-                            style: TextStyle(color: AppColors.sky, fontSize: 12.5)),
-                      ],
-                    ),
-                  ),
-                ),
+              if (hasLink) ...[
+                const Gap(6),
+                const Icon(Icons.open_in_new_rounded,
+                    size: 14, color: AppColors.sky),
               ],
               const Spacer(),
               RecordMenu(onEdit: onEdit, onDelete: onDelete),
             ],
           ),
-          const Gap(16),
+          const Gap(10),
           Wrap(
-            spacing: 24,
-            runSpacing: 12,
+            spacing: 20,
+            runSpacing: 8,
             children: [
               _metric('업로드', '${channel.uploads}개'),
               _metric('조회수', NumberFormat.compact().format(channel.views)),
@@ -227,7 +218,7 @@ class _ChannelCard extends StatelessWidget {
                   color: AppColors.textSecondary, fontSize: 11.5)),
           const Gap(3),
           Text(value,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
         ],
       );
 }
@@ -395,14 +386,14 @@ class _RoleModelCard extends StatelessWidget {
         children: [
           Row(children: [
             Icon(_pfIcon[acct.platform] ?? Icons.public_rounded,
-                size: 18, color: c),
-            const Gap(8),
+                size: 16, color: c),
+            const Gap(7),
             Expanded(
               child: Text(acct.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
+                      fontSize: 14, fontWeight: FontWeight.w700)),
             ),
             if (acct.followers > 0)
               Text('팔로워 ${_followers(acct.followers)}',
@@ -410,10 +401,10 @@ class _RoleModelCard extends StatelessWidget {
                       color: AppColors.textSecondary, fontSize: 12)),
             RecordMenu(onEdit: onEdit, onDelete: onDelete),
           ]),
-          const Gap(8),
+          const Gap(6),
           Row(children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: c.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(6),
@@ -439,19 +430,21 @@ class _RoleModelCard extends StatelessWidget {
               ]),
           ]),
           if ((acct.memo ?? '').isNotEmpty) ...[
-            const Gap(10),
+            const Gap(8),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(11),
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 color: AppColors.surfaceAlt.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(9),
               ),
               child: Text(acct.memo!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12.5,
-                      height: 1.5)),
+                      fontSize: 12,
+                      height: 1.45)),
             ),
           ],
         ],
