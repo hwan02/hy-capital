@@ -286,7 +286,7 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _AuctionCard extends StatelessWidget {
+class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
   final VoidCallback onOpen;
   final VoidCallback onDelete;
@@ -294,7 +294,17 @@ class _AuctionCard extends StatelessWidget {
       {required this.p, required this.onOpen, required this.onDelete});
 
   @override
+  State<_AuctionCard> createState() => _AuctionCardState();
+}
+
+class _AuctionCardState extends State<_AuctionCard> {
+  bool _open = false;
+
+  @override
   Widget build(BuildContext context) {
+    final p = widget.p;
+    final onOpen = widget.onOpen;
+    final onDelete = widget.onDelete;
     final vColor = _verdictColor(p.verdict);
     return InkWell(
       onTap: onOpen,
@@ -311,8 +321,10 @@ class _AuctionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(p.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700)),
+                            fontSize: 15, fontWeight: FontWeight.w700)),
                     if ((p.address ?? '').isNotEmpty || (p.caseNo ?? '').isNotEmpty) ...[
                       const Gap(3),
                       Text(
@@ -344,10 +356,10 @@ class _AuctionCard extends StatelessWidget {
                   : '예상순수익이 목표수익(${Won.compact(p.targetProfit)}원)에 미달',
             ),
           ],
-          const Gap(14),
+          const Gap(12),
           Wrap(
-            spacing: 26,
-            runSpacing: 14,
+            spacing: 22,
+            runSpacing: 10,
             children: [
               _metric('현재시세', '${Won.compact(p.currentPrice)}원'),
               _metric('예상매도가', '${Won.compact(p.expectedSalePrice)}원'),
@@ -364,8 +376,8 @@ class _AuctionCard extends StatelessWidget {
                   color: AppColors.sky),
             ],
           ),
-          if ((p.memo ?? '').isNotEmpty) ...[
-            const Gap(14),
+          if (_open && (p.memo ?? '').isNotEmpty) ...[
+            const Gap(12),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -377,19 +389,45 @@ class _AuctionCard extends StatelessWidget {
                   style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12.5,
-                      height: 1.5)),
+                      height: 1.55)),
             ),
           ],
-          const Gap(12),
+          const Gap(10),
           Row(
             children: [
-              const Icon(Icons.photo_library_rounded,
-                  size: 14, color: AppColors.textFaint),
-              const Gap(5),
-              Text('사진 ${p.images.length}장 · 조사표·계산기·메모',
-                  style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: 12)),
+              if ((p.memo ?? '').isNotEmpty)
+                InkWell(
+                  onTap: () => setState(() => _open = !_open),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 3),
+                    child: Row(children: [
+                      Icon(
+                          _open
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: AppColors.textSecondary),
+                      const Gap(3),
+                      Text(_open ? '접기' : '추천포인트·입지·이력',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
               const Spacer(),
+              if (p.images.isNotEmpty) ...[
+                const Icon(Icons.photo_library_rounded,
+                    size: 13, color: AppColors.textFaint),
+                const Gap(3),
+                Text('${p.images.length}',
+                    style: const TextStyle(
+                        color: AppColors.textFaint, fontSize: 11.5)),
+                const Gap(8),
+              ],
               const Text('상세 열기',
                   style: TextStyle(
                       color: _teal, fontSize: 12, fontWeight: FontWeight.w700)),
