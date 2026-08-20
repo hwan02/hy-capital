@@ -19,6 +19,60 @@ Future<void> showKnowledgeNoteEditor(BuildContext context, WidgetRef ref,
         {KnowledgeNote? note}) =>
     _noteDialog(context, ref, note: note);
 
+/// 자료실 헤더 버튼 — `+ PDF` 와 `+ 메모`.
+/// 경매 화면의 '자료실' 탭에서 ModulePage 의 action 으로 쓴다.
+class KnowledgeActions extends ConsumerWidget {
+  const KnowledgeActions({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SmallAdd(
+            label: 'PDF',
+            icon: Icons.picture_as_pdf_rounded,
+            color: AppColors.rose,
+            onTap: () => uploadStandalonePdf(context, ref),
+          ),
+          const Gap(8),
+          _SmallAdd(
+            label: '메모',
+            icon: Icons.edit_note_rounded,
+            color: _amber,
+            onTap: () => showKnowledgeNoteEditor(context, ref),
+          ),
+        ],
+      );
+}
+
+class _SmallAdd extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _SmallAdd(
+      {required this.label,
+      required this.icon,
+      required this.color,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(
+              fontSize: AppFont.label, fontWeight: FontWeight.w800),
+        ),
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+      );
+}
+
 /// 부동산 지식 자료실 본문 — 강의 Q&A·칼럼·메모를 키워드/태그로 검색.
 /// 경매 화면의 '자료실' 탭에서도 그대로 재사용한다.
 class KnowledgeView extends ConsumerStatefulWidget {
@@ -108,6 +162,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                     ('all', '전체', Icons.apps_rounded),
                     ('qa', '강의 Q&A', Icons.forum_rounded),
                     ('article', '칼럼', Icons.article_rounded),
+                    ('file', 'PDF', Icons.picture_as_pdf_rounded),
                     ('note', '내 메모', Icons.edit_note_rounded),
                   ]) ...[
                     _kindTab(k.$1, k.$2, k.$3,
@@ -380,6 +435,7 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
     final (kindLabel, kindColor, kindIcon) = switch (n.kind) {
       'qa' => ('강의 Q&A', AppColors.sky, Icons.forum_rounded),
       'article' => ('칼럼', _amber, Icons.article_rounded),
+      'file' => ('PDF', AppColors.rose, Icons.picture_as_pdf_rounded),
       'note' => ('내 메모', AppColors.primary, Icons.edit_note_rounded),
       _ => ('자료', AppColors.textFaint, Icons.description_rounded),
     };
@@ -435,13 +491,16 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
                         height: 1.35)),
               ),
               const Gap(6),
-              InkWell(
-                onTap: () => attachKnowledgeFiles(context, ref, n),
-                borderRadius: BorderRadius.circular(20),
-                child: const Padding(
-                  padding: EdgeInsets.all(3),
-                  child: Icon(Icons.attach_file_rounded,
-                      size: 17, color: AppColors.textFaint),
+              Tooltip(
+                message: '이 자료에 PDF 첨부',
+                child: InkWell(
+                  onTap: () => attachKnowledgeFiles(context, ref, n),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(3),
+                    child: Icon(Icons.attach_file_rounded,
+                        size: 18, color: AppColors.textSecondary),
+                  ),
                 ),
               ),
               InkWell(

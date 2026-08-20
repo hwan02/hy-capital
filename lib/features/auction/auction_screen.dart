@@ -111,10 +111,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
       color: _tab == 0 ? _teal : amber,
       action: _tab == 0
           ? AddButton(color: _teal, onTap: () => _quickAdd(context, ref))
-          : AddButton(
-              color: amber,
-              label: '메모',
-              onTap: () => showKnowledgeNoteEditor(context, ref)),
+          : const KnowledgeActions(),
       children: [
         // 물건 / 자료실 전환
         Row(children: [

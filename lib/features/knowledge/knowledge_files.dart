@@ -99,6 +99,68 @@ Future<void> attachKnowledgeFiles(
   }
 }
 
+/// PDF 만 단독으로 올린다 — 항목을 먼저 만들 필요 없이,
+/// 파일명으로 자료실 항목(kind='file')을 만들고 거기에 첨부한다.
+Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref) async {
+  final input = html.FileUploadInputElement()
+    ..accept = '.pdf,application/pdf'
+    ..multiple = true;
+  input.click();
+  await input.onChange.first;
+  final picked = input.files;
+  if (picked == null || picked.isEmpty) return;
+
+  final sb = ref.read(supabaseProvider);
+  final uid = sb.auth.currentUser?.id;
+  if (uid == null) {
+    _toast(context, '로그인이 필요합니다', error: true);
+    return;
+  }
+
+  var made = 0;
+  for (final f in picked) {
+    if (f.size > _maxBytes) {
+      _toast(context, '${f.name} 은(는) 너무 큽니다 (25MB 초과)', error: true);
+      continue;
+    }
+    final reader = html.FileReader()..readAsArrayBuffer(f);
+    await reader.onLoad.first;
+    final bytes = _bytesOf(reader.result);
+    if (bytes == null) continue;
+
+    final safe = f.name.replaceAll(RegExp(r'[^\w.\-가-힣]'), '_');
+    final path = '$uid/${DateTime.now().millisecondsSinceEpoch}_$safe';
+    try {
+      await sb.storage.from(_bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'application/pdf'),
+          );
+      // 제목은 확장자를 뗀 파일명.
+      var title = f.name;
+      if (title.toLowerCase().endsWith('.pdf')) {
+        title = title.substring(0, title.length - 4);
+      }
+      await sb.from('knowledge_notes').insert({
+        'user_id': uid,
+        'kind': 'file',
+        'title': title,
+        'source': '첨부 파일',
+        'files': [
+          KnowledgeFile(name: f.name, path: path, size: f.size).toMap()
+        ],
+      });
+      made++;
+    } catch (e) {
+      _toast(context, '${f.name} 실패: $e', error: true);
+    }
+  }
+  if (made > 0) {
+    invalidateAll(ref);
+    _toast(context, 'PDF $made개 올렸습니다');
+  }
+}
+
 /// 서명 URL(1시간)을 만들어 새 탭으로 연다.
 Future<void> openKnowledgeFile(
   BuildContext context,
