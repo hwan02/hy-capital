@@ -24,6 +24,25 @@
 > 짧은 메모는 파일 만들 필요 없이 앱 자료실 탭에서 **＋메모** 로 바로 추가.
 > 스크린샷 PDF(카페 글 캡처 등)도 그대로 주면 파싱해서 넣는다.
 
+## 암호 걸린 PDF
+
+강의 자료 PDF에 암호가 걸려 있으면 내용을 읽을 수 없다. 암호를 **키체인에 한 번만** 넣어두면
+그 뒤로는 자동으로 열린다. 암호는 이 저장소에도, 대화에도 남지 않는다.
+
+```bash
+# 1) 한 번만 — 입력한 글자는 화면에 보이지 않는다
+security add-generic-password -a "$USER" -s hy-pdf-lecture -w
+
+# 2) 그 다음부터는 이것만
+python3 knowledge/unlock_pdf.py '~/Downloads/강의자료.protected.pdf'
+```
+
+`.unlocked.pdf` 가 원본 옆에 생긴다. 그 뒤 `/hy-knowledge` 로 자료실에 넣는다.
+자료마다 암호가 다르면 `--service hy-pdf-다른이름` 으로 항목을 나눈다.
+
+> **복호화된 사본은 커밋하지 않는다.** 이 저장소는 공개이고, 유료 강의 자료다.
+> `*.unlocked.pdf` 와 `*.pdf` 는 `.gitignore` 에 있다.
+
 ## JSON 포맷
 
 **Q&A형** (강의 질의응답)

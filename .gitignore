@@ -53,3 +53,7 @@ env.local.json
 # 빌드 산출물
 *.zip
 hy-capital-web.zip
+
+# 강의 자료 PDF (공개 저장소이므로 원본/복호화본 모두 제외)
+*.pdf
+*.unlocked.pdf
