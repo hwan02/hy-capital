@@ -286,15 +286,16 @@ String _asPlainText() {
   return b.toString();
 }
 
-class LectureQuestionsScreen extends StatefulWidget {
-  const LectureQuestionsScreen({super.key});
+/// 강의 질문 본문 — 경매 화면의 '강의 질문' 탭에서 그대로 재사용한다.
+/// 복사·핵심만보기 버튼은 자체 툴바로 들고 있어 어디에 끼워도 동작한다.
+class LectureQuestionsView extends StatefulWidget {
+  const LectureQuestionsView({super.key});
 
   @override
-  State<LectureQuestionsScreen> createState() =>
-      _LectureQuestionsScreenState();
+  State<LectureQuestionsView> createState() => _LectureQuestionsViewState();
 }
 
-class _LectureQuestionsScreenState extends State<LectureQuestionsScreen> {
+class _LectureQuestionsViewState extends State<LectureQuestionsView> {
   /// 물어본 질문 표시 (강의 중 체크용).
   final Set<String> _asked = {};
 
@@ -305,40 +306,45 @@ class _LectureQuestionsScreenState extends State<LectureQuestionsScreen> {
         if (!_asked.remove(key)) _asked.add(key);
       });
 
+  int get _askedCount => _asked.length;
+
   @override
   Widget build(BuildContext context) {
     final total = _totalCount;
-    return ModulePage(
-      title: '강의 질문',
-      subtitle: '오프라인 경매 강의 · 물어본 것 $_askedCount/$total',
-      icon: Icons.live_help_rounded,
-      color: _kQuestionColor,
-      action: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: '전체 복사',
-            icon: const Icon(Icons.copy_all_rounded, size: 20),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              await Clipboard.setData(ClipboardData(text: _asPlainText()));
-              messenger.showSnackBar(
-                const SnackBar(content: Text('질문 전체를 복사했어요')),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: _coreOnly ? '전체 질문 보기' : '핵심만 보기',
-            icon: Icon(
-              _coreOnly ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: 20,
-              color: _coreOnly ? _kQuestionColor : AppColors.textFaint,
-            ),
-            onPressed: () => setState(() => _coreOnly = !_coreOnly),
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('오프라인 경매 강의 · 물어본 것 $_askedCount/$total',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFont.label)),
+            ),
+            IconButton(
+              tooltip: '전체 복사',
+              icon: const Icon(Icons.copy_all_rounded, size: 20),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await Clipboard.setData(ClipboardData(text: _asPlainText()));
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('질문 전체를 복사했어요')),
+                );
+              },
+            ),
+            IconButton(
+              tooltip: _coreOnly ? '전체 질문 보기' : '핵심만 보기',
+              icon: Icon(
+                _coreOnly ? Icons.star_rounded : Icons.star_outline_rounded,
+                size: 20,
+                color: _coreOnly ? _kQuestionColor : AppColors.textFaint,
+              ),
+              onPressed: () => setState(() => _coreOnly = !_coreOnly),
+            ),
+          ],
+        ),
+        const Gap(6),
         _ProgressCard(asked: _askedCount, total: total),
         const Gap(Insets.gap),
         const _SituationCard(),
@@ -357,8 +363,21 @@ class _LectureQuestionsScreenState extends State<LectureQuestionsScreen> {
       ],
     );
   }
+}
 
-  int get _askedCount => _asked.length;
+/// 강의 질문 단독 페이지 (직접 URL 접근용). 사이드 메뉴에는 노출하지 않고
+/// 경매 화면의 '강의 질문' 탭으로 접근한다.
+class LectureQuestionsScreen extends StatelessWidget {
+  const LectureQuestionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ModulePage(
+        title: '강의 질문',
+        subtitle: '오프라인 경매 강의에서 물어볼 것',
+        icon: Icons.live_help_rounded,
+        color: _kQuestionColor,
+        children: [LectureQuestionsView()],
+      );
 }
 
 class _ProgressCard extends StatelessWidget {

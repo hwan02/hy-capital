@@ -18,7 +18,6 @@ const kModules = <ModuleDef>[
   ModuleDef('/shorts', 'Shorts', Icons.play_circle_fill_rounded, AppColors.rose),
   ModuleDef('/land', '토지', Icons.terrain_rounded, Color(0xFFB4844E)),
   ModuleDef('/auction', '경매', Icons.gavel_rounded, Color(0xFF14B8A6)),
-  ModuleDef('/questions', '강의 질문', Icons.live_help_rounded, Color(0xFFF97316)),
   ModuleDef('/dividend', '배당금', Icons.savings_rounded, AppColors.primary),
   ModuleDef('/goals', 'Goals', Icons.flag_rounded, AppColors.violet),
 ];

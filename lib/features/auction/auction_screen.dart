@@ -13,6 +13,7 @@ import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
+import '../questions/lecture_questions_screen.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -99,37 +100,46 @@ class AuctionScreen extends ConsumerStatefulWidget {
 
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
-  int _tab = 0; // 0=물건 · 1=자료실
+  int _tab = 0; // 0=물건 · 1=자료실 · 2=강의 질문
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
     const amber = Color(0xFFF59E0B);
+    const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
       title: '경매',
       icon: Icons.gavel_rounded,
-      color: _tab == 0 ? _teal : amber,
-      action: _tab == 0
-          ? AddButton(color: _teal, onTap: () => _quickAdd(context, ref))
-          : const KnowledgeActions(),
+      color: switch (_tab) { 0 => _teal, 1 => amber, _ => orange },
+      action: switch (_tab) {
+        0 => AddButton(color: _teal, onTap: () => _quickAdd(context, ref)),
+        1 => const KnowledgeActions(),
+        _ => null,
+      },
       children: [
-        // 물건 / 자료실 전환
-        Row(children: [
+        // 물건 / 자료실 / 강의 질문 전환 (좁은 화면에서 줄바꿈)
+        Wrap(spacing: 8, runSpacing: 8, children: [
           _TopTab(
               label: '물건',
               icon: Icons.gavel_rounded,
               color: _teal,
               selected: _tab == 0,
               onTap: () => setState(() => _tab = 0)),
-          const Gap(8),
           _TopTab(
               label: '자료실',
               icon: Icons.menu_book_rounded,
               color: amber,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
+          _TopTab(
+              label: '강의 질문',
+              icon: Icons.live_help_rounded,
+              color: orange,
+              selected: _tab == 2,
+              onTap: () => setState(() => _tab = 2)),
         ]),
         const Gap(18),
+        if (_tab == 2) const LectureQuestionsView(),
         if (_tab == 1) const KnowledgeView(),
         if (_tab == 0)
           async.when(
