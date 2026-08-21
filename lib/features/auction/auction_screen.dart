@@ -403,7 +403,7 @@ class _AuctionCardState extends State<_AuctionCard> {
             const Gap(12),
             _Warn(
               text: '입찰보증금 ${Won.compact(p.depositDue)}원 · '
-                  '가용현금 ${Won.compact(widget.cash)}원 → '
+                  '경매 예산 ${Won.compact(widget.cash)}원 → '
                   '${Won.compact(p.shortfall(widget.cash))}원 부족',
               color: AppColors.textFaint,
             ),
@@ -636,7 +636,7 @@ class _TopTab extends StatelessWidget {
 
 /// 가용현금 기준선 배너 — 내 돈으로 어디까지 입찰이 되는지 한 줄로 알려준다.
 /// 자금부족으로 접힌 물건이 있으면 여기서 펼친다.
-class _CashBanner extends StatelessWidget {
+class _CashBanner extends ConsumerWidget {
   final double cash;
   final int shortCount;
   final bool showShort;
@@ -648,8 +648,71 @@ class _CashBanner extends StatelessWidget {
     required this.onToggle,
   });
 
+  /// 경매에 쓸 돈을 직접 입력한다. 전체 현금과 분리된 값.
+  Future<void> _editBudget(
+      BuildContext context, WidgetRef ref, double current) async {
+    final c = TextEditingController(
+        text: current > 0 ? current.toStringAsFixed(0) : '');
+    final v = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('경매에 쓸 돈',
+            style: TextStyle(fontSize: AppFont.section)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                '전체 현금이 아니라 «경매에만» 쓸 수 있는 금액을 넣으세요.\n'
+                '이 값으로 물건마다 보증금이 되는지 판정합니다.',
+                style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: AppFont.label,
+                    height: 1.5)),
+            const Gap(14),
+            TextField(
+              controller: c,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontSize: AppFont.body),
+              decoration: const InputDecoration(
+                  labelText: '금액 (원)', hintText: '예: 10000000'),
+              onSubmitted: (t) =>
+                  Navigator.pop(context, double.tryParse(t.replaceAll(',', ''))),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
+            onPressed: () => Navigator.pop(
+                context, double.tryParse(c.text.replaceAll(',', ''))),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (v == null) return;
+    final sb = ref.read(supabaseProvider);
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      await sb
+          .from('profiles')
+          .update({'auction_budget': v}).eq('id', uid);
+      invalidateAll(ref);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('저장 실패: $e'), backgroundColor: AppColors.rose));
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (cash <= 0) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -658,15 +721,25 @@ class _CashBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
-        child: const Row(children: [
-          Icon(Icons.info_outline_rounded,
+        child: Row(children: [
+          const Icon(Icons.info_outline_rounded,
               size: 15, color: AppColors.textFaint),
-          Gap(8),
-          Expanded(
-            child: Text(
-                '재무 현황에 현금을 입력하면 물건마다 「보증금이 되는지」 자동으로 판정해요.',
+          const Gap(8),
+          const Expanded(
+            child: Text('경매에 쓸 돈을 정하면 물건마다 「보증금이 되는지」 자동으로 판정해요.',
                 style: TextStyle(
                     color: AppColors.textFaint, fontSize: AppFont.label)),
+          ),
+          TextButton(
+            onPressed: () => _editBudget(context, ref, 0),
+            style: TextButton.styleFrom(
+                foregroundColor: AppColors.gold,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            child: const Text('설정',
+                style: TextStyle(
+                    fontSize: AppFont.label, fontWeight: FontWeight.w800)),
           ),
         ]),
       );
@@ -685,16 +758,22 @@ class _CashBanner extends StatelessWidget {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.account_balance_wallet_rounded,
-                size: 15, color: AppColors.gold),
-            const Gap(8),
-            Text('가용현금 ${Won.compact(cash)}원',
-                style: const TextStyle(
-                    color: AppColors.gold,
-                    fontSize: AppFont.label,
-                    fontWeight: FontWeight.w800)),
-          ]),
+          InkWell(
+            onTap: () => _editBudget(context, ref, cash),
+            borderRadius: BorderRadius.circular(7),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.account_balance_wallet_rounded,
+                  size: 15, color: AppColors.gold),
+              const Gap(8),
+              Text('경매 예산 ${Won.compact(cash)}원',
+                  style: const TextStyle(
+                      color: AppColors.gold,
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w800)),
+              const Gap(4),
+              const Icon(Icons.edit_rounded, size: 12, color: AppColors.gold),
+            ]),
+          ),
           Text('보증금 10% 기준 · 최저가 ${Won.compact(maxMin)}원까지 입찰 가능',
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: AppFont.label)),

@@ -13,6 +13,9 @@ class Profile {
   final String poolBusinessLabel;
   final String poolSalaryLabel;
 
+  /// 경매에 쓸 수 있는 돈. 전체 현금과 분리해서 관리한다(0 이면 미설정).
+  final double auctionBudget;
+
   Profile({
     required this.id,
     this.displayName,
@@ -21,6 +24,7 @@ class Profile {
     required this.freedomTarget,
     required this.poolBusinessLabel,
     required this.poolSalaryLabel,
+    this.auctionBudget = 0,
   });
 
   factory Profile.fromMap(Map<String, dynamic> m) => Profile(
@@ -32,6 +36,7 @@ class Profile {
             m['freedom_target'] == null ? 10000000 : _d(m['freedom_target']),
         poolBusinessLabel: m['pool_business_label'] ?? '사업자금',
         poolSalaryLabel: m['pool_salary_label'] ?? '월급·개인자금',
+        auctionBudget: _d(m['auction_budget']),
       );
 }
 
