@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/env.dart';
+import 'core/data/data_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 
@@ -26,12 +29,17 @@ Future<void> main() async {
         email: Env.autoEmail,
         password: Env.autoPassword,
       );
-      // signInWithPassword 직후에는 supabase_flutter 가 REST 클라이언트의
-      // Authorization 헤더를 아직 갱신하지 않은 상태일 수 있다(내부 리스너가
-      // 마이크로태스크로 처리). 이 상태로 runApp 하면 첫 데이터 조회가 익명으로
-      // 나가 RLS 에 막혀 빈 화면이 뜬다. 이벤트 루프를 한 틱 넘겨 헤더 갱신을
-      // 확실히 반영한 뒤 앱을 띄운다.
-      await Future<void>.delayed(Duration.zero);
+      // signInWithPassword 가 끝나도 supabase_flutter 는 REST 클라이언트의
+      // Authorization 헤더를 내부 리스너(마이크로태스크)로 갱신한다. 그 전에
+      // runApp 하면 첫 조회가 익명으로 나가 RLS 에 막혀 빈 화면이 뜬다.
+      // Duration.zero 한 틱으로는 부족해서, 헤더에 토큰이 실제로 반영될 때까지
+      // 짧게 기다린다(최대 2초). 그래도 안 되면 아래 _AuthRefresh 가 받아준다.
+      final token = auth.currentSession?.accessToken;
+      for (var i = 0; i < 40 && token != null; i++) {
+        final h = Supabase.instance.client.rest.headers['Authorization'];
+        if (h != null && h.contains(token)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
     } catch (_) {
       // 세션 확보 실패해도 앱은 실행 (연결/시드 전 상태).
     }
@@ -40,11 +48,40 @@ Future<void> main() async {
   runApp(const ProviderScope(child: HyCapitalApp()));
 }
 
-class HyCapitalApp extends ConsumerWidget {
+class HyCapitalApp extends ConsumerStatefulWidget {
   const HyCapitalApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HyCapitalApp> createState() => _HyCapitalAppState();
+}
+
+class _HyCapitalAppState extends ConsumerState<HyCapitalApp> {
+  StreamSubscription<AuthState>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // 로그인이 앱 시작 뒤에 완료되면(느린 네트워크 등) 첫 조회가 익명으로 나가
+    // 빈 화면이 남는다. 세션이 잡히는 순간 데이터를 다시 읽는다.
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((s) {
+      if (s.event != AuthChangeEvent.signedIn &&
+          s.event != AuthChangeEvent.tokenRefreshed) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) invalidateAll(ref);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'HY CAPITAL',
