@@ -249,6 +249,11 @@ class AuctionProperty {
   final String? memo;
   final Map<String, dynamic> checklist; // 입찰 전 체크리스트(온라인·오프라인·권리·최종점검)
   final List<String> images; // 스크린샷 base64 data URL 목록
+  final DateTime? bidDate; // 매각기일
+  final String? court; // 입찰법원·계
+  final double appraisalPrice; // 감정가
+  final double deposit; // 입찰보증금 (통상 최저가 10%, 재매각은 20~30%)
+  final String? propertyKind; // 아파트|빌라|다세대|오피스텔|기타
 
   AuctionProperty({
     required this.id,
@@ -273,7 +278,36 @@ class AuctionProperty {
     this.memo,
     this.checklist = const {},
     this.images = const [],
+    this.bidDate,
+    this.court,
+    this.appraisalPrice = 0,
+    this.deposit = 0,
+    this.propertyKind,
   });
+
+  /// 입찰보증금. 저장값이 없으면 최저가의 10% 로 본다(통상 기준).
+  double get depositDue => deposit > 0 ? deposit : minPrice * 0.1;
+
+  /// 최저가 / 감정가 — 몇 회 유찰됐는지 가늠하는 값.
+  double get minToAppraisal =>
+      appraisalPrice <= 0 ? 0 : (minPrice / appraisalPrice) * 100;
+
+  /// 입찰일까지 남은 날. 지났으면 음수.
+  int? get daysToBid {
+    if (bidDate == null) return null;
+    final now = DateTime.now();
+    return DateTime(bidDate!.year, bidDate!.month, bidDate!.day)
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
+  }
+
+  bool get bidPassed => (daysToBid ?? 1) < 0;
+
+  /// 자금 게이트 — 가용현금으로 입찰보증금이 되는가.
+  /// 안 되면 조사할 이유가 없다(입찰 자체가 불가).
+  /// cash 가 0(미입력)이면 판정하지 않는다.
+  bool cashShort(double cash) => cash > 0 && depositDue > cash;
+  double shortfall(double cash) => (depositDue - cash).clamp(0, double.infinity);
 
   // 모든 부대비용 합(입찰가 제외).
   double get _costs =>
@@ -330,6 +364,13 @@ class AuctionProperty {
             const {},
         images: (m['images'] as List?)?.map((e) => e.toString()).toList() ??
             const [],
+        bidDate: m['bid_date'] == null
+            ? null
+            : DateTime.tryParse(m['bid_date'].toString())?.toLocal(),
+        court: m['court'],
+        appraisalPrice: _d(m['appraisal_price']),
+        deposit: _d(m['deposit']),
+        propertyKind: m['property_kind'],
       );
 }
 

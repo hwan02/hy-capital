@@ -581,3 +581,11 @@ final lectureAnswersProvider =
   final list = rows.map<LectureAnswer>(LectureAnswer.fromMap);
   return {for (final a in list) a.qkey: a};
 });
+
+/// 가용현금 — 가장 최근 재무 스냅샷의 현금. 경매 자금 게이트의 기준값.
+/// 스냅샷이 없거나 0 이면 판정하지 않는다(0 을 "돈 없음"으로 단정하지 않음).
+final availableCashProvider = FutureProvider<double>((ref) async {
+  final snaps = await ref.watch(snapshotsProvider.future);
+  if (snaps.isEmpty) return 0;
+  return snaps.last.cash;
+});

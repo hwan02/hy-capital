@@ -101,10 +101,12 @@ class AuctionScreen extends ConsumerStatefulWidget {
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
   int _tab = 0; // 0=물건 · 1=자료실 · 2=강의 질문
+  bool _showShort = false; // 자금부족 물건까지 보기
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
+    final cash = ref.watch(availableCashProvider).asData?.value ?? 0;
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
@@ -158,11 +160,27 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 ? 0.0
                 : items.fold(0.0, (s, p) => s + p.score) / items.length;
 
-            final filtered = switch (_filter) {
+            final byFilter = switch (_filter) {
               'all' => items,
               'GO' => items.where((p) => p.verdict == 'GO').toList(),
               final s => items.where((p) => p.status == s).toList(),
-            };
+            }.toList()
+              // 입찰일 임박순. 날짜 없는 건 뒤로, 지난 건 맨 뒤로.
+              ..sort((a, b) {
+                final da = a.daysToBid, db = b.daysToBid;
+                int rank(int? d) => d == null ? 1 : (d < 0 ? 2 : 0);
+                final r = rank(da).compareTo(rank(db));
+                if (r != 0) return r;
+                if (da == null || db == null) return 0;
+                return da.compareTo(db);
+              });
+
+            // 자금 게이트: 보증금이 안 되는 물건은 기본으로 접는다.
+            final shortList =
+                byFilter.where((p) => p.cashShort(cash)).toList();
+            final filtered = _showShort
+                ? byFilter
+                : byFilter.where((p) => !p.cashShort(cash)).toList();
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,6 +220,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   current: _filter,
                   onSelect: (f) => setState(() => _filter = f),
                 ),
+                const Gap(12),
+                _CashBanner(
+                  cash: cash,
+                  shortCount: shortList.length,
+                  showShort: _showShort,
+                  onToggle: () => setState(() => _showShort = !_showShort),
+                ),
                 const Gap(14),
                 if (filtered.isEmpty)
                   const Padding(
@@ -213,6 +238,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 for (final p in filtered) ...[
                   _AuctionCard(
                     p: p,
+                    cash: cash,
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
                         context, ref, auctionSpec, p.id,
@@ -295,10 +321,14 @@ class _Chip extends StatelessWidget {
 
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
+  final double cash; // 가용현금 — 자금 게이트 기준
   final VoidCallback onOpen;
   final VoidCallback onDelete;
   const _AuctionCard(
-      {required this.p, required this.onOpen, required this.onDelete});
+      {required this.p,
+      required this.cash,
+      required this.onOpen,
+      required this.onDelete});
 
   @override
   State<_AuctionCard> createState() => _AuctionCardState();
@@ -312,10 +342,14 @@ class _AuctionCardState extends State<_AuctionCard> {
     final p = widget.p;
     final onOpen = widget.onOpen;
     final onDelete = widget.onDelete;
-    final vColor = _verdictColor(p.verdict);
+    final short = p.cashShort(widget.cash);
+    final vColor = short ? AppColors.textFaint : _verdictColor(p.verdict);
+    final d = p.daysToBid;
     return InkWell(
       onTap: onOpen,
       borderRadius: BorderRadius.circular(16),
+      child: Opacity(
+      opacity: short ? 0.62 : 1,
       child: GlassCard(
       accent: vColor,
       child: Column(
@@ -347,6 +381,16 @@ class _AuctionCardState extends State<_AuctionCard> {
                 ),
               ),
               const Gap(8),
+              if (d != null) ...[
+                Pill(
+                    p.bidPassed
+                        ? '입찰 종료'
+                        : (d == 0 ? '오늘 입찰' : 'D-$d'),
+                    color: p.bidPassed
+                        ? AppColors.textFaint
+                        : (d <= 7 ? AppColors.rose : AppColors.violet)),
+                const Gap(6),
+              ],
               Pill(_statusLabel[p.status] ?? p.status,
                   color: _statusColor[p.status] ?? AppColors.textFaint),
               const Gap(6),
@@ -354,8 +398,18 @@ class _AuctionCardState extends State<_AuctionCard> {
               RecordMenu(onEdit: onOpen, onDelete: onDelete),
             ],
           ),
+          // 자금 게이트 — 보증금이 안 되면 조사할 이유가 없다.
+          if (short) ...[
+            const Gap(12),
+            _Warn(
+              text: '입찰보증금 ${Won.compact(p.depositDue)}원 · '
+                  '가용현금 ${Won.compact(widget.cash)}원 → '
+                  '${Won.compact(p.shortfall(widget.cash))}원 부족',
+              color: AppColors.textFaint,
+            ),
+          ],
           // 경고 배너
-          if (p.overMaxBid || p.belowTarget) ...[
+          if (!short && (p.overMaxBid || p.belowTarget)) ...[
             const Gap(12),
             _Warn(
               text: p.overMaxBid
@@ -444,6 +498,7 @@ class _AuctionCardState extends State<_AuctionCard> {
         ],
       ),
       ),
+      ),
     );
   }
 
@@ -499,27 +554,33 @@ class _ScorePill extends StatelessWidget {
 
 class _Warn extends StatelessWidget {
   final String text;
-  const _Warn({required this.text});
+  final Color? color;
+  const _Warn({required this.text, this.color});
 
   @override
   Widget build(BuildContext context) {
+    final c = color ?? AppColors.rose;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.rose.withValues(alpha: 0.12),
+        color: c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.rose.withValues(alpha: 0.4)),
+        border: Border.all(color: c.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: AppColors.rose, size: 16),
+          Icon(
+              color == null
+                  ? Icons.warning_amber_rounded
+                  : Icons.account_balance_wallet_rounded,
+              color: c,
+              size: 16),
           const Gap(8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
-                    color: AppColors.rose,
+                style: TextStyle(
+                    color: c,
                     fontSize: AppFont.label,
                     fontWeight: FontWeight.w700)),
           ),
@@ -568,6 +629,102 @@ class _TopTab extends StatelessWidget {
                   fontSize: AppFont.body,
                   fontWeight: FontWeight.w800)),
         ]),
+      ),
+    );
+  }
+}
+
+/// 가용현금 기준선 배너 — 내 돈으로 어디까지 입찰이 되는지 한 줄로 알려준다.
+/// 자금부족으로 접힌 물건이 있으면 여기서 펼친다.
+class _CashBanner extends StatelessWidget {
+  final double cash;
+  final int shortCount;
+  final bool showShort;
+  final VoidCallback onToggle;
+  const _CashBanner({
+    required this.cash,
+    required this.shortCount,
+    required this.showShort,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (cash <= 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Row(children: [
+          Icon(Icons.info_outline_rounded,
+              size: 15, color: AppColors.textFaint),
+          Gap(8),
+          Expanded(
+            child: Text(
+                '재무 현황에 현금을 입력하면 물건마다 「보증금이 되는지」 자동으로 판정해요.',
+                style: TextStyle(
+                    color: AppColors.textFaint, fontSize: AppFont.label)),
+          ),
+        ]),
+      );
+    }
+    // 보증금이 최저가의 10% 라는 통상 기준 → 접근 가능한 최저가 상한.
+    final maxMin = cash * 10;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+      ),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.account_balance_wallet_rounded,
+                size: 15, color: AppColors.gold),
+            const Gap(8),
+            Text('가용현금 ${Won.compact(cash)}원',
+                style: const TextStyle(
+                    color: AppColors.gold,
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w800)),
+          ]),
+          Text('보증금 10% 기준 · 최저가 ${Won.compact(maxMin)}원까지 입찰 가능',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: AppFont.label)),
+          if (shortCount > 0)
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(7),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(showShort ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                      size: 13, color: AppColors.textSecondary),
+                  const Gap(6),
+                  Text(showShort ? '자금부족 $shortCount건 숨기기'
+                      : '자금부족 $shortCount건 보기',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ),
+        ],
       ),
     );
   }
