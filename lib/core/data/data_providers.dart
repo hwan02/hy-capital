@@ -572,3 +572,12 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(planConditionsProvider);
   ref.invalidate(currentPhaseProvider);
 }
+
+/// 강의 질문 기록 — qkey 로 바로 찾을 수 있게 Map 으로 준다.
+final lectureAnswersProvider =
+    FutureProvider<Map<String, LectureAnswer>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb.from('lecture_answers').select();
+  final list = rows.map<LectureAnswer>(LectureAnswer.fromMap);
+  return {for (final a in list) a.qkey: a};
+});

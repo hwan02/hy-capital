@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
+import '../../core/data/data_providers.dart';
+import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
+import '../../models/models.dart';
 
 /// 오프라인 경매 강의에서 강사에게 물어볼 질문 목록.
 ///
@@ -268,7 +272,7 @@ const _sections = <_QSection>[
 int get _totalCount =>
     _sections.fold<int>(0, (sum, s) => sum + s.items.length);
 
-String _asPlainText() {
+String _asPlainText([Map<String, LectureAnswer> recs = const {}]) {
   final b = StringBuffer();
   b.writeln('[경매 강의 질문]');
   b.writeln();
@@ -276,11 +280,19 @@ String _asPlainText() {
   for (final s in _situation) {
     b.writeln('- $s');
   }
-  for (final s in _sections) {
+  for (var si = 0; si < _sections.length; si++) {
+    final s = _sections[si];
     b.writeln();
     b.writeln(s.title);
     for (var i = 0; i < s.items.length; i++) {
-      b.writeln('${i + 1}) ${s.items[i].text.replaceAll('\n', ' ')}');
+      final rec = recs['$si-$i'];
+      final mark = (rec?.asked ?? false) ? '[v]' : '[ ]';
+      b.writeln('$mark ${i + 1}) ${s.items[i].text.replaceAll('\n', ' ')}');
+      if (rec != null && rec.hasAnswer) {
+        for (final line in rec.answer.trim().split('\n')) {
+          b.writeln('    → ${line.trim()}');
+        }
+      }
     }
   }
   return b.toString();
@@ -288,79 +300,283 @@ String _asPlainText() {
 
 /// 강의 질문 본문 — 경매 화면의 '강의 질문' 탭에서 그대로 재사용한다.
 /// 복사·핵심만보기 버튼은 자체 툴바로 들고 있어 어디에 끼워도 동작한다.
-class LectureQuestionsView extends StatefulWidget {
+class LectureQuestionsView extends ConsumerStatefulWidget {
   const LectureQuestionsView({super.key});
 
   @override
-  State<LectureQuestionsView> createState() => _LectureQuestionsViewState();
+  ConsumerState<LectureQuestionsView> createState() =>
+      _LectureQuestionsViewState();
 }
 
-class _LectureQuestionsViewState extends State<LectureQuestionsView> {
-  /// 물어본 질문 표시 (강의 중 체크용).
-  final Set<String> _asked = {};
-
+class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
   /// 핵심 질문만 보기.
   bool _coreOnly = false;
 
-  void _toggle(String key) => setState(() {
-        if (!_asked.remove(key)) _asked.add(key);
-      });
+  /// 답 적은 것만 보기.
+  bool _answeredOnly = false;
 
-  int get _askedCount => _asked.length;
+  /// 물어봤는지 토글 — 바로 저장한다(강의장에서 잃어버리면 안 됨).
+  Future<void> _toggleAsked(String qkey, String question, bool now) =>
+      _save(qkey, question, {'asked': !now});
+
+  Future<void> _save(
+      String qkey, String question, Map<String, dynamic> patch) async {
+    final sb = ref.read(supabaseProvider);
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      await sb.from('lecture_answers').upsert({
+        'user_id': uid,
+        'qkey': qkey,
+        'question': question,
+        ...patch,
+      }, onConflict: 'user_id,qkey');
+      ref.invalidate(lectureAnswersProvider);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('저장 실패: $e'), backgroundColor: AppColors.rose));
+    }
+  }
+
+  /// 답 적기 시트 — 강의장에서 폰으로 쓰므로 큰 입력창 + 저장 버튼.
+  Future<void> _editAnswer(
+      String qkey, String question, String current) async {
+    final c = TextEditingController(text: current);
+    final saved = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(question,
+                style: const TextStyle(
+                    fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+            const Gap(12),
+            TextField(
+              controller: c,
+              autofocus: true,
+              maxLines: 8,
+              minLines: 4,
+              style: const TextStyle(fontSize: AppFont.body, height: 1.5),
+              decoration: const InputDecoration(
+                hintText: '강사가 뭐라고 했는지 그대로 적어두세요.\n수치·조건은 들은 대로.',
+              ),
+            ),
+            const Gap(12),
+            Row(children: [
+              if (current.trim().isNotEmpty)
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, ''),
+                  child: const Text('답 지우기',
+                      style: TextStyle(color: AppColors.rose)),
+                ),
+              const Spacer(),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('취소')),
+              const Gap(8),
+              FilledButton.icon(
+                style:
+                    FilledButton.styleFrom(backgroundColor: _kQuestionColor),
+                onPressed: () => Navigator.pop(ctx, c.text),
+                icon: const Icon(Icons.save_rounded, size: 17),
+                label: const Text('저장'),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+    if (saved == null) return;
+    // 답을 적으면 '물어봤음'도 자동으로 켠다.
+    await _save(qkey, question,
+        {'answer': saved, if (saved.trim().isNotEmpty) 'asked': true});
+  }
+
+  /// 내 질문 추가 — 새 테이블 없이 lecture_answers.question 을 쓴다.
+  /// qkey 가 'custom-' 으로 시작하면 사용자가 추가한 질문이다.
+  Future<void> _addCustom() async {
+    final c = TextEditingController();
+    final text = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('질문 추가',
+                style: TextStyle(
+                    fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+            const Gap(12),
+            TextField(
+              controller: c,
+              autofocus: true,
+              maxLines: 6,
+              minLines: 3,
+              style: const TextStyle(fontSize: AppFont.body, height: 1.5),
+              decoration: const InputDecoration(
+                  hintText: '강사에게 물어볼 질문을 적으세요.'),
+            ),
+            const Gap(12),
+            Row(children: [
+              const Spacer(),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('취소')),
+              const Gap(8),
+              FilledButton.icon(
+                style:
+                    FilledButton.styleFrom(backgroundColor: _kQuestionColor),
+                onPressed: () => Navigator.pop(ctx, c.text.trim()),
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('추가'),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+    if (text == null || text.isEmpty) return;
+    await _save('custom-${DateTime.now().microsecondsSinceEpoch}', text, {});
+  }
+
+  Future<void> _deleteCustom(String qkey, String question) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('질문 삭제',
+            style: TextStyle(fontSize: AppFont.section)),
+        content: Text(question, style: const TextStyle(fontSize: AppFont.body)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final sb = ref.read(supabaseProvider);
+    try {
+      await sb.from('lecture_answers').delete().eq('qkey', qkey);
+      ref.invalidate(lectureAnswersProvider);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('삭제 실패: $e'), backgroundColor: AppColors.rose));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final total = _totalCount;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    final async = ref.watch(lectureAnswersProvider);
+    return async.when(
+      loading: AsyncStatus.loading,
+      error: AsyncStatus.error,
+      data: (recs) {
+        final custom = recs.entries
+            .where((e) => e.key.startsWith('custom-'))
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
+        final askedCount = recs.values.where((a) => a.asked).length;
+        final answeredCount = recs.values.where((a) => a.hasAnswer).length;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Text('오프라인 경매 강의 · 물어본 것 $_askedCount/$total',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: AppFont.label)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                      '물어본 것 $askedCount/${_totalCount + custom.length}'
+                      ' · 답 적은 것 $answeredCount',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: AppFont.label)),
+                ),
+                IconButton(
+                  tooltip: '질문+답 전체 복사',
+                  icon: const Icon(Icons.copy_all_rounded, size: 20),
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    await Clipboard.setData(
+                        ClipboardData(text: _asPlainText(recs)));
+                    messenger.showSnackBar(const SnackBar(
+                        content: Text('질문과 답을 복사했어요')));
+                  },
+                ),
+                IconButton(
+                  tooltip: _answeredOnly ? '전체 보기' : '답 적은 것만',
+                  icon: Icon(
+                    _answeredOnly
+                        ? Icons.chat_bubble_rounded
+                        : Icons.chat_bubble_outline_rounded,
+                    size: 19,
+                    color: _answeredOnly
+                        ? AppColors.primary
+                        : AppColors.textFaint,
+                  ),
+                  onPressed: () =>
+                      setState(() => _answeredOnly = !_answeredOnly),
+                ),
+                IconButton(
+                  tooltip: _coreOnly ? '전체 질문 보기' : '핵심만 보기',
+                  icon: Icon(
+                    _coreOnly ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: 20,
+                    color: _coreOnly ? _kQuestionColor : AppColors.textFaint,
+                  ),
+                  onPressed: () => setState(() => _coreOnly = !_coreOnly),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: '전체 복사',
-              icon: const Icon(Icons.copy_all_rounded, size: 20),
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                await Clipboard.setData(ClipboardData(text: _asPlainText()));
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('질문 전체를 복사했어요')),
-                );
-              },
-            ),
-            IconButton(
-              tooltip: _coreOnly ? '전체 질문 보기' : '핵심만 보기',
-              icon: Icon(
-                _coreOnly ? Icons.star_rounded : Icons.star_outline_rounded,
-                size: 20,
-                color: _coreOnly ? _kQuestionColor : AppColors.textFaint,
+            const Gap(6),
+            _ProgressCard(
+                asked: askedCount,
+                total: _totalCount + custom.length,
+                answered: answeredCount),
+            const Gap(Insets.gap),
+            const _SituationCard(),
+            const Gap(Insets.gap),
+            for (var si = 0; si < _sections.length; si++) ...[
+              _SectionCard(
+                section: _sections[si],
+                sectionIndex: si,
+                coreOnly: _coreOnly,
+                answeredOnly: _answeredOnly,
+                recs: recs,
+                onToggle: _toggleAsked,
+                onEditAnswer: _editAnswer,
               ),
-              onPressed: () => setState(() => _coreOnly = !_coreOnly),
+              const Gap(Insets.gap),
+            ],
+            _CustomSection(
+              recs: recs,
+              answeredOnly: _answeredOnly,
+              onAdd: _addCustom,
+              onToggle: _toggleAsked,
+              onEditAnswer: _editAnswer,
+              onDelete: _deleteCustom,
             ),
+            const Gap(Insets.gap),
+            const _ClosingCard(),
           ],
-        ),
-        const Gap(6),
-        _ProgressCard(asked: _askedCount, total: total),
-        const Gap(Insets.gap),
-        const _SituationCard(),
-        const Gap(Insets.gap),
-        for (var si = 0; si < _sections.length; si++) ...[
-          _SectionCard(
-            section: _sections[si],
-            sectionIndex: si,
-            coreOnly: _coreOnly,
-            asked: _asked,
-            onToggle: _toggle,
-          ),
-          const Gap(Insets.gap),
-        ],
-        const _ClosingCard(),
-      ],
+        );
+      },
     );
   }
 }
@@ -383,7 +599,9 @@ class LectureQuestionsScreen extends StatelessWidget {
 class _ProgressCard extends StatelessWidget {
   final int asked;
   final int total;
-  const _ProgressCard({required this.asked, required this.total});
+  final int answered;
+  const _ProgressCard(
+      {required this.asked, required this.total, this.answered = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -397,7 +615,7 @@ class _ProgressCard extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  '강의 중 물어본 질문을 눌러서 체크',
+                  '번호를 눌러 체크 · 질문을 눌러 답 적기',
                   style: TextStyle(
                     fontSize: AppFont.section,
                     fontWeight: FontWeight.w700,
@@ -417,9 +635,11 @@ class _ProgressCard extends StatelessWidget {
           const Gap(12),
           ProgressBar(value: ratio, color: _kQuestionColor),
           const Gap(8),
-          const Text(
-            '★ 표시는 이 강의에서 답을 꼭 받아와야 하는 핵심 질문',
-            style: TextStyle(
+          Text(
+            answered > 0
+                ? '답 적은 질문 $answered개 · ★ 는 꼭 답을 받아와야 하는 핵심 질문'
+                : '★ 표시는 이 강의에서 답을 꼭 받아와야 하는 핵심 질문',
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: AppFont.caption,
             ),
@@ -479,22 +699,29 @@ class _SectionCard extends StatelessWidget {
   final _QSection section;
   final int sectionIndex;
   final bool coreOnly;
-  final Set<String> asked;
-  final void Function(String key) onToggle;
+  final bool answeredOnly;
+  final Map<String, LectureAnswer> recs;
+  final Future<void> Function(String qkey, String question, bool now) onToggle;
+  final Future<void> Function(String qkey, String question, String current)
+      onEditAnswer;
 
   const _SectionCard({
     required this.section,
     required this.sectionIndex,
     required this.coreOnly,
-    required this.asked,
+    required this.answeredOnly,
+    required this.recs,
     required this.onToggle,
+    required this.onEditAnswer,
   });
 
   @override
   Widget build(BuildContext context) {
     final items = [
       for (var i = 0; i < section.items.length; i++)
-        if (!coreOnly || section.items[i].core) (i, section.items[i]),
+        if ((!coreOnly || section.items[i].core) &&
+            (!answeredOnly || (recs['$sectionIndex-$i']?.hasAnswer ?? false)))
+          (i, section.items[i]),
     ];
     if (items.isEmpty) return const SizedBox.shrink();
 
@@ -543,10 +770,15 @@ class _SectionCard extends StatelessWidget {
           for (final (i, q) in items)
             _QuestionRow(
               number: i + 1,
-              q: q,
+              text: q.text,
+              want: q.want,
+              core: q.core,
               color: section.color,
-              done: asked.contains('$sectionIndex-$i'),
-              onTap: () => onToggle('$sectionIndex-$i'),
+              rec: recs['$sectionIndex-$i'],
+              onToggle: () => onToggle('$sectionIndex-$i', q.text,
+                  recs['$sectionIndex-$i']?.asked ?? false),
+              onEditAnswer: () => onEditAnswer('$sectionIndex-$i', q.text,
+                  recs['$sectionIndex-$i']?.answer ?? ''),
             ),
         ],
       ),
@@ -556,21 +788,34 @@ class _SectionCard extends StatelessWidget {
 
 class _QuestionRow extends StatelessWidget {
   final int number;
-  final _Q q;
+  final String text;
+  final String? want;
+  final bool core;
   final Color color;
-  final bool done;
-  final VoidCallback onTap;
+  final LectureAnswer? rec;
+  final VoidCallback onToggle;
+  final VoidCallback onEditAnswer;
+
+  /// 사용자가 추가한 질문이면 삭제를 허용한다.
+  final VoidCallback? onDelete;
 
   const _QuestionRow({
     required this.number,
-    required this.q,
+    required this.text,
+    this.want,
+    this.core = false,
     required this.color,
-    required this.done,
-    required this.onTap,
+    required this.rec,
+    required this.onToggle,
+    required this.onEditAnswer,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    final done = rec?.asked ?? false;
+    final answer = rec?.answer.trim() ?? '';
+    final hasAnswer = answer.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Row(
@@ -578,7 +823,7 @@ class _QuestionRow extends StatelessWidget {
         children: [
           // 번호 배지 = 물어봤는지 체크 토글.
           GestureDetector(
-            onTap: onTap,
+            onTap: onToggle,
             child: Container(
               height: 24,
               width: 24,
@@ -608,25 +853,44 @@ class _QuestionRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (q.core)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 5),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
+                Row(children: [
+                  if (core)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 5, right: 6),
                       child: Pill('핵심', color: _kQuestionColor),
                     ),
-                  ),
-                Text(
-                  q.text,
-                  style: TextStyle(
-                    fontSize: AppFont.body,
-                    height: 1.5,
-                    color: done ? AppColors.textFaint : AppColors.textPrimary,
-                    decoration: done ? TextDecoration.lineThrough : null,
-                    decorationColor: AppColors.textFaint,
+                  if (hasAnswer)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 5),
+                      child: Pill('답 있음', color: AppColors.primary),
+                    ),
+                  const Spacer(),
+                  if (onDelete != null)
+                    InkWell(
+                      onTap: onDelete,
+                      borderRadius: BorderRadius.circular(14),
+                      child: const Padding(
+                        padding: EdgeInsets.all(2),
+                        child: Icon(Icons.close_rounded,
+                            size: 15, color: AppColors.textFaint),
+                      ),
+                    ),
+                ]),
+                // 질문을 누르면 답 적기.
+                InkWell(
+                  onTap: onEditAnswer,
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: AppFont.body,
+                      height: 1.5,
+                      color: done ? AppColors.textFaint : AppColors.textPrimary,
+                      decoration: done ? TextDecoration.lineThrough : null,
+                      decorationColor: AppColors.textFaint,
+                    ),
                   ),
                 ),
-                if (q.want != null) ...[
+                if (want != null) ...[
                   const Gap(6),
                   Container(
                     padding:
@@ -643,7 +907,7 @@ class _QuestionRow extends StatelessWidget {
                         const Gap(7),
                         Expanded(
                           child: Text(
-                            q.want!,
+                            want!,
                             style: const TextStyle(
                               fontSize: AppFont.caption,
                               color: AppColors.textSecondary,
@@ -655,6 +919,54 @@ class _QuestionRow extends StatelessWidget {
                     ),
                   ),
                 ],
+                // 받은 답 — 있으면 보여주고, 없으면 적으라고 안내한다.
+                const Gap(7),
+                InkWell(
+                  onTap: onEditAnswer,
+                  borderRadius: BorderRadius.circular(9),
+                  child: Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: hasAnswer
+                          ? AppColors.primary.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: hasAnswer
+                            ? AppColors.primary.withValues(alpha: 0.45)
+                            : AppColors.border,
+                      ),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                            hasAnswer
+                                ? Icons.chat_bubble_rounded
+                                : Icons.edit_note_rounded,
+                            size: 14,
+                            color: hasAnswer
+                                ? AppColors.primary
+                                : AppColors.textFaint),
+                        const Gap(7),
+                        Expanded(
+                          child: Text(
+                            hasAnswer ? answer : '답 적기',
+                            style: TextStyle(
+                              fontSize: AppFont.label,
+                              height: 1.45,
+                              color: hasAnswer
+                                  ? AppColors.textPrimary
+                                  : AppColors.textFaint,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -697,6 +1009,110 @@ class _ClosingCard extends StatelessWidget {
                   height: 1.5,
                 ),
               ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 내가 추가한 질문 — lecture_answers 에서 qkey 가 'custom-' 인 행들.
+class _CustomSection extends StatelessWidget {
+  final Map<String, LectureAnswer> recs;
+  final bool answeredOnly;
+  final VoidCallback onAdd;
+  final Future<void> Function(String qkey, String question, bool now) onToggle;
+  final Future<void> Function(String qkey, String question, String current)
+      onEditAnswer;
+  final Future<void> Function(String qkey, String question) onDelete;
+
+  const _CustomSection({
+    required this.recs,
+    required this.answeredOnly,
+    required this.onAdd,
+    required this.onToggle,
+    required this.onEditAnswer,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = recs.entries
+        .where((e) => e.key.startsWith('custom-'))
+        .where((e) => !answeredOnly || e.value.hasAnswer)
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return GlassCard(
+      accent: AppColors.violet,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: 34,
+                width: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.violet.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.add_comment_rounded,
+                    size: 18, color: AppColors.violet),
+              ),
+              const Gap(12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('내가 추가한 질문',
+                        style: TextStyle(
+                            fontSize: AppFont.section,
+                            fontWeight: FontWeight.w800)),
+                    Gap(2),
+                    Text('강의 중 생각난 것을 바로 적어두기',
+                        style: TextStyle(
+                            fontSize: AppFont.caption,
+                            color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.violet,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: const TextStyle(
+                      fontSize: AppFont.label, fontWeight: FontWeight.w800),
+                ),
+                onPressed: onAdd,
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('질문 추가'),
+              ),
+            ],
+          ),
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 14),
+              child: Text('아직 없어요. 「질문 추가」로 내 질문을 넣으세요.',
+                  style: TextStyle(
+                      color: AppColors.textFaint, fontSize: AppFont.label)),
+            ),
+          for (var i = 0; i < items.length; i++)
+            _QuestionRow(
+              number: i + 1,
+              text: items[i].value.question,
+              color: AppColors.violet,
+              rec: items[i].value,
+              onToggle: () => onToggle(items[i].key, items[i].value.question,
+                  items[i].value.asked),
+              onEditAnswer: () => onEditAnswer(
+                  items[i].key, items[i].value.question, items[i].value.answer),
+              onDelete: () =>
+                  onDelete(items[i].key, items[i].value.question),
             ),
         ],
       ),

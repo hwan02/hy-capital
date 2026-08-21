@@ -907,3 +907,34 @@ class ReferenceAccount {
         starred: m['starred'] == true,
       );
 }
+
+/// 강의 질문 하나에 대한 내 기록 — 물어봤는지 + 받은 답.
+class LectureAnswer {
+  final String id;
+  final String qkey;
+
+  /// 질문 원문. 내가 추가한 질문(qkey 가 'custom-')은 이 값이 곧 질문이다.
+  final String question;
+  final bool asked;
+  final String answer;
+
+  const LectureAnswer({
+    required this.id,
+    required this.qkey,
+    this.question = '',
+    this.asked = false,
+    this.answer = '',
+  });
+
+  bool get isCustom => qkey.startsWith('custom-');
+
+  bool get hasAnswer => answer.trim().isNotEmpty;
+
+  factory LectureAnswer.fromMap(Map<String, dynamic> m) => LectureAnswer(
+        id: m['id'],
+        qkey: (m['qkey'] ?? '').toString(),
+        question: (m['question'] ?? '').toString(),
+        asked: m['asked'] == true,
+        answer: (m['answer'] ?? '').toString(),
+      );
+}
