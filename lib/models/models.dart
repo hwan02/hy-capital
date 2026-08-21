@@ -259,6 +259,9 @@ class AuctionProperty {
   final double appraisalPrice; // 감정가
   final double deposit; // 입찰보증금 (통상 최저가 10%, 재매각은 20~30%)
   final String? propertyKind; // 아파트|빌라|다세대|오피스텔|기타
+  final String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
+  final double jeonsePrice; // 전세 시세 (플피 판정의 핵심)
+  final String? districtType; // 모아타운|신통기획|없음
 
   AuctionProperty({
     required this.id,
@@ -288,7 +291,32 @@ class AuctionProperty {
     this.appraisalPrice = 0,
     this.deposit = 0,
     this.propertyKind,
+    this.strategy = 'flip',
+    this.jeonsePrice = 0,
+    this.districtType,
   });
+
+  /// 모아·신속 선정지 빌라 플피 전략인가.
+  bool get isPlus => strategy == 'plus';
+
+  /// 선투입 부대비용 — 매도 시점 비용(매도비용·금융비용)은 제외한다.
+  double get _upfrontCosts =>
+      acquisitionCost + repairCost + evictionCost + otherCost;
+
+  /// 실투자금 (플피형) = 낙찰가 + 선투입비용 − 전세보증금.
+  /// 음수면 돈이 남는다(플피). 전세를 놓으면 경락잔금대출은 통상 못 쓰므로
+  /// 대출은 빼지 않는다.
+  double get ownCash => bidPrice + _upfrontCosts - jeonsePrice;
+
+  /// 플피 금액 — 실투자금이 음수일 때 남는 돈.
+  double get plusPi => ownCash < 0 ? -ownCash : 0;
+  bool get isPlusPiSet => jeonsePrice > 0 && ownCash <= 0;
+
+  /// 전세가 ≥ 낙찰가 — 플피 전략의 성립 조건.
+  bool get jeonseCoversBid => jeonsePrice > 0 && jeonsePrice >= bidPrice;
+
+  /// 전략에 맞는 '내 돈' — 카드·계산기가 이 값을 보여준다.
+  double get moneyIn => isPlus ? ownCash : cashNeeded;
 
   /// 입찰보증금. 저장값이 없으면 최저가의 10% 로 본다(통상 기준).
   double get depositDue => deposit > 0 ? deposit : minPrice * 0.1;
@@ -376,6 +404,9 @@ class AuctionProperty {
         appraisalPrice: _d(m['appraisal_price']),
         deposit: _d(m['deposit']),
         propertyKind: m['property_kind'],
+        strategy: m['strategy'] ?? 'flip',
+        jeonsePrice: _d(m['jeonse_price']),
+        districtType: m['district_type'],
       );
 }
 

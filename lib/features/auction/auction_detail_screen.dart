@@ -11,6 +11,7 @@ import '../../core/format/formatters.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
+import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
 import 'auction_checklist.dart';
 
@@ -558,7 +559,12 @@ class _CalcTabState extends State<_CalcTab> {
   Widget _money(String label, double value, ValueChanged<double> onChanged) =>
       SizedBox(
         width: 196,
-        child: _MoneyField(label: label, initial: value, onChanged: onChanged),
+        child: MoneyField(
+            label: label,
+            initial: value,
+            onChanged: onChanged,
+            dense: true,
+            accent: _teal),
       );
 
   Widget _verdictChip(String v) {
@@ -681,82 +687,3 @@ class _MemoTabState extends State<_MemoTab> {
 }
 
 // ── 콤마 금액 입력 ──────────────────────────────────────────
-class _MoneyField extends StatefulWidget {
-  final String label;
-  final double initial;
-  final ValueChanged<double> onChanged;
-  const _MoneyField(
-      {required this.label, required this.initial, required this.onChanged});
-
-  @override
-  State<_MoneyField> createState() => _MoneyFieldState();
-}
-
-class _MoneyFieldState extends State<_MoneyField> {
-  late final TextEditingController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = TextEditingController(
-        text: widget.initial > 0 ? _comma(widget.initial) : '');
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  static String _comma(double v) {
-    final s = v.round().toString();
-    return s.replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final n = double.tryParse(_c.text.replaceAll(',', '')) ?? 0;
-    return TextField(
-      controller: _c,
-      keyboardType: TextInputType.number,
-      inputFormatters: [_ThousandsFormatter()],
-      onChanged: (v) {
-        widget.onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0);
-        setState(() {});
-      },
-      style: const TextStyle(fontSize: AppFont.body),
-      decoration: InputDecoration(
-        labelText: widget.label,
-        labelStyle: const TextStyle(fontSize: AppFont.caption),
-        isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(10, 12, 8, 8),
-        suffixText: n > 0 ? Won.compact(n) : null,
-        suffixStyle: const TextStyle(
-            color: _teal, fontWeight: FontWeight.w800, fontSize: AppFont.caption),
-        filled: true,
-        fillColor: AppColors.surfaceAlt,
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(9),
-            borderSide: BorderSide.none),
-      ),
-    );
-  }
-}
-
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.isEmpty) {
-      return const TextEditingValue(text: '');
-    }
-    final formatted = digits.replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}

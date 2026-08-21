@@ -4,37 +4,18 @@ import 'package:gap/gap.dart';
 
 import '../format/formatters.dart';
 import '../theme/app_theme.dart';
+import '../widgets/money_field.dart';
 import 'field_spec.dart';
 
 /// 정수를 천단위 콤마 문자열로.
-String _commaInt(num v) {
-  final s = v.round().abs().toString();
-  final body = s.replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
-  return v < 0 ? '-$body' : body;
-}
 
 /// 금액 필드 초기 텍스트(콤마 적용).
 String _moneyInitText(dynamic v) {
   if (v == null) return '';
   final n = v is num ? v : num.tryParse(v.toString());
-  return n == null ? v.toString() : _commaInt(n);
+  return n == null ? v.toString() : moneyComma(n);
 }
 
-/// 원화 금액 입력용 천단위 콤마 자동 포맷터 (정수).
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return const TextEditingValue(text: '');
-    final formatted = _commaInt(int.parse(digits));
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
 
 /// 필드 정의로부터 입력 폼(모달 시트)을 만들어 값을 편집한다.
 /// 저장 시 { key: value } 맵을 반환, 취소 시 null.
@@ -325,7 +306,7 @@ class _RecordFormState extends State<_RecordForm> {
             return TextFormField(
               controller: ctrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: false),
-              inputFormatters: [_ThousandsFormatter()],
+              inputFormatters: const [MoneyInputFormatter()],
               decoration: InputDecoration(
                 labelText: f.label,
                 prefixIcon: Icon(f.icon, size: 20),

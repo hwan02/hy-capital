@@ -9,6 +9,7 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/supabase/supabase_providers.dart';
+import '../../core/widgets/money_field.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
@@ -788,6 +789,7 @@ class _CashBanner extends ConsumerWidget {
   /// 경매에 쓸 돈을 직접 입력한다. 전체 현금과 분리된 값.
   Future<void> _editBudget(
       BuildContext context, WidgetRef ref, double current) async {
+    // MoneyField 가 콤마·환산을 처리하고, 값은 이 컨트롤러로 받는다.
     final c = TextEditingController(
         text: current > 0 ? current.toStringAsFixed(0) : '');
     final v = await showDialog<double>(
@@ -808,15 +810,13 @@ class _CashBanner extends ConsumerWidget {
                     fontSize: AppFont.label,
                     height: 1.5)),
             const Gap(14),
-            TextField(
-              controller: c,
+            MoneyField(
+              label: '경매에 쓸 금액',
+              initial: current,
               autofocus: true,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: AppFont.body),
-              decoration: const InputDecoration(
-                  labelText: '금액 (원)', hintText: '예: 10000000'),
-              onSubmitted: (t) =>
-                  Navigator.pop(context, double.tryParse(t.replaceAll(',', ''))),
+              accent: AppColors.gold,
+              onChanged: (v) => c.text = v.toStringAsFixed(0),
+              onSubmitted: (v) => Navigator.pop(context, v),
             ),
           ],
         ),
@@ -825,8 +825,7 @@ class _CashBanner extends ConsumerWidget {
               onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
-            onPressed: () => Navigator.pop(
-                context, double.tryParse(c.text.replaceAll(',', ''))),
+            onPressed: () => Navigator.pop(context, moneyValue(c.text)),
             child: const Text('저장'),
           ),
         ],
