@@ -14,44 +14,37 @@ import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
+import 'auction_paste.dart';
 
 const _teal = Color(0xFF14B8A6);
 
+/// 붙여넣기 한 판으로 물건을 등록한다. 사용자가 받는 카톡/사이트 텍스트에
+/// 필요한 숫자가 다 들어있으므로 손입력을 최소화한다.
 Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
   final c = TextEditingController();
-  final name = await showDialog<String>(
+  final saved = await showDialog<ParsedAuction>(
     context: context,
-    builder: (_) => AlertDialog(
-      backgroundColor: AppColors.surface,
-      title: const Text('경매 물건 추가', style: TextStyle(fontSize: AppFont.section)),
-      content: TextField(
-        controller: c,
-        autofocus: true,
-        decoration: const InputDecoration(
-            labelText: '물건명 / 단지', hintText: '예: 인천 송도 더샵'),
-        onSubmitted: (v) => Navigator.pop(context, v.trim()),
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: _teal),
-          onPressed: () => Navigator.pop(context, c.text.trim()),
-          child: const Text('추가'),
-        ),
-      ],
-    ),
+    builder: (_) => _PasteDialog(controller: c),
   );
-  if (name == null || name.isEmpty) return;
+  if (saved == null) return;
   try {
     final sb = ref.read(supabaseProvider);
     final row = await sb
         .from('auction_properties')
         .insert({
           'user_id': sb.auth.currentUser!.id,
-          'title': name,
+          'title': saved.title ?? '이름 없는 물건',
           'status': 'interest',
           'verdict': 'HOLD',
+          if (saved.caseNo != null) 'case_no': saved.caseNo,
+          if (saved.address != null) 'address': saved.address,
+          if (saved.court != null) 'court': saved.court,
+          if (saved.propertyKind != null) 'property_kind': saved.propertyKind,
+          if (saved.appraisalPrice > 0) 'appraisal_price': saved.appraisalPrice,
+          if (saved.minPrice > 0) 'min_price': saved.minPrice,
+          if (saved.depositOrTenth > 0) 'deposit': saved.depositOrTenth,
+          if (saved.bidDate != null)
+            'bid_date': saved.bidDate!.toUtc().toIso8601String(),
         })
         .select()
         .single();
@@ -64,6 +57,150 @@ Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
       );
     }
   }
+}
+
+/// 텍스트를 붙여넣으면 아래에 파싱 결과를 즉시 미리보기로 보여준다.
+class _PasteDialog extends StatefulWidget {
+  final TextEditingController controller;
+  const _PasteDialog({required this.controller});
+
+  @override
+  State<_PasteDialog> createState() => _PasteDialogState();
+}
+
+class _PasteDialogState extends State<_PasteDialog> {
+  ParsedAuction _p = const ParsedAuction();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.controller.text.trim();
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: const Text('경매 물건 추가',
+          style: TextStyle(fontSize: AppFont.section)),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                  '카톡으로 받은 글이나 경매사이트 화면을 그대로 붙여넣으세요.\n'
+                  '사건번호·최저가·보증금·입찰일·법원을 자동으로 뽑습니다.',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFont.label,
+                      height: 1.5)),
+              const Gap(12),
+              TextField(
+                controller: widget.controller,
+                autofocus: true,
+                maxLines: 7,
+                minLines: 4,
+                style: const TextStyle(fontSize: AppFont.label, height: 1.45),
+                onChanged: (v) =>
+                    setState(() => _p = parseAuctionText(v)),
+                decoration: const InputDecoration(
+                    hintText: '여기에 붙여넣기 (물건명만 적어도 됩니다)'),
+              ),
+              if (t.isNotEmpty) ...[
+                const Gap(14),
+                Row(children: [
+                  Text('읽어낸 값 ${_p.filledCount}/8',
+                      style: const TextStyle(
+                          color: _teal,
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w800)),
+                  const Gap(8),
+                  const Expanded(
+                    child: Text('빈 칸은 등록 후 상세에서 채우면 됩니다',
+                        style: TextStyle(
+                            color: AppColors.textFaint,
+                            fontSize: AppFont.caption)),
+                  ),
+                ]),
+                const Gap(8),
+                _row('물건명', _p.title),
+                _row('사건번호', _p.caseNo),
+                _row('주소', _p.address),
+                _row('종류', _p.propertyKind),
+                _row('감정가',
+                    _p.appraisalPrice > 0 ? '${Won.compact(_p.appraisalPrice)}원' : null),
+                _row('최저가',
+                    _p.minPrice > 0 ? '${Won.compact(_p.minPrice)}원' : null),
+                _row(
+                    '입찰보증금',
+                    _p.depositOrTenth > 0
+                        ? '${Won.compact(_p.depositOrTenth)}원'
+                            '${_p.deposit > 0 ? "" : " (최저가 10% 추정)"}'
+                        : null),
+                _row('입찰일', _p.bidDate == null
+                    ? null
+                    : '${_p.bidDate!.year}.${_p.bidDate!.month}.${_p.bidDate!.day}'
+                        ' ${_p.bidDate!.hour}시'),
+                _row('법원', _p.court),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: _teal),
+          onPressed: t.isEmpty
+              ? null
+              : () => Navigator.pop(
+                  context,
+                  // 파싱이 물건명을 못 잡았으면 입력한 텍스트 첫 줄을 쓴다.
+                  _p.title != null
+                      ? _p
+                      : ParsedAuction(
+                          title: t.split('\n').first.trim(),
+                          caseNo: _p.caseNo,
+                          address: _p.address,
+                          court: _p.court,
+                          propertyKind: _p.propertyKind,
+                          appraisalPrice: _p.appraisalPrice,
+                          minPrice: _p.minPrice,
+                          deposit: _p.deposit,
+                          bidDate: _p.bidDate,
+                          areaSqm: _p.areaSqm,
+                        )),
+          child: const Text('추가'),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(String label, String? value) => Padding(
+        padding: const EdgeInsets.only(bottom: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 72,
+              child: Text(label,
+                  style: const TextStyle(
+                      color: AppColors.textFaint, fontSize: AppFont.caption)),
+            ),
+            Expanded(
+              child: Text(value ?? '—',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: AppFont.caption,
+                      fontWeight:
+                          value == null ? FontWeight.w400 : FontWeight.w700,
+                      color: value == null
+                          ? AppColors.textFaint
+                          : AppColors.textPrimary)),
+            ),
+          ],
+        ),
+      );
 }
 
 const _statusLabel = {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
+import '../../core/format/won_parse.dart';
+export '../../core/format/won_parse.dart' show parseWon;
 import '../../core/theme/app_theme.dart';
 
 /// 입찰 전 조사표 — 접이식(아코디언) + 모바일 우선.
@@ -16,18 +18,6 @@ const _teal = Color(0xFF14B8A6);
 /// 현재시세 자동계산에 쓰는 평균가 키.
 const auctionAvgKeys = ['naver_avg', 'real_avg', 'kb_avg', 'a1_avg', 'a2_avg', 'a3_avg'];
 
-double parseWon(String? s) {
-  if (s == null) return 0;
-  s = s.replaceAll(',', '').replaceAll(' ', '').trim();
-  if (s.isEmpty) return 0;
-  final eok = RegExp(r'([\d.]+)\s*억').firstMatch(s);
-  final man = RegExp(r'([\d.]+)\s*만').firstMatch(s);
-  double v = 0;
-  if (eok != null) v += (double.tryParse(eok.group(1)!) ?? 0) * 1e8;
-  if (man != null) v += (double.tryParse(man.group(1)!) ?? 0) * 1e4;
-  if (eok == null && man == null) v = double.tryParse(s) ?? 0;
-  return v;
-}
 
 // 시세 상세(평균가 외) · 부동산 · 권리 필드 정의.
 const _naverDetail = [('naver_low', '최저가'), ('naver_high', '최고가'), ('naver_jeonse', '전세'), ('naver_wolse', '월세'), ('naver_note', '비고')];
