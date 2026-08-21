@@ -56,6 +56,18 @@ const _fieldChecks = [
   ('fc_neighbor', '윗집·아랫집'),
 ];
 
+/// 모아·신속 빌라 플피 전략의 물건 선별 기준 6개.
+/// 출처: 자료실 `2026-08-20_행크특강_모아신속경매전략` → '물건 고르는 기준'.
+/// 이 6개를 다 만족하지 못하면 이 전략의 전제가 무너진다.
+const auctionPlusFilters = [
+  ('plus_zone', '① 선정지인가 — 모아타운 또는 신속통합기획 «선정지» 안의 물건'),
+  ('plus_speed', '② 속도 — 조합설립이 임박했는가 (동의율이 거의 채워져 거래·프리미엄이 붙는 구간)'),
+  ('plus_margin', '③ 저가 — 낙찰가가 시세 대비 안전마진을 주는가'),
+  ('plus_jeonse', '④ 플피 세팅 — 전세가 ≥ 낙찰가 인가 (입찰 «전»에 전세 시세 확인)'),
+  ('plus_upzone', '⑤ 사업성 — 역 승강장 350m 이내 또는 폭 20m 이상 간선도로변 50m 이내 (준주거 상향 대상)'),
+  ('plus_timing', '⑥ 타이밍 — 비수기·대출 이슈 등으로 입찰 경쟁이 낮은 때인가'),
+];
+
 const auctionFinalChecks = [
   ('final_appraisal', '감정평가서'),
   ('final_register', '등기부등본'),
@@ -66,7 +78,11 @@ const auctionFinalChecks = [
 
 class AuctionChecklistForm extends StatefulWidget {
   final Map<String, dynamic> initial;
-  const AuctionChecklistForm({super.key, required this.initial});
+
+  /// 'plus' 면 모아·신속 빌라 플피용 6개 필터 섹션을 맨 위에 붙인다.
+  final String strategy;
+  const AuctionChecklistForm(
+      {super.key, required this.initial, this.strategy = 'flip'});
 
   @override
   State<AuctionChecklistForm> createState() => AuctionChecklistFormState();
@@ -96,9 +112,15 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
     for (final k in _allTextKeys) {
       _c[k] = TextEditingController(text: cl[k]?.toString() ?? '');
     }
-    for (final (k, _) in [..._fieldChecks, ...auctionFinalChecks]) {
+    for (final (k, _) in [
+      ..._fieldChecks,
+      ...auctionFinalChecks,
+      ...auctionPlusFilters
+    ]) {
       _checks[k] = cl[k] == true;
     }
+    _c['plus_zone_note'] =
+        TextEditingController(text: cl['plus_zone_note']?.toString() ?? '');
   }
 
   @override
@@ -136,6 +158,50 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
       final narrow = cts.maxWidth < 560;
       return Column(
         children: [
+          if (widget.strategy == 'plus') ...[
+            _section(9, Icons.checklist_rounded, '플피 전략 6개 필터',
+                AppColors.violet,
+                badge:
+                    '${_checked(auctionPlusFilters)}/${auctionPlusFilters.length}',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                        '이 6개를 다 만족해야 «모아·신속 빌라 플피» 전략이 성립한다.\n'
+                        '구역 밖이거나 전세가 낙찰가보다 낮으면 전제가 무너진다.',
+                        style: TextStyle(
+                            fontSize: AppFont.caption,
+                            color: AppColors.textSecondary,
+                            height: 1.5)),
+                    const Gap(10),
+                    for (final (k, label) in auctionPlusFilters)
+                      CheckboxListTile(
+                        value: _checks[k] ?? false,
+                        onChanged: (v) =>
+                            setState(() => _checks[k] = v ?? false),
+                        title: Text(label,
+                            style: const TextStyle(
+                                fontSize: AppFont.label, height: 1.45)),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppColors.violet,
+                      ),
+                    const Gap(6),
+                    TextField(
+                      controller: _c['plus_zone_note'],
+                      maxLines: 3,
+                      minLines: 2,
+                      style: const TextStyle(fontSize: AppFont.label),
+                      decoration: const InputDecoration(
+                          labelText: '구역·조합설립 진행 상황 메모',
+                          hintText:
+                              '예: 양천구 모아타운 선정지, 동의율 72%, 7~8월 조합설립 예정'),
+                    ),
+                  ],
+                )),
+            const Gap(10),
+          ],
           _section(0, Icons.show_chart_rounded, '시세 조사', greenC,
               badge: '${_filled(['naver_avg', 'real_avg', 'kb_avg'])}/3',
               child: _priceBody(narrow)),

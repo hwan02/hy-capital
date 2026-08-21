@@ -29,7 +29,9 @@
 | 반응형 그리드 | `ResponsiveGrid` | `module_page.dart:114` |
 | 월별 추이 | `MonthlyTracker` | `lib/core/widgets/monthly_tracker.dart:16` |
 
-**포맷:** 금액 표시는 `Won.compact` (`lib/core/format/formatters.dart:4`), D-day는 `Dates.dday` (`formatters.dart:41`), "4.5억"·"45,000만"·"760800000" 파싱은 `parseWon` (`lib/features/auction/auction_checklist.dart:19`).
+**포맷:** 금액 표시는 `Won.compact` (`lib/core/format/formatters.dart:4`), D-day는 `Dates.dday` (`formatters.dart:41`), "4.5억"·"45,000만"·"760800000" 파싱은 `parseWon` (`lib/core/format/won_parse.dart`).
+
+**금액 «입력»은 `MoneyField` 만 쓴다** (`lib/core/widgets/money_field.dart`). `TextField`를 직접 쓰지 않는다 — 콤마 자동 삽입과 오른쪽 한글 환산(«1,000만원»)이 앱 전체에서 같아야 한다. 촘촘한 곳은 `dense: true`.
 
 ## 데이터
 

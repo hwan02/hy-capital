@@ -173,7 +173,8 @@ class _SurveyTab extends StatelessWidget {
             ),
           ),
           const Gap(18),
-          AuctionChecklistForm(key: formKey, initial: p.checklist),
+          AuctionChecklistForm(
+              key: formKey, initial: p.checklist, strategy: p.strategy),
           const Gap(18),
           Align(
             alignment: Alignment.centerRight,
@@ -366,6 +367,8 @@ class _CalcTab extends StatefulWidget {
 class _CalcTabState extends State<_CalcTab> {
   late double bid, sale, loan, acq, repair, evict, other, saleCost, finance, target, score;
   late String verdict;
+  late String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
+  late double jeonse;   // 전세 시세 — 플피 계산의 핵심
 
   @override
   void initState() {
@@ -383,7 +386,17 @@ class _CalcTabState extends State<_CalcTab> {
     target = p.targetProfit;
     score = p.score;
     verdict = p.verdict;
+    strategy = p.strategy;
+    jeonse = p.jeonsePrice;
   }
+
+  bool get isPlus => strategy == 'plus';
+
+  /// 실투자금(플피형) = 낙찰가 + 선투입비용 − 전세보증금.
+  /// 전세를 놓으면 경락잔금대출은 통상 못 쓰므로 대출을 빼지 않는다.
+  double get ownCash => bid + acq + repair + evict + other - jeonse;
+  double get plusPi => ownCash < 0 ? -ownCash : 0;
+  bool get jeonseCoversBid => jeonse > 0 && jeonse >= bid;
 
   double get _costs => acq + repair + evict + other + saleCost + finance;
   double get cashNeeded => bid - loan + acq + repair + evict + other;
@@ -403,6 +416,24 @@ class _CalcTabState extends State<_CalcTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 전략 유형 — 셈이 완전히 다르므로 여기서 먼저 고른다.
+          Row(children: [
+            const Text('전략',
+                style: TextStyle(
+                    fontSize: AppFont.label, color: AppColors.textSecondary)),
+            const Gap(12),
+            _stratChip('flip', '아파트 차익', Icons.trending_up_rounded),
+            const Gap(6),
+            _stratChip('plus', '빌라 플피', Icons.savings_rounded),
+          ]),
+          const Gap(6),
+          Text(
+              isPlus
+                  ? '낙찰 → 전세로 회수(플피) → 조합설립 프리미엄 → 매매. 핵심은 «실투자금».'
+                  : '낙찰 → 수리 → 매도 차익. 핵심은 ROI.',
+              style: const TextStyle(
+                  fontSize: AppFont.caption, color: AppColors.textFaint)),
+          const Gap(14),
           // 예상입찰가 슬라이더
           Container(
             padding: const EdgeInsets.all(16),
@@ -448,14 +479,36 @@ class _CalcTabState extends State<_CalcTab> {
             spacing: 16,
             runSpacing: 10,
             children: [
-              _metric('필요현금', '${Won.compact(cashNeeded)}원', AppColors.gold),
-              _metric('예상순수익', '${Won.compact(netProfit)}원',
-                  netProfit >= 0 ? AppColors.primary : AppColors.rose),
-              _metric('ROI', '${roi.toStringAsFixed(0)}%',
-                  roi >= 0 ? AppColors.primary : AppColors.rose),
-              _metric('최대입찰가', '${Won.compact(maxBid)}원', AppColors.sky),
+              if (isPlus) ...[
+                // 실투자금이 음수면 돈이 남는다(플피).
+                _metric(
+                    ownCash <= 0 ? '플피 (남는 돈)' : '실투자금',
+                    '${Won.compact(ownCash <= 0 ? plusPi : ownCash)}원',
+                    ownCash <= 0 ? AppColors.primary : AppColors.gold),
+                _metric('전세 − 낙찰가', '${Won.compact(jeonse - bid)}원',
+                    jeonseCoversBid ? AppColors.primary : AppColors.rose),
+                _metric('예상순수익', '${Won.compact(netProfit)}원',
+                    netProfit >= 0 ? AppColors.primary : AppColors.rose),
+                _metric('최대입찰가', '${Won.compact(maxBid)}원', AppColors.sky),
+              ] else ...[
+                _metric('필요현금', '${Won.compact(cashNeeded)}원', AppColors.gold),
+                _metric('예상순수익', '${Won.compact(netProfit)}원',
+                    netProfit >= 0 ? AppColors.primary : AppColors.rose),
+                _metric('ROI', '${roi.toStringAsFixed(0)}%',
+                    roi >= 0 ? AppColors.primary : AppColors.rose),
+                _metric('최대입찰가', '${Won.compact(maxBid)}원', AppColors.sky),
+              ],
             ],
           ),
+          if (isPlus && jeonse > 0 && !jeonseCoversBid) ...[
+            const Gap(12),
+            _warn('전세가(${Won.compact(jeonse)}원)가 낙찰가보다 낮음 · '
+                '플피 전략의 전제가 무너집니다'),
+          ],
+          if (isPlus && jeonse <= 0) ...[
+            const Gap(12),
+            _warn('전세 시세를 넣어야 실투자금이 계산됩니다 · 입찰 전에 반드시 확인'),
+          ],
           if (overMax) ...[
             const Gap(12),
             _warn('입찰가가 최대입찰가(${Won.compact(maxBid)}원)를 초과 · 입찰 비추천'),
@@ -469,7 +522,10 @@ class _CalcTabState extends State<_CalcTab> {
             runSpacing: 8,
             children: [
               _money('예상 매도가', sale, (v) => setState(() => sale = v)),
-              _money('경락잔금대출', loan, (v) => setState(() => loan = v)),
+              if (isPlus)
+                _money('전세 시세', jeonse, (v) => setState(() => jeonse = v))
+              else
+                _money('경락잔금대출', loan, (v) => setState(() => loan = v)),
               _money('취득·등기비', acq, (v) => setState(() => acq = v)),
               _money('수리/인테리어', repair, (v) => setState(() => repair = v)),
               _money('명도비', evict, (v) => setState(() => evict = v)),
@@ -523,6 +579,8 @@ class _CalcTabState extends State<_CalcTab> {
                   'sale_cost': saleCost,
                   'finance_cost': finance,
                   'target_profit': target,
+                  'strategy': strategy,
+                  'jeonse_price': jeonse,
                   'score': score,
                   'verdict': verdict,
                 });
@@ -566,6 +624,33 @@ class _CalcTabState extends State<_CalcTab> {
             dense: true,
             accent: _teal),
       );
+
+  Widget _stratChip(String key, String label, IconData icon) {
+    final on = strategy == key;
+    final c = key == 'plus' ? AppColors.violet : _teal;
+    return InkWell(
+      onTap: () => setState(() => strategy = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: on ? c : AppColors.border, width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: on ? c : AppColors.textFaint),
+          const Gap(6),
+          Text(label,
+              style: TextStyle(
+                  color: on ? c : AppColors.textSecondary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
 
   Widget _verdictChip(String v) {
     final on = verdict == v;

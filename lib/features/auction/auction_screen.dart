@@ -519,6 +519,10 @@ class _AuctionCardState extends State<_AuctionCard> {
                 ),
               ),
               const Gap(8),
+              if (p.isPlus) ...[
+                const Pill('플피', color: AppColors.violet),
+                const Gap(6),
+              ],
               if (d != null) ...[
                 Pill(
                     p.bidPassed
@@ -565,12 +569,21 @@ class _AuctionCardState extends State<_AuctionCard> {
               _metric('예상입찰가', '${Won.compact(p.bidPrice)}원'),
               _metric('할인율', Pct.of(p.discountRate),
                   color: p.discountRate > 0 ? AppColors.primary : null),
-              _metric('필요현금', '${Won.compact(p.cashNeeded)}원',
-                  color: AppColors.gold),
+              if (p.isPlus) ...[
+                // 플피형은 ROI 가 아니라 실투자금을 본다.
+                _metric('전세', '${Won.compact(p.jeonsePrice)}원',
+                    color: p.jeonseCoversBid ? AppColors.primary : null),
+                _metric(p.ownCash <= 0 ? '플피' : '실투자금',
+                    '${Won.compact(p.ownCash <= 0 ? p.plusPi : p.ownCash)}원',
+                    color: p.ownCash <= 0 ? AppColors.primary : AppColors.gold),
+              ] else
+                _metric('필요현금', '${Won.compact(p.cashNeeded)}원',
+                    color: AppColors.gold),
               _metric('예상순수익', '${Won.compact(p.netProfit)}원',
                   color: p.netProfit >= 0 ? AppColors.primary : AppColors.rose),
-              _metric('ROI', Pct.of(p.roi),
-                  color: p.roi >= 0 ? AppColors.primary : AppColors.rose),
+              if (!p.isPlus)
+                _metric('ROI', Pct.of(p.roi),
+                    color: p.roi >= 0 ? AppColors.primary : AppColors.rose),
               _metric('최대입찰가', '${Won.compact(p.maxBid)}원',
                   color: AppColors.sky),
             ],
