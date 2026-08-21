@@ -15,14 +15,17 @@ import 'knowledge_files.dart';
 const _amber = Color(0xFFF59E0B);
 
 /// 자료실 메모 추가/수정 다이얼로그 (외부에서도 호출 가능).
+/// [defaultTag] 를 주면 새 메모의 태그 칸을 그 값으로 미리 채운다.
 Future<void> showKnowledgeNoteEditor(BuildContext context, WidgetRef ref,
-        {KnowledgeNote? note}) =>
-    _noteDialog(context, ref, note: note);
+        {KnowledgeNote? note, String? defaultTag}) =>
+    _noteDialog(context, ref, note: note, defaultTag: defaultTag);
 
 /// 자료실 헤더 버튼 — `+ PDF` 와 `+ 메모`.
 /// 경매 화면의 '자료실' 탭에서 ModulePage 의 action 으로 쓴다.
 class KnowledgeActions extends ConsumerWidget {
-  const KnowledgeActions({super.key});
+  /// 이 탭에서 올린 자료에 자동으로 붙일 태그 (예: '에어비앤비').
+  final String? defaultTag;
+  const KnowledgeActions({super.key, this.defaultTag});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Row(
@@ -32,14 +35,16 @@ class KnowledgeActions extends ConsumerWidget {
             label: 'PDF',
             icon: Icons.picture_as_pdf_rounded,
             color: AppColors.rose,
-            onTap: () => uploadStandalonePdf(context, ref),
+            onTap: () => uploadStandalonePdf(context, ref,
+                tags: defaultTag == null ? const [] : [defaultTag!]),
           ),
           const Gap(8),
           _SmallAdd(
             label: '메모',
             icon: Icons.edit_note_rounded,
             color: _amber,
-            onTap: () => showKnowledgeNoteEditor(context, ref),
+            onTap: () => showKnowledgeNoteEditor(context, ref,
+                defaultTag: defaultTag),
           ),
         ],
       );
@@ -76,7 +81,10 @@ class _SmallAdd extends StatelessWidget {
 /// 부동산 지식 자료실 본문 — 강의 Q&A·칼럼·메모를 키워드/태그로 검색.
 /// 경매 화면의 '자료실' 탭에서도 그대로 재사용한다.
 class KnowledgeView extends ConsumerStatefulWidget {
-  const KnowledgeView({super.key});
+  /// 이 태그가 붙은 자료만 보여준다. null 이면 전체.
+  /// 에어비앤비 화면의 '자료실' 탭은 `에어비앤비` 태그로 좁혀서 쓴다.
+  final String? onlyTag;
+  const KnowledgeView({super.key, this.onlyTag});
 
   @override
   ConsumerState<KnowledgeView> createState() => _KnowledgeViewState();
@@ -103,17 +111,33 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
         async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
-          data: (all) {
+          data: (rows) {
+            var all = rows;
             if (all.isEmpty) {
               return const EmptyState(
                 icon: Icons.menu_book_rounded,
                 message: '자료가 없어요.\n강의 Q&A·칼럼을 불러오거나 메모를 추가하세요.',
               );
             }
+            // 고정 태그가 있으면 그 범위로 먼저 좁힌다.
+            if (widget.onlyTag != null) {
+              all = all.where((n) => n.tags.contains(widget.onlyTag)).toList();
+              if (all.isEmpty) {
+                return EmptyState(
+                  icon: Icons.menu_book_rounded,
+                  message: '「${widget.onlyTag}」 자료가 아직 없어요.\n'
+                      'PDF·메모를 올리면 여기에 모입니다.',
+                );
+              }
+            }
             // 태그 집계
             final counts = <String, int>{};
             for (final n in all) {
+              if (n.tags.contains(widget.onlyTag) && n.tags.length == 1) {
+                continue; // 고정 태그만 달린 항목은 필터로 의미가 없다
+              }
               for (final t in n.tags) {
+                if (t == widget.onlyTag) continue; // 고정 태그는 칩에서 뺀다
                 counts[t] = (counts[t] ?? 0) + 1;
               }
             }
@@ -328,10 +352,11 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
 
 /// 메모 추가/수정 다이얼로그.
 Future<void> _noteDialog(BuildContext context, WidgetRef ref,
-    {KnowledgeNote? note}) async {
+    {KnowledgeNote? note, String? defaultTag}) async {
     final t = TextEditingController(text: note?.title ?? '');
     final b = TextEditingController(text: note?.body ?? '');
-    final g = TextEditingController(text: note?.tags.join(', ') ?? '');
+    final g = TextEditingController(
+        text: note?.tags.join(', ') ?? (defaultTag ?? ''));
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(

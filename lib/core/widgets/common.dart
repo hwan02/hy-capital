@@ -254,3 +254,47 @@ class AsyncStatus {
         message: '데이터를 불러오지 못했습니다.\n$e',
       );
 }
+
+
+/// 모듈 안에서 화면을 갈아타는 탭 (경매: 물건/자료실/강의질문, Airbnb: 호점/자료실).
+/// 가로 스크롤 대신 Wrap 안에 넣어 쓴다 — 스와이프가 브라우저 뒤로가기로 먹힌다.
+class ModuleTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const ModuleTab({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.16) : Colors.transparent,
+            border: Border.all(
+                color: selected ? color : AppColors.border,
+                width: selected ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 17, color: selected ? color : AppColors.textFaint),
+            const Gap(7),
+            Text(label,
+                style: TextStyle(
+                    color: selected ? color : AppColors.textSecondary,
+                    fontSize: AppFont.body,
+                    fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      );
+}

@@ -10,6 +10,7 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
+import '../knowledge/knowledge_screen.dart';
 import '../../models/models.dart';
 
 Map<String, dynamic> _unitToMap(AirbnbUnit u) => {
@@ -22,8 +23,15 @@ Map<String, dynamic> _unitToMap(AirbnbUnit u) => {
       'monthly_target': u.monthlyTarget,
     };
 
-class AirbnbScreen extends ConsumerWidget {
+class AirbnbScreen extends ConsumerStatefulWidget {
   const AirbnbScreen({super.key});
+
+  @override
+  ConsumerState<AirbnbScreen> createState() => _AirbnbScreenState();
+}
+
+class _AirbnbScreenState extends ConsumerState<AirbnbScreen> {
+  int _tab = 0; // 0=호점 · 1=자료실
 
   static const _statusLabel = {
     'open': '운영중',
@@ -37,18 +45,39 @@ class AirbnbScreen extends ConsumerWidget {
   };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final async = ref.watch(airbnbProvider);
+    const amber = Color(0xFFF59E0B);
     return ModulePage(
       title: 'Airbnb',
       icon: Icons.house_rounded,
-      color: AppColors.sky,
-      action: AddButton(
-        color: AppColors.sky,
-        onTap: () => editBuiltinRecord(context, ref, airbnbSpec),
-      ),
+      color: _tab == 0 ? AppColors.sky : amber,
+      action: _tab == 0
+          ? AddButton(
+              color: AppColors.sky,
+              onTap: () => editBuiltinRecord(context, ref, airbnbSpec),
+            )
+          : const KnowledgeActions(defaultTag: '에어비앤비'),
       children: [
-        async.when(
+        // 호점 / 자료실 전환
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          ModuleTab(
+              label: '호점',
+              icon: Icons.house_rounded,
+              color: AppColors.sky,
+              selected: _tab == 0,
+              onTap: () => setState(() => _tab = 0)),
+          ModuleTab(
+              label: '자료실',
+              icon: Icons.menu_book_rounded,
+              color: amber,
+              selected: _tab == 1,
+              onTap: () => setState(() => _tab = 1)),
+        ]),
+        const Gap(18),
+        if (_tab == 1) const KnowledgeView(onlyTag: '에어비앤비'),
+        if (_tab == 0)
+          async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
           data: (units) {

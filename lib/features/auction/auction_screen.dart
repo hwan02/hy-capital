@@ -259,19 +259,19 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
       children: [
         // 물건 / 자료실 / 강의 질문 전환 (좁은 화면에서 줄바꿈)
         Wrap(spacing: 8, runSpacing: 8, children: [
-          _TopTab(
+          ModuleTab(
               label: '물건',
               icon: Icons.gavel_rounded,
               color: _teal,
               selected: _tab == 0,
               onTap: () => setState(() => _tab = 0)),
-          _TopTab(
+          ModuleTab(
               label: '자료실',
               icon: Icons.menu_book_rounded,
               color: amber,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
-          _TopTab(
+          ModuleTab(
               label: '강의 질문',
               icon: Icons.live_help_rounded,
               color: orange,
@@ -743,47 +743,6 @@ class _Warn extends StatelessWidget {
 
 
 /// 경매 화면 상단 전환 탭 (물건 / 자료실).
-class _TopTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  const _TopTab({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.16) : Colors.transparent,
-          border: Border.all(
-              color: selected ? color : AppColors.border,
-              width: selected ? 1.4 : 1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 17, color: selected ? color : AppColors.textFaint),
-          const Gap(7),
-          Text(label,
-              style: TextStyle(
-                  color: selected ? color : AppColors.textSecondary,
-                  fontSize: AppFont.body,
-                  fontWeight: FontWeight.w800)),
-        ]),
-      ),
-    );
-  }
-}
 
 /// 가용현금 기준선 배너 — 내 돈으로 어디까지 입찰이 되는지 한 줄로 알려준다.
 /// 자금부족으로 접힌 물건이 있으면 여기서 펼친다.

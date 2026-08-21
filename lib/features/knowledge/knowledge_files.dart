@@ -101,7 +101,8 @@ Future<void> attachKnowledgeFiles(
 
 /// PDF 만 단독으로 올린다 — 항목을 먼저 만들 필요 없이,
 /// 파일명으로 자료실 항목(kind='file')을 만들고 거기에 첨부한다.
-Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref) async {
+Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref,
+    {List<String> tags = const []}) async {
   final input = html.FileUploadInputElement()
     ..accept = '.pdf,application/pdf'
     ..multiple = true;
@@ -146,6 +147,7 @@ Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref) async {
         'kind': 'file',
         'title': title,
         'source': '첨부 파일',
+        if (tags.isNotEmpty) 'tags': tags,
         'files': [
           KnowledgeFile(name: f.name, path: path, size: f.size).toMap()
         ],
