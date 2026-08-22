@@ -367,8 +367,20 @@ class _CalcTab extends StatefulWidget {
 class _CalcTabState extends State<_CalcTab> {
   late double bid, sale, loan, acq, repair, evict, other, saleCost, finance, target, score;
   late String verdict;
+  late String status;   // interest→…→won(낙찰)→sold(매각완료)
   late String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
   late double jeonse;   // 전세 시세 — 플피 계산의 핵심
+
+  // 진행 상태 옵션 (auction_screen 의 _statusLabel 과 동일 체계).
+  static const _statuses = <(String, String, Color)>[
+    ('interest', '관심', AppColors.sky),
+    ('researching', '조사중', AppColors.gold),
+    ('visited', '현장방문', _teal),
+    ('bidding', '입찰예정', AppColors.violet),
+    ('won', '낙찰', AppColors.primary),
+    ('sold', '매각완료', AppColors.textFaint),
+    ('pass', 'PASS', AppColors.rose),
+  ];
 
   @override
   void initState() {
@@ -386,6 +398,7 @@ class _CalcTabState extends State<_CalcTab> {
     target = p.targetProfit;
     score = p.score;
     verdict = p.verdict;
+    status = p.status;
     strategy = p.strategy;
     jeonse = p.jeonsePrice;
   }
@@ -537,6 +550,25 @@ class _CalcTabState extends State<_CalcTab> {
           ),
           const Gap(16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('상태',
+                    style: TextStyle(
+                        fontSize: AppFont.label,
+                        color: AppColors.textSecondary)),
+              ),
+              const Gap(12),
+              Expanded(
+                child: Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final (k, l, c) in _statuses) _statusChip(k, l, c),
+                ]),
+              ),
+            ],
+          ),
+          const Gap(16),
+          Row(
             children: [
               const Text('판단',
                   style: TextStyle(fontSize: AppFont.label, color: AppColors.textSecondary)),
@@ -583,6 +615,7 @@ class _CalcTabState extends State<_CalcTab> {
                   'jeonse_price': jeonse,
                   'score': score,
                   'verdict': verdict,
+                  'status': status,
                 });
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -648,6 +681,27 @@ class _CalcTabState extends State<_CalcTab> {
                   fontSize: AppFont.label,
                   fontWeight: FontWeight.w800)),
         ]),
+      ),
+    );
+  }
+
+  Widget _statusChip(String key, String label, Color c) {
+    final on = status == key;
+    return InkWell(
+      onTap: () => setState(() => status = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(color: on ? c : AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: on ? c : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w700)),
       ),
     );
   }
