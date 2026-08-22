@@ -13,6 +13,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../core/widgets/monthly_tracker.dart';
 import '../../models/models.dart';
+import 'shorts_schedule.dart';
 
 Map<String, dynamic> _channelToMap(ShortsChannel c) => {
       'name': c.name,
@@ -53,16 +54,20 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     return ModulePage(
       title: 'Shorts',
       icon: Icons.play_circle_fill_rounded,
-      color: _tab == 0 ? AppColors.rose : _insta,
+      color: _tab == 0
+          ? AppColors.rose
+          : (_tab == 1 ? _insta : AppColors.gold),
       action: _tab == 0
           ? AddButton(
               color: AppColors.rose,
               onTap: () => editBuiltinRecord(context, ref, shortsSpec))
-          : AddButton(
-              color: _insta,
-              label: '롤모델',
-              onTap: () =>
-                  editBuiltinRecord(context, ref, referenceAccountSpec)),
+          : _tab == 1
+              ? AddButton(
+                  color: _insta,
+                  label: '롤모델',
+                  onTap: () =>
+                      editBuiltinRecord(context, ref, referenceAccountSpec))
+              : null,
       children: [
         Row(children: [
           _ShortsTab(
@@ -78,8 +83,16 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
               color: _insta,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
+          const Gap(8),
+          _ShortsTab(
+              label: '편성표',
+              icon: Icons.calendar_month_rounded,
+              color: AppColors.gold,
+              selected: _tab == 2,
+              onTap: () => setState(() => _tab = 2)),
         ]),
         const Gap(18),
+        if (_tab == 2) const ShortsScheduleTab(),
         if (_tab == 1) const _RoleModelList(),
         if (_tab == 0)
           async.when(
