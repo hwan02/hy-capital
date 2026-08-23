@@ -239,7 +239,6 @@ class AuctionScreen extends ConsumerStatefulWidget {
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
   int _tab = 0; // 0=물건 · 1=자료실 · 2=강의 질문
-  bool _showShort = false; // 자금부족 물건까지 보기
 
   @override
   Widget build(BuildContext context) {
@@ -313,12 +312,11 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 return da.compareTo(db);
               });
 
-            // 자금 게이트: 보증금이 안 되는 물건은 기본으로 접는다.
+            // 자금 게이트는 '참고용' — 리스트는 숨기지 않고 전부 보여준다.
+            // (정보성으로 물건을 모으는 단계라 예산 초과도 그대로 노출)
             final shortList =
                 byFilter.where((p) => p.cashShort(cash)).toList();
-            final filtered = _showShort
-                ? byFilter
-                : byFilter.where((p) => !p.cashShort(cash)).toList();
+            final filtered = byFilter;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -362,8 +360,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 _CashBanner(
                   cash: cash,
                   shortCount: shortList.length,
-                  showShort: _showShort,
-                  onToggle: () => setState(() => _showShort = !_showShort),
                 ),
                 const Gap(14),
                 if (filtered.isEmpty)
@@ -381,6 +377,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                     onDelete: () => deleteBuiltinRecord(
                         context, ref, auctionSpec, p.id,
                         name: p.title),
+                    onSetVerdict: (v) async {
+                      final sb = ref.read(supabaseProvider);
+                      await sb
+                          .from('auction_properties')
+                          .update({'verdict': v}).eq('id', p.id);
+                      invalidateAll(ref);
+                    },
                   ),
                   const Gap(14),
                 ],
@@ -459,14 +462,16 @@ class _Chip extends StatelessWidget {
 
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
-  final double cash; // 가용현금 — 자금 게이트 기준
+  final double cash; // 가용현금 — 자금 게이트 기준(참고용)
   final VoidCallback onOpen;
   final VoidCallback onDelete;
+  final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
   const _AuctionCard(
       {required this.p,
       required this.cash,
       required this.onOpen,
-      required this.onDelete});
+      required this.onDelete,
+      required this.onSetVerdict});
 
   @override
   State<_AuctionCard> createState() => _AuctionCardState();
@@ -486,8 +491,6 @@ class _AuctionCardState extends State<_AuctionCard> {
     return InkWell(
       onTap: onOpen,
       borderRadius: BorderRadius.circular(16),
-      child: Opacity(
-      opacity: short ? 0.62 : 1,
       child: GlassCard(
       accent: vColor,
       child: Column(
@@ -604,6 +607,20 @@ class _AuctionCardState extends State<_AuctionCard> {
                       height: 1.55)),
             ),
           ],
+          const Gap(12),
+          Row(children: [
+            const Text('할까?',
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700)),
+            const Gap(10),
+            _vChip('GO', '할래'),
+            const Gap(6),
+            _vChip('HOLD', '보류'),
+            const Gap(6),
+            _vChip('PASS', '패스'),
+          ]),
           const Gap(10),
           Row(
             children: [
@@ -649,6 +666,26 @@ class _AuctionCardState extends State<_AuctionCard> {
         ],
       ),
       ),
+    );
+  }
+
+  Widget _vChip(String v, String label) {
+    final on = widget.p.verdict == v;
+    final c = _verdictColor(v);
+    return GestureDetector(
+      onTap: () => widget.onSetVerdict(v),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(color: on ? c : AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: on ? c : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w800)),
       ),
     );
   }
@@ -749,13 +786,9 @@ class _Warn extends StatelessWidget {
 class _CashBanner extends ConsumerWidget {
   final double cash;
   final int shortCount;
-  final bool showShort;
-  final VoidCallback onToggle;
   const _CashBanner({
     required this.cash,
     required this.shortCount,
-    required this.showShort,
-    required this.onToggle,
   });
 
   /// 경매에 쓸 돈을 직접 입력한다. 전체 현금과 분리된 값.
@@ -886,30 +919,23 @@ class _CashBanner extends ConsumerWidget {
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: AppFont.label)),
           if (shortCount > 0)
-            InkWell(
-              onTap: onToggle,
-              borderRadius: BorderRadius.circular(7),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(7),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(showShort ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
-                      size: 13, color: AppColors.textSecondary),
-                  const Gap(6),
-                  Text(showShort ? '자금부족 $shortCount건 숨기기'
-                      : '자금부족 $shortCount건 보기',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: AppFont.label,
-                          fontWeight: FontWeight.w700)),
-                ]),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: AppColors.border),
               ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.info_outline_rounded,
+                    size: 13, color: AppColors.textFaint),
+                const Gap(6),
+                Text('예산 초과 $shortCount건 (참고용 · 숨기지 않음)',
+                    style: const TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w700)),
+              ]),
             ),
         ],
       ),
