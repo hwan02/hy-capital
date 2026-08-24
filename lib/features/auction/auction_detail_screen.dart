@@ -532,12 +532,15 @@ Zone? matchZoneForAddress(String? address, List<Zone> zones) {
   if (address == null || address.isEmpty) return null;
   final a = address.replaceAll(' ', '');
   for (final z in zones) {
-    final beonji = RegExp(r'동\s*([0-9]+)').firstMatch(z.name)?.group(1);
+    // 동이 다르면 건너뛴다(다른 동의 같은 번지 오매칭 방지).
     final dong = RegExp(r'([가-힣]+?)[0-9]*동').firstMatch(z.name)?.group(1);
-    if (beonji != null &&
-        a.contains(beonji) &&
-        (dong == null || a.contains(dong))) {
-      return z;
+    if (dong != null && dong.isNotEmpty && !a.contains(dong)) continue;
+    // 1) 구역명 대표 번지
+    final beonji = RegExp(r'동\s*([0-9]+)').firstMatch(z.name)?.group(1);
+    if (beonji != null && a.contains(beonji)) return z;
+    // 2) 포함 번지 목록(aliases)
+    for (final al in z.aliases) {
+      if (al.isNotEmpty && a.contains(al)) return z;
     }
   }
   return null;

@@ -1121,6 +1121,7 @@ class Zone {
   final int stage; // 0=미정, 1~7
   final String? stageSource; // 단계 근거·출처
   final DateTime? stageCheckedAt; // 단계 확인 시각
+  final List<String> aliases; // 구역에 포함된 다른 번지들(대표번지 외)
 
   Zone({
     required this.id,
@@ -1134,6 +1135,7 @@ class Zone {
     this.stage = 0,
     this.stageSource,
     this.stageCheckedAt,
+    this.aliases = const [],
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1165,6 +1167,8 @@ class Zone {
         stage: (m['stage'] as num?)?.toInt() ?? 0,
         stageSource: m['stage_source'],
         stageCheckedAt: _date(m['stage_checked_at']),
+        aliases: (m['aliases'] as List?)?.map((e) => e.toString()).toList() ??
+            const [],
       );
 }
 
