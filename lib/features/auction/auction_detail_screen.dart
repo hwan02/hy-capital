@@ -363,8 +363,14 @@ void _viewer(BuildContext context, List<String> imgs, int start) {
 
 // ── 계산기 탭 ───────────────────────────────────────────────
 /// 입찰가 산정 시 고려사항 도움말 (ⓘ 로 펼침).
-class _BidTips extends StatelessWidget {
+class _BidTips extends StatefulWidget {
   const _BidTips();
+  @override
+  State<_BidTips> createState() => _BidTipsState();
+}
+
+class _BidTipsState extends State<_BidTips> {
+  bool _ex = false; // 예시 펼치기
 
   static const _items = <(String, String)>[
     ('매매 실거래가', '인근 같은 평형의 최근 실제 거래가 — 가치 판단의 기준'),
@@ -372,6 +378,39 @@ class _BidTips extends StatelessWidget {
     ('취득세', '낙찰가 기준 · 다주택/중과 여부 확인'),
     ('각종 비용', '명도비 · (미납)관리비 · 수리비 · 중개수수료 등'),
   ];
+
+  // 예시 — 2024타경535019
+  static const _ex1 = <(String, String, bool)>[
+    ('감정가', '3억 8,900만', false),
+    ('취등록·법무비', '600만', false),
+    ('인테리어', '1,500만', false),
+    ('입주청소', '50만', false),
+    ('명도비', '200만', false),
+    ('총 비용', '2,350만', false),
+    ('입찰가', '2억 7,230만', true),
+    ('입찰가 + 총비용', '2억 9,580만', false),
+    ('매도 예상가', '3억 3,000만', false),
+    ('예상 수익', '3,420만', true),
+  ];
+
+  Widget _exRow(String k, String v, bool hi) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(k,
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: hi ? FontWeight.w800 : FontWeight.w500,
+                    color: hi ? _teal : AppColors.textSecondary)),
+            Text(v,
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: hi ? FontWeight.w800 : FontWeight.w600,
+                    color: hi ? _teal : AppColors.textPrimary)),
+          ],
+        ),
+      );
 
   Widget _row(String k, String v) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
@@ -441,6 +480,43 @@ class _BidTips extends StatelessWidget {
                   height: 1.6),
             ),
           ),
+          const Gap(8),
+          InkWell(
+            onTap: () => setState(() => _ex = !_ex),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(
+                    _ex
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 16,
+                    color: _teal),
+                const Gap(3),
+                Text(_ex ? '예시 접기' : '실제 예시 보기 (2024타경535019)',
+                    style: const TextStyle(
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w700,
+                        color: _teal)),
+              ]),
+            ),
+          ),
+          if (_ex) ...[
+            const Gap(8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Column(
+                children: [
+                  for (final (k, v, hi) in _ex1) _exRow(k, v, hi),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
