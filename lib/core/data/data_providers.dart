@@ -559,6 +559,10 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(dashboardMetricsProvider);
   ref.invalidate(customModulesProvider);
   ref.invalidate(ipoProvider);
+  ref.invalidate(zonesProvider);
+  ref.invalidate(complexesProvider);
+  ref.invalidate(latestSurveysProvider);
+  ref.invalidate(visitsProvider);
   ref.invalidate(customRecordsProvider);
   ref.invalidate(allocationsProvider);
   ref.invalidate(incomeSourcesProvider);
@@ -604,4 +608,50 @@ final ipoProvider = FutureProvider<List<IpoSubscription>>((ref) async {
       .select()
       .order('listing_date', ascending: false);
   return rows.map<IpoSubscription>(IpoSubscription.fromMap).toList();
+});
+
+// ── 부동산 작업대 ────────────────────────────────────────────
+
+/// 구역 — 동의율 높은 순(조합설립 임박한 곳부터).
+final zonesProvider = FutureProvider<List<Zone>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows =
+      await sb.from('zones').select().order('consent_rate', ascending: false);
+  return rows.map<Zone>(Zone.fromMap).toList();
+});
+
+/// 단지.
+final complexesProvider = FutureProvider<List<Complex>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb.from('complexes').select().order('name');
+  return rows.map<Complex>(Complex.fromMap).toList();
+});
+
+/// 단지별 «최신» 시세조사. 추이는 남기지만 화면은 최신 것만 본다.
+final latestSurveysProvider =
+    FutureProvider<Map<String, PriceSurvey>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('price_surveys')
+      .select()
+      .order('surveyed_on', ascending: false);
+  final out = <String, PriceSurvey>{};
+  for (final r in rows) {
+    final s = PriceSurvey.fromMap(r);
+    out.putIfAbsent(s.complexId, () => s); // 내림차순이라 첫 개가 최신
+  }
+  return out;
+});
+
+/// 단지별 임장 목록 (최신순).
+final visitsProvider = FutureProvider<Map<String, List<Visit>>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows =
+      await sb.from('visits').select().order('visited_at', ascending: false);
+  final out = <String, List<Visit>>{};
+  for (final r in rows) {
+    final v = Visit.fromMap(r);
+    out.putIfAbsent(v.complexId, () => []).add(v);
+  }
+  return out;
 });

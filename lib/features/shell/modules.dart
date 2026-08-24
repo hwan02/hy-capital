@@ -17,7 +17,7 @@ const kModules = <ModuleDef>[
   ModuleDef('/airbnb', 'Airbnb', Icons.house_rounded, AppColors.sky),
   ModuleDef('/shorts', 'Shorts', Icons.play_circle_fill_rounded, AppColors.rose),
   ModuleDef('/land', '토지', Icons.terrain_rounded, Color(0xFFB4844E)),
-  ModuleDef('/auction', '경매', Icons.gavel_rounded, Color(0xFF14B8A6)),
+  ModuleDef('/auction', '부동산', Icons.location_city_rounded, Color(0xFF14B8A6)),
   ModuleDef('/dividend', '배당금', Icons.savings_rounded, AppColors.primary),
   ModuleDef('/ipo', '공모주', Icons.confirmation_number_rounded, Color(0xFF6366F1)),
   ModuleDef('/goals', 'Goals', Icons.flag_rounded, AppColors.violet),

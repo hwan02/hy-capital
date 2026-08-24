@@ -57,3 +57,6 @@ hy-capital-web.zip
 # 강의 자료 PDF (공개 저장소이므로 원본/복호화본 모두 제외)
 *.pdf
 *.unlocked.pdf
+
+# 디자인 캔버스 작업 파일 (씨딩된 payload 는 2MB 넘음)
+.design/**/*.html

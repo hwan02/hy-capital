@@ -247,8 +247,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
-      title: '경매',
-      icon: Icons.gavel_rounded,
+      title: '부동산',
+      icon: Icons.location_city_rounded,
       color: switch (_tab) { 0 => _teal, 1 => amber, _ => orange },
       action: switch (_tab) {
         0 => AddButton(color: _teal, onTap: () => _quickAdd(context, ref)),
@@ -548,7 +548,7 @@ class _AuctionCardState extends State<_AuctionCard> {
             const Gap(12),
             _Warn(
               text: '입찰보증금 ${Won.compact(p.depositDue)}원 · '
-                  '경매 예산 ${Won.compact(widget.cash)}원 → '
+                  '매수 예산 ${Won.compact(widget.cash)}원 → '
                   '${Won.compact(p.shortfall(widget.cash))}원 부족',
               color: AppColors.textFaint,
             ),
@@ -801,14 +801,14 @@ class _CashBanner extends ConsumerWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('경매에 쓸 돈',
+        title: const Text('매수에 쓸 돈',
             style: TextStyle(fontSize: AppFont.section)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-                '전체 현금이 아니라 «경매에만» 쓸 수 있는 금액을 넣으세요.\n'
+                '전체 현금이 아니라 «부동산 매수에만» 쓸 수 있는 금액을 넣으세요.\n'
                 '이 값으로 물건마다 보증금이 되는지 판정합니다.',
                 style: TextStyle(
                     color: AppColors.textSecondary,
@@ -816,7 +816,7 @@ class _CashBanner extends ConsumerWidget {
                     height: 1.5)),
             const Gap(14),
             MoneyField(
-              label: '경매에 쓸 금액',
+              label: '매수에 쓸 금액',
               initial: current,
               autofocus: true,
               accent: AppColors.gold,
@@ -867,7 +867,7 @@ class _CashBanner extends ConsumerWidget {
               size: 15, color: AppColors.textFaint),
           const Gap(8),
           const Expanded(
-            child: Text('경매에 쓸 돈을 정하면 물건마다 「보증금이 되는지」 자동으로 판정해요.',
+            child: Text('매수 예산을 정하면 매물마다 「보증금·계약금이 되는지」 자동으로 판정해요.',
                 style: TextStyle(
                     color: AppColors.textFaint, fontSize: AppFont.label)),
           ),
@@ -906,7 +906,7 @@ class _CashBanner extends ConsumerWidget {
               const Icon(Icons.account_balance_wallet_rounded,
                   size: 15, color: AppColors.gold),
               const Gap(8),
-              Text('경매 예산 ${Won.compact(cash)}원',
+              Text('매수 예산 ${Won.compact(cash)}원',
                   style: const TextStyle(
                       color: AppColors.gold,
                       fontSize: AppFont.label,

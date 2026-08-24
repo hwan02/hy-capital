@@ -32,6 +32,7 @@ class AppColors {
     'dividend': primary,
     '토지': Color(0xFFB4844E),
     '경매': Color(0xFF14B8A6),
+    '부동산': Color(0xFF14B8A6),
     '배당금': primary,
     'ipo': Color(0xFF6366F1),
     '공모주': Color(0xFF6366F1),

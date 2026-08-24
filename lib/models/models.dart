@@ -1070,3 +1070,244 @@ class IpoSubscription {
         memo: m['memo'],
       );
 }
+
+// ── 부동산 작업대 ────────────────────────────────────────────
+// 조사·임장은 «단지»에 붙는다. 매물(경매·급매)은 단지에서 시세를 상속받는다.
+
+/// 구역 — 모아타운·신통기획 선정지.
+class Zone {
+  final String id;
+  final String name;
+  final String kind; // 모아타운|신통기획|일반
+  final String? district;
+  final double consentRate; // 조합설립 동의율 %
+  final DateTime? unionExpected;
+  final String? memo;
+  final bool starred;
+
+  Zone({
+    required this.id,
+    required this.name,
+    this.kind = '모아타운',
+    this.district,
+    this.consentRate = 0,
+    this.unionExpected,
+    this.memo,
+    this.starred = false,
+  });
+
+  /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
+  /// 동의율 70% 이상이면 임박으로 본다(자료실 사례 기준 72~78%에서 거래 활발).
+  bool get imminent => consentRate >= 70;
+
+  factory Zone.fromMap(Map<String, dynamic> m) => Zone(
+        id: m['id'],
+        name: m['name'] ?? '',
+        kind: m['kind'] ?? '모아타운',
+        district: m['district'],
+        consentRate: _d(m['consent_rate']),
+        unionExpected: _date(m['union_expected']),
+        memo: m['memo'],
+        starred: m['starred'] == true,
+      );
+}
+
+/// 단지 — 조사·임장이 붙는 단위. 구역 밖이어도 된다(zoneId == null).
+class Complex {
+  final String id;
+  final String? zoneId;
+  final String name;
+  final String? address;
+  final String kind; // 빌라|다세대|연립|아파트|기타
+  final String? memo;
+
+  Complex({
+    required this.id,
+    this.zoneId,
+    required this.name,
+    this.address,
+    this.kind = '빌라',
+    this.memo,
+  });
+
+  factory Complex.fromMap(Map<String, dynamic> m) => Complex(
+        id: m['id'],
+        zoneId: m['zone_id'],
+        name: m['name'] ?? '',
+        address: m['address'],
+        kind: m['kind'] ?? '빌라',
+        memo: m['memo'],
+      );
+}
+
+/// 시세조사의 한 출처. at: desk(책상 — 네이버·실거래·KB) | field(현장 — 부동산)
+class PriceSource {
+  final String label;
+  final double sale;   // 매매
+  final double jeonse; // 전세
+  final String at;     // desk | field
+
+  const PriceSource(
+      {required this.label, this.sale = 0, this.jeonse = 0, this.at = 'desk'});
+
+  bool get isField => at == 'field';
+  bool get hasAny => sale > 0 || jeonse > 0;
+
+  factory PriceSource.fromMap(Map<String, dynamic> m) => PriceSource(
+        label: (m['label'] ?? '').toString(),
+        sale: _d(m['sale']),
+        jeonse: _d(m['jeonse']),
+        at: (m['at'] ?? 'desk').toString(),
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'label': label, 'sale': sale, 'jeonse': jeonse, 'at': at};
+}
+
+/// 시세조사 — 단지당 여러 시점. 평균·전세비율은 계산으로 낸다.
+/// 빈 칸은 평균에서 제외된다 → 다 못 채워도 결론이 나온다.
+class PriceSurvey {
+  final String id;
+  final String complexId;
+  final DateTime surveyedOn;
+  final List<PriceSource> sources;
+  final String? memo;
+
+  PriceSurvey({
+    required this.id,
+    required this.complexId,
+    required this.surveyedOn,
+    this.sources = const [],
+    this.memo,
+  });
+
+  static double _avg(Iterable<double> xs) {
+    final v = xs.where((e) => e > 0).toList();
+    return v.isEmpty ? 0 : v.reduce((a, b) => a + b) / v.length;
+  }
+
+  double get saleAvg => _avg(sources.map((s) => s.sale));
+  double get jeonseAvg => _avg(sources.map((s) => s.jeonse));
+
+  /// 전세/매매 — 플피 판단의 핵심 지표.
+  double get jeonseRatio => saleAvg <= 0 ? 0 : jeonseAvg / saleAvg * 100;
+
+  int get deskFilled => sources.where((s) => !s.isField && s.hasAny).length;
+  int get fieldFilled => sources.where((s) => s.isField && s.hasAny).length;
+
+  /// 며칠 전 조사인가. 오래되면 갱신을 권한다.
+  int get ageDays {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day)
+        .difference(DateTime(surveyedOn.year, surveyedOn.month, surveyedOn.day))
+        .inDays;
+  }
+
+  bool get stale => ageDays > 60;
+
+  factory PriceSurvey.fromMap(Map<String, dynamic> m) => PriceSurvey(
+        id: m['id'],
+        complexId: m['complex_id'],
+        surveyedOn: DateTime.parse(m['surveyed_on']),
+        sources: (m['sources'] as List?)
+                ?.map((e) =>
+                    PriceSource.fromMap(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
+        memo: m['memo'],
+      );
+}
+
+/// 임장에서 들은 시세 (부동산 한 곳).
+class HeardPrice {
+  final String who;
+  final double sale;
+  final double jeonse;
+  const HeardPrice({required this.who, this.sale = 0, this.jeonse = 0});
+
+  factory HeardPrice.fromMap(Map<String, dynamic> m) => HeardPrice(
+        who: (m['who'] ?? '').toString(),
+        sale: _d(m['sale']),
+        jeonse: _d(m['jeonse']),
+      );
+  Map<String, dynamic> toMap() => {'who': who, 'sale': sale, 'jeonse': jeonse};
+}
+
+/// 임장 한 줄 메모 — 현장에서 길게 쓰지 않는다.
+class VisitMemo {
+  final String at;   // 14:26
+  final String text;
+  const VisitMemo({required this.at, required this.text});
+
+  factory VisitMemo.fromMap(Map<String, dynamic> m) => VisitMemo(
+        at: (m['at'] ?? '').toString(),
+        text: (m['text'] ?? '').toString(),
+      );
+  Map<String, dynamic> toMap() => {'at': at, 'text': text};
+}
+
+/// 임장 사진 — Storage 'knowledge' 버킷의 <uid>/visits/... 경로.
+class VisitPhoto {
+  final String path;
+  final String name;
+  final String tag; // 어느 체크 항목의 사진인가
+  const VisitPhoto({required this.path, this.name = '', this.tag = ''});
+
+  factory VisitPhoto.fromMap(Map<String, dynamic> m) => VisitPhoto(
+        path: (m['path'] ?? '').toString(),
+        name: (m['name'] ?? '').toString(),
+        tag: (m['tag'] ?? '').toString(),
+      );
+  Map<String, dynamic> toMap() => {'path': path, 'name': name, 'tag': tag};
+}
+
+/// 임장 — 단지에 붙는다. 매물이 없어도 간다(급매를 만날 수 있으니).
+class Visit {
+  final String id;
+  final String complexId;
+  final DateTime visitedAt;
+  final Map<String, dynamic> checks;
+  final List<VisitPhoto> photos;
+  final List<VisitMemo> memos;
+  final List<HeardPrice> heard;
+  final bool done;
+  final String? memo;
+
+  Visit({
+    required this.id,
+    required this.complexId,
+    required this.visitedAt,
+    this.checks = const {},
+    this.photos = const [],
+    this.memos = const [],
+    this.heard = const [],
+    this.done = false,
+    this.memo,
+  });
+
+  int get checkedCount => checks.values.where((v) => v == true).length;
+
+  factory Visit.fromMap(Map<String, dynamic> m) => Visit(
+        id: m['id'],
+        complexId: m['complex_id'],
+        visitedAt: DateTime.parse(m['visited_at']).toLocal(),
+        checks: (m['checks'] as Map?)?.cast<String, dynamic>() ?? const {},
+        photos: (m['photos'] as List?)
+                ?.map((e) =>
+                    VisitPhoto.fromMap(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
+        memos: (m['memos'] as List?)
+                ?.map((e) =>
+                    VisitMemo.fromMap(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
+        heard: (m['heard'] as List?)
+                ?.map((e) =>
+                    HeardPrice.fromMap(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
+        done: m['done'] == true,
+        memo: m['memo'],
+      );
+}
