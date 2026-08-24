@@ -58,16 +58,28 @@ class HyCapitalApp extends ConsumerStatefulWidget {
 class _HyCapitalAppState extends ConsumerState<HyCapitalApp> {
   StreamSubscription<AuthState>? _authSub;
 
+  /// 이미 데이터를 읽어온 사용자 id. 같은 사용자로 다시 signedIn 이 와도
+  /// 다시 읽지 않는다(탭 복귀 시 재발행되는 경우가 있다).
+  String? _loadedFor;
+
   @override
   void initState() {
     super.initState();
+    // 앱 시작 시 이미 세션이 있으면 그 사용자로 표시해 둔다 —
+    // 곧바로 도착하는 signedIn 이벤트로 한 번 더 읽지 않게.
+    _loadedFor = Supabase.instance.client.auth.currentSession?.user.id;
     // 로그인이 앱 시작 뒤에 완료되면(느린 네트워크 등) 첫 조회가 익명으로 나가
-    // 빈 화면이 남는다. 세션이 잡히는 순간 데이터를 다시 읽는다.
+    // 빈 화면이 남는다. 세션이 «처음» 잡히는 순간에만 다시 읽는다.
+    //
+    // tokenRefreshed 로는 다시 읽지 않는다 — 토큰은 주기적으로, 그리고 탭에
+    // 다시 들어올 때마다 갱신된다. 그때마다 invalidateAll 을 돌리면 화면
+    // 전체가 로딩으로 깜빡인다(실제로 그랬다). 헤더는 클라이언트가 알아서
+    // 바꾸므로 데이터를 다시 읽을 이유가 없다.
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((s) {
-      if (s.event != AuthChangeEvent.signedIn &&
-          s.event != AuthChangeEvent.tokenRefreshed) {
-        return;
-      }
+      if (s.event != AuthChangeEvent.signedIn) return;
+      final uid = s.session?.user.id;
+      if (uid == null || uid == _loadedFor) return; // 같은 사용자면 무시
+      _loadedFor = uid;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) invalidateAll(ref);
       });
