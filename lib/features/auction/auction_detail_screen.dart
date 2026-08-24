@@ -14,6 +14,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
 import 'auction_checklist.dart';
+import '../property/inherit.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -128,7 +129,13 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
         children: [
           _SurveyTab(p: p, formKey: _checklistKey, onSave: _update),
           _PhotosTab(p: p, onSave: _update),
-          _CalcTab(p: p, onSave: _update),
+          _CalcTab(
+              p: p,
+              price: effectivePrice(
+                  p,
+                  ref.watch(latestSurveysProvider).asData?.value ??
+                      const <String, PriceSurvey>{}),
+              onSave: _update),
           _MemoTab(p: p, onSave: _update),
         ],
       ),
@@ -357,8 +364,10 @@ void _viewer(BuildContext context, List<String> imgs, int start) {
 // ── 계산기 탭 ───────────────────────────────────────────────
 class _CalcTab extends StatefulWidget {
   final AuctionProperty p;
+  final EffectivePrice price; // 단지에서 상속받은 시세
   final Future<void> Function(Map<String, dynamic>) onSave;
-  const _CalcTab({required this.p, required this.onSave});
+  const _CalcTab(
+      {required this.p, required this.price, required this.onSave});
 
   @override
   State<_CalcTab> createState() => _CalcTabState();
@@ -386,8 +395,10 @@ class _CalcTabState extends State<_CalcTab> {
   void initState() {
     super.initState();
     final p = widget.p;
-    sale = p.expectedSalePrice > 0 ? p.expectedSalePrice : p.currentPrice;
-    bid = p.bidPrice > 0 ? p.bidPrice : (p.currentPrice * 0.85);
+    // 시세는 단지 조사값을 우선 쓴다 — 매물마다 다시 입력하지 않는다.
+    final cp = widget.price.sale > 0 ? widget.price.sale : p.currentPrice;
+    sale = p.expectedSalePrice > 0 ? p.expectedSalePrice : cp;
+    bid = p.bidPrice > 0 ? p.bidPrice : (cp * 0.85);
     loan = p.loanAmount;
     acq = p.acquisitionCost;
     repair = p.repairCost;
@@ -400,7 +411,7 @@ class _CalcTabState extends State<_CalcTab> {
     verdict = p.verdict;
     status = p.status;
     strategy = p.strategy;
-    jeonse = p.jeonsePrice;
+    jeonse = p.jeonsePrice > 0 ? p.jeonsePrice : widget.price.jeonse;
   }
 
   bool get isPlus => strategy == 'plus';
@@ -420,7 +431,7 @@ class _CalcTabState extends State<_CalcTab> {
 
   @override
   Widget build(BuildContext context) {
-    final cp = widget.p.currentPrice;
+    final cp = widget.price.sale > 0 ? widget.price.sale : widget.p.currentPrice;
     final maxRange = ((cp > 0 ? cp : (sale > 0 ? sale : 500000000)) * 1.2)
         .clamp(100000000, double.infinity)
         .toDouble();
@@ -429,6 +440,34 @@ class _CalcTabState extends State<_CalcTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.price.fromComplex) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.sky.withValues(alpha: 0.10),
+                border:
+                    Border.all(color: AppColors.sky.withValues(alpha: 0.35)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                const Icon(Icons.domain_rounded,
+                    size: 15, color: AppColors.sky),
+                const Gap(9),
+                Expanded(
+                  child: Text(
+                      '시세는 «단지 시세조사»에서 가져왔다 — '
+                      '${widget.price.ageDays}일 전 기록'
+                      '${widget.price.stale ? " · 갱신 권장" : ""}',
+                      style: TextStyle(
+                          color: widget.price.stale
+                              ? AppColors.gold
+                              : AppColors.textSecondary,
+                          fontSize: AppFont.label)),
+                ),
+              ]),
+            ),
+            const Gap(14),
+          ],
           // 전략 유형 — 셈이 완전히 다르므로 여기서 먼저 고른다.
           Row(children: [
             const Text('전략',

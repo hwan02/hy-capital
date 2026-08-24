@@ -17,6 +17,7 @@ import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
 import '../property/criteria_screen.dart';
+import '../property/inherit.dart';
 import '../property/survey_screen.dart';
 
 const _teal = Color(0xFF14B8A6);
@@ -25,11 +26,13 @@ const _teal = Color(0xFF14B8A6);
 /// 필요한 숫자가 다 들어있으므로 손입력을 최소화한다.
 Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
   final c = TextEditingController();
-  final saved = await showDialog<ParsedAuction>(
+  final res = await showDialog<(ParsedAuction, String)>(
     context: context,
     builder: (_) => _PasteDialog(controller: c),
   );
-  if (saved == null) return;
+  if (res == null) return;
+  final saved = res.$1;
+  final acq = res.$2;
   try {
     final sb = ref.read(supabaseProvider);
     final row = await sb
@@ -39,6 +42,7 @@ Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
           'title': saved.title ?? '이름 없는 물건',
           'status': 'interest',
           'verdict': 'HOLD',
+          'acquisition': acq,
           if (saved.caseNo != null) 'case_no': saved.caseNo,
           if (saved.address != null) 'address': saved.address,
           if (saved.court != null) 'court': saved.court,
@@ -73,6 +77,7 @@ class _PasteDialog extends StatefulWidget {
 
 class _PasteDialogState extends State<_PasteDialog> {
   ParsedAuction _p = const ParsedAuction();
+  String _acq = 'auction'; // auction=경매 · quick_sale=급매
 
   @override
   Widget build(BuildContext context) {
@@ -88,10 +93,60 @@ class _PasteDialogState extends State<_PasteDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                  '카톡으로 받은 글이나 경매사이트 화면을 그대로 붙여넣으세요.\n'
-                  '사건번호·최저가·보증금·입찰일·법원을 자동으로 뽑습니다.',
-                  style: TextStyle(
+              // 경매 / 급매 — 셈은 같고 이름만 다르다
+              Row(children: [
+                for (final a in const [
+                  ('auction', '경매', Icons.gavel_rounded),
+                  ('quick_sale', '급매', Icons.bolt_rounded),
+                ]) ...[
+                  InkWell(
+                    onTap: () => setState(() => _acq = a.$1),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 13, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: _acq == a.$1
+                            ? (a.$1 == 'auction' ? _teal : AppColors.gold)
+                                .withValues(alpha: 0.18)
+                            : Colors.transparent,
+                        border: Border.all(
+                            color: _acq == a.$1
+                                ? (a.$1 == 'auction' ? _teal : AppColors.gold)
+                                : AppColors.border,
+                            width: _acq == a.$1 ? 1.4 : 1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(a.$3,
+                            size: 14,
+                            color: _acq == a.$1
+                                ? (a.$1 == 'auction' ? _teal : AppColors.gold)
+                                : AppColors.textFaint),
+                        const Gap(6),
+                        Text(a.$2,
+                            style: TextStyle(
+                                fontSize: AppFont.label,
+                                fontWeight: FontWeight.w800,
+                                color: _acq == a.$1
+                                    ? (a.$1 == 'auction'
+                                        ? _teal
+                                        : AppColors.gold)
+                                    : AppColors.textSecondary)),
+                      ]),
+                    ),
+                  ),
+                  const Gap(6),
+                ],
+              ]),
+              const Gap(10),
+              Text(
+                  _acq == 'auction'
+                      ? '카톡으로 받은 글이나 경매사이트 화면을 그대로 붙여넣으세요.\n'
+                          '사건번호·최저가·보증금·입찰일·법원을 자동으로 뽑습니다.'
+                      : '임장에서 들은 급매를 넣으세요. 단지명과 «부르는 값»만 있으면 됩니다.\n'
+                          '계약금은 호가의 10%로 잡고, 시세는 단지 시세조사에서 가져옵니다.',
+                  style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: AppFont.label,
                       height: 1.5)),
@@ -104,8 +159,10 @@ class _PasteDialogState extends State<_PasteDialog> {
                 style: const TextStyle(fontSize: AppFont.label, height: 1.45),
                 onChanged: (v) =>
                     setState(() => _p = parseAuctionText(v)),
-                decoration: const InputDecoration(
-                    hintText: '여기에 붙여넣기 (물건명만 적어도 됩니다)'),
+                decoration: InputDecoration(
+                    hintText: _acq == 'auction'
+                        ? '여기에 붙여넣기 (물건명만 적어도 됩니다)'
+                        : '예: 남성아트빌 401호 1억 2,800만'),
               ),
               if (t.isNotEmpty) ...[
                 const Gap(14),
@@ -130,10 +187,10 @@ class _PasteDialogState extends State<_PasteDialog> {
                 _row('종류', _p.propertyKind),
                 _row('감정가',
                     _p.appraisalPrice > 0 ? '${Won.compact(_p.appraisalPrice)}원' : null),
-                _row('최저가',
+                _row(_acq == 'auction' ? '최저가' : '부르는 값',
                     _p.minPrice > 0 ? '${Won.compact(_p.minPrice)}원' : null),
                 _row(
-                    '입찰보증금',
+                    _acq == 'auction' ? '입찰보증금' : '계약금(10%)',
                     _p.depositOrTenth > 0
                         ? '${Won.compact(_p.depositOrTenth)}원'
                             '${_p.deposit > 0 ? "" : " (최저가 10% 추정)"}'
@@ -158,7 +215,7 @@ class _PasteDialogState extends State<_PasteDialog> {
               : () => Navigator.pop(
                   context,
                   // 파싱이 물건명을 못 잡았으면 입력한 텍스트 첫 줄을 쓴다.
-                  _p.title != null
+                  (_p.title != null
                       ? _p
                       : ParsedAuction(
                           title: t.split('\n').first.trim(),
@@ -171,7 +228,7 @@ class _PasteDialogState extends State<_PasteDialog> {
                           deposit: _p.deposit,
                           bidDate: _p.bidDate,
                           areaSqm: _p.areaSqm,
-                        )),
+                        ), _acq)),
           child: const Text('추가'),
         ),
       ],
@@ -246,6 +303,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
     final cash = ref.watch(availableCashProvider).asData?.value ?? 0;
+    final surveys = ref.watch(latestSurveysProvider).asData?.value ??
+        const <String, PriceSurvey>{};
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
@@ -406,6 +465,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   _AuctionCard(
                     p: p,
                     cash: cash,
+                    price: effectivePrice(p, surveys),
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
                         context, ref, auctionSpec, p.id,
@@ -495,13 +555,15 @@ class _Chip extends StatelessWidget {
 
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
-  final double cash; // 가용현금 — 자금 게이트 기준(참고용)
+  final double cash; // 매수 예산 — 자금 게이트 기준(참고용)
+  final EffectivePrice price; // 단지에서 상속받은 시세
   final VoidCallback onOpen;
   final VoidCallback onDelete;
   final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
   const _AuctionCard(
       {required this.p,
       required this.cash,
+      required this.price,
       required this.onOpen,
       required this.onDelete,
       required this.onSetVerdict});
@@ -555,11 +617,15 @@ class _AuctionCardState extends State<_AuctionCard> {
                 ),
               ),
               const Gap(8),
+              if (p.isQuickSale) ...[
+                const Pill('급매', color: AppColors.gold),
+                const Gap(6),
+              ],
               if (p.isPlus) ...[
                 const Pill('플피', color: AppColors.violet),
                 const Gap(6),
               ],
-              if (d != null) ...[
+              if (!p.isQuickSale && d != null) ...[
                 Pill(
                     p.bidPassed
                         ? '입찰 종료'
@@ -580,11 +646,18 @@ class _AuctionCardState extends State<_AuctionCard> {
           if (short) ...[
             const Gap(12),
             _Warn(
-              text: '입찰보증금 ${Won.compact(p.depositDue)}원 · '
+              text: '${p.depositLabel} ${Won.compact(p.depositDue)}원 · '
                   '매수 예산 ${Won.compact(widget.cash)}원 → '
                   '${Won.compact(p.shortfall(widget.cash))}원 부족',
               color: AppColors.textFaint,
             ),
+          ],
+          if (!short && widget.price.stale) ...[
+            const Gap(12),
+            _Warn(
+                text: '단지 시세조사가 ${widget.price.ageDays}일 전 기록 · '
+                    '단지·시세 탭에서 갱신하세요',
+                color: AppColors.gold),
           ],
           // 경고 배너
           if (!short && (p.overMaxBid || p.belowTarget)) ...[
@@ -600,15 +673,25 @@ class _AuctionCardState extends State<_AuctionCard> {
             spacing: 22,
             runSpacing: 10,
             children: [
-              _metric('현재시세', '${Won.compact(p.currentPrice)}원'),
+              _metric(
+                  widget.price.fromComplex ? '현재시세 · 단지' : '현재시세',
+                  widget.price.sale <= 0
+                      ? '—'
+                      : '${Won.compact(widget.price.sale)}원',
+                  color: widget.price.fromComplex ? AppColors.sky : null),
               _metric('예상매도가', '${Won.compact(p.expectedSalePrice)}원'),
               _metric('예상입찰가', '${Won.compact(p.bidPrice)}원'),
               _metric('할인율', Pct.of(p.discountRate),
                   color: p.discountRate > 0 ? AppColors.primary : null),
               if (p.isPlus) ...[
                 // 플피형은 ROI 가 아니라 실투자금을 본다.
-                _metric('전세', '${Won.compact(p.jeonsePrice)}원',
-                    color: p.jeonseCoversBid ? AppColors.primary : null),
+                _metric(widget.price.fromComplex ? '전세 · 단지' : '전세',
+                    widget.price.jeonse <= 0
+                        ? '—'
+                        : '${Won.compact(widget.price.jeonse)}원',
+                    color: widget.price.jeonse >= p.bidPrice && p.bidPrice > 0
+                        ? AppColors.primary
+                        : (widget.price.fromComplex ? AppColors.sky : null)),
                 _metric(p.ownCash <= 0 ? '플피' : '실투자금',
                     '${Won.compact(p.ownCash <= 0 ? p.plusPi : p.ownCash)}원',
                     color: p.ownCash <= 0 ? AppColors.primary : AppColors.gold),

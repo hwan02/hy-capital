@@ -262,6 +262,8 @@ class AuctionProperty {
   final String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
   final double jeonsePrice; // 전세 시세 (플피 판정의 핵심)
   final String? districtType; // 모아타운|신통기획|없음
+  final String? complexId; // 소속 단지 — 시세를 여기서 상속받는다
+  final String acquisition; // auction=경매 · quick_sale=급매
 
   AuctionProperty({
     required this.id,
@@ -294,7 +296,16 @@ class AuctionProperty {
     this.strategy = 'flip',
     this.jeonsePrice = 0,
     this.districtType,
+    this.complexId,
+    this.acquisition = 'auction',
   });
+
+  /// 급매(일반 매매)인가. 경매와 계산 틀은 같고 이름만 다르다 —
+  /// 최저가→호가, 입찰보증금→계약금, 예상입찰가→협상가.
+  bool get isQuickSale => acquisition == 'quick_sale';
+  String get priceLabel => isQuickSale ? '호가' : '최저가';
+  String get bidLabel => isQuickSale ? '협상가' : '예상입찰가';
+  String get depositLabel => isQuickSale ? '계약금' : '입찰보증금';
 
   /// 모아·신속 선정지 빌라 플피 전략인가.
   bool get isPlus => strategy == 'plus';
@@ -407,6 +418,8 @@ class AuctionProperty {
         strategy: m['strategy'] ?? 'flip',
         jeonsePrice: _d(m['jeonse_price']),
         districtType: m['district_type'],
+        complexId: m['complex_id'],
+        acquisition: m['acquisition'] ?? 'auction',
       );
 }
 
