@@ -394,13 +394,19 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
             final hitRate =
                 simDone.isEmpty ? null : simHits / simDone.length * 100;
 
-            final byFilter = switch (_filter) {
-              'all' => items,
-              'GO' => items.where((p) => p.verdict == 'GO').toList(),
-              'sim' => items.where((p) => p.isSim).toList(),
-              'real' => items.where((p) => !p.isSim).toList(),
-              final s => items.where((p) => p.status == s).toList(),
-            }.toList()
+            final byFilter = (_filter == 'excluded'
+                    ? items.where((p) => p.excluded).toList()
+                    : (switch (_filter) {
+                        'all' => items,
+                        'GO' => items.where((p) => p.verdict == 'GO').toList(),
+                        'sim' => items.where((p) => p.isSim).toList(),
+                        'real' => items.where((p) => !p.isSim).toList(),
+                        final s => items.where((p) => p.status == s).toList(),
+                      })
+                        // 제외한 물건은 기본 목록에서 숨긴다(제외 필터에서만 보임).
+                        .where((p) => !p.excluded)
+                        .toList())
+                .toList()
               // 입찰일 임박순. 날짜 없는 건 뒤로, 지난 건 맨 뒤로.
               ..sort((a, b) {
                 final da = a.daysToBid, db = b.daysToBid;
@@ -491,6 +497,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                           .update({'alert_enabled': v}).eq('id', p.id);
                       invalidateAll(ref);
                     },
+                    onToggleExclude: (v) async {
+                      final sb = ref.read(supabaseProvider);
+                      await sb
+                          .from('auction_properties')
+                          .update({'excluded': v}).eq('id', p.id);
+                      invalidateAll(ref);
+                    },
                   ),
                   const Gap(14),
                 ],
@@ -522,6 +535,7 @@ class _FilterChips extends StatelessWidget {
       ('won', '낙찰'),
       ('sold', '매각완료'),
       ('pass', 'PASS'),
+      ('excluded', '제외됨'),
     ];
     return Wrap(
       spacing: 6,
@@ -576,13 +590,15 @@ class _AuctionCard extends StatefulWidget {
   final VoidCallback onDelete;
   final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
   final ValueChanged<bool> onToggleAlert; // 매각기일 알림 받기
+  final ValueChanged<bool> onToggleExclude; // 목록에서 제외/복원
   const _AuctionCard(
       {required this.p,
       required this.price,
       required this.onOpen,
       required this.onDelete,
       required this.onSetVerdict,
-      required this.onToggleAlert});
+      required this.onToggleAlert,
+      required this.onToggleExclude});
 
   @override
   State<_AuctionCard> createState() => _AuctionCardState();
@@ -678,7 +694,28 @@ class _AuctionCardState extends State<_AuctionCard> {
                     ),
                   ),
                 ),
-              RecordMenu(onEdit: onOpen, onDelete: onDelete),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_horiz_rounded,
+                    color: AppColors.textFaint, size: 20),
+                color: AppColors.surfaceAlt,
+                padding: EdgeInsets.zero,
+                onSelected: (v) {
+                  if (v == 'edit') {
+                    onOpen();
+                  } else if (v == 'exclude') {
+                    widget.onToggleExclude(!p.excluded);
+                  } else if (v == 'delete') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'edit', child: Text('수정')),
+                  PopupMenuItem(
+                      value: 'exclude',
+                      child: Text(p.excluded ? '목록에 복원' : '목록에서 제외')),
+                  const PopupMenuItem(value: 'delete', child: Text('삭제')),
+                ],
+              ),
             ],
           ),
           if (widget.price.stale) ...[

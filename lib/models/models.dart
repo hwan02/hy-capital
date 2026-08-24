@@ -269,6 +269,7 @@ class AuctionProperty {
   final String? reason; // 입찰 판단 근거 — 왜 이 물건/이 가격
   final String? review; // 원인분석(회고) — 내 입찰가 vs 낙찰가
   final bool alertEnabled; // 매각기일 알림 받기 (D-3·2·1)
+  final bool excluded; // 목록에서 제외(삭제 아님)
 
   AuctionProperty({
     required this.id,
@@ -308,6 +309,7 @@ class AuctionProperty {
     this.reason,
     this.review,
     this.alertEnabled = false,
+    this.excluded = false,
   });
 
   /// 급매(일반 매매)인가. 경매와 계산 틀은 같고 이름만 다르다 —
@@ -435,6 +437,7 @@ class AuctionProperty {
         reason: m['reason'],
         review: m['review'],
         alertEnabled: m['alert_enabled'] == true,
+        excluded: m['excluded'] == true,
       );
 
   /// 모의투자인가 (기본값 모의).
