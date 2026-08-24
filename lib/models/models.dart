@@ -1118,6 +1118,9 @@ class Zone {
   final DateTime? unionExpected;
   final String? memo;
   final bool starred;
+  final int stage; // 0=미정, 1~7
+  final String? stageSource; // 단계 근거·출처
+  final DateTime? stageCheckedAt; // 단계 확인 시각
 
   Zone({
     required this.id,
@@ -1128,11 +1131,27 @@ class Zone {
     this.unionExpected,
     this.memo,
     this.starred = false,
+    this.stage = 0,
+    this.stageSource,
+    this.stageCheckedAt,
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
   /// 동의율 70% 이상이면 임박으로 본다(자료실 사례 기준 72~78%에서 거래 활발).
   bool get imminent => consentRate >= 70;
+
+  /// 모아타운 7단계 라벨.
+  static const stageLabels = <int, String>{
+    0: '미정',
+    1: '대상지 선정',
+    2: '관리계획 고시',
+    3: '조합설립',
+    4: '건축심의·시공자선정',
+    5: '사업시행인가',
+    6: '이주·착공',
+    7: '준공',
+  };
+  String get stageLabel => stageLabels[stage] ?? '미정';
 
   factory Zone.fromMap(Map<String, dynamic> m) => Zone(
         id: m['id'],
@@ -1143,6 +1162,9 @@ class Zone {
         unionExpected: _date(m['union_expected']),
         memo: m['memo'],
         starred: m['starred'] == true,
+        stage: (m['stage'] as num?)?.toInt() ?? 0,
+        stageSource: m['stage_source'],
+        stageCheckedAt: _date(m['stage_checked_at']),
       );
 }
 

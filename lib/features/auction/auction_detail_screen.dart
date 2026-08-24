@@ -91,6 +91,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
   Widget build(BuildContext context) {
     final p = widget.p;
     final vColor = _verdictColor(p.verdict);
+    final zones = ref.watch(zonesProvider).asData?.value ?? const <Zone>[];
+    final zone = matchZoneForAddress(p.address, zones);
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -131,6 +133,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
           _PhotosTab(p: p, onSave: _update),
           _CalcTab(
               p: p,
+              zone: zone,
               price: effectivePrice(
                   p,
                   ref.watch(latestSurveysProvider).asData?.value ??
@@ -523,12 +526,33 @@ class _BidTipsState extends State<_BidTips> {
   }
 }
 
+/// 물건 주소를 구역명(동+번지)과 매칭해 해당 모아타운 구역을 찾는다.
+/// 근사 매칭 — 동 이름과 번지 숫자가 주소에 모두 들어가면 그 구역으로 본다.
+Zone? matchZoneForAddress(String? address, List<Zone> zones) {
+  if (address == null || address.isEmpty) return null;
+  final a = address.replaceAll(' ', '');
+  for (final z in zones) {
+    final beonji = RegExp(r'동\s*([0-9]+)').firstMatch(z.name)?.group(1);
+    final dong = RegExp(r'([가-힣]+?)[0-9]*동').firstMatch(z.name)?.group(1);
+    if (beonji != null &&
+        a.contains(beonji) &&
+        (dong == null || a.contains(dong))) {
+      return z;
+    }
+  }
+  return null;
+}
+
 class _CalcTab extends StatefulWidget {
   final AuctionProperty p;
   final EffectivePrice price; // 단지에서 상속받은 시세
+  final Zone? zone; // 주소로 매칭된 모아타운 구역(단계 표시용)
   final Future<void> Function(Map<String, dynamic>) onSave;
   const _CalcTab(
-      {required this.p, required this.price, required this.onSave});
+      {required this.p,
+      required this.price,
+      required this.onSave,
+      this.zone});
 
   @override
   State<_CalcTab> createState() => _CalcTabState();
@@ -617,6 +641,50 @@ class _CalcTabState extends State<_CalcTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.zone != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: _teal.withValues(alpha: 0.10),
+                border: Border.all(color: _teal.withValues(alpha: 0.4)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                const Icon(Icons.route_rounded, size: 16, color: _teal),
+                const Gap(9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                              '${widget.zone!.name} · ${widget.zone!.stage}단계 ${widget.zone!.stageLabel}',
+                              style: const TextStyle(
+                                  fontSize: AppFont.label,
+                                  fontWeight: FontWeight.w800)),
+                        ),
+                        if (widget.zone!.consentRate > 0)
+                          Pill(
+                              '동의율 ${widget.zone!.consentRate.toStringAsFixed(0)}%',
+                              color: widget.zone!.imminent
+                                  ? AppColors.primary
+                                  : AppColors.gold),
+                      ]),
+                      if ((widget.zone!.stageSource ?? '').isNotEmpty) ...[
+                        const Gap(2),
+                        Text(widget.zone!.stageSource!,
+                            style: const TextStyle(
+                                fontSize: AppFont.caption,
+                                color: AppColors.textFaint)),
+                      ],
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+            const Gap(14),
+          ],
           if (widget.price.fromComplex) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
