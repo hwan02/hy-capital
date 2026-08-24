@@ -283,3 +283,41 @@ const ipoSpec = BuiltinSpec(
     FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
   ],
 );
+
+/// 구역 — 모아타운·신통기획 선정지.
+const zoneSpec = BuiltinSpec(
+  table: 'zones',
+  title: '구역',
+  accent: AppColors.violet,
+  fields: [
+    FieldSpec(key: 'name', label: '구역명 (예: 강서구 화곡동 354)', type: FieldType.text, required: true),
+    FieldSpec(
+        key: 'kind',
+        label: '종류',
+        type: FieldType.select,
+        required: true,
+        options: ['모아타운', '신통기획', '일반']),
+    FieldSpec(key: 'district', label: '자치구', type: FieldType.text),
+    FieldSpec(key: 'consent_rate', label: '조합설립 동의율(%)', type: FieldType.percent),
+    FieldSpec(key: 'union_expected', label: '조합설립 예상 시기', type: FieldType.date),
+    FieldSpec(key: 'memo', label: '메모 (강의 사례·특이사항)', type: FieldType.longtext),
+  ],
+);
+
+/// 단지 — 조사·임장이 붙는 단위.
+const complexSpec = BuiltinSpec(
+  table: 'complexes',
+  title: '단지',
+  accent: AppColors.sky,
+  fields: [
+    FieldSpec(key: 'name', label: '단지명 (예: 남성아트빌)', type: FieldType.text, required: true),
+    FieldSpec(
+        key: 'kind',
+        label: '종류',
+        type: FieldType.select,
+        required: true,
+        options: ['빌라', '다세대', '연립', '아파트', '기타']),
+    FieldSpec(key: 'address', label: '주소', type: FieldType.text),
+    FieldSpec(key: 'memo', label: '메모', type: FieldType.longtext),
+  ],
+);
