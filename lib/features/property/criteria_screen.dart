@@ -10,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
 import '../../core/data/data_providers.dart';
-import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
@@ -39,7 +38,6 @@ class CriteriaView extends ConsumerWidget {
         ref.watch(latestSurveysProvider).asData?.value ?? const <String, PriceSurvey>{};
     final visits =
         ref.watch(visitsProvider).asData?.value ?? const <String, List<Visit>>{};
-    final budget = ref.watch(availableCashProvider).asData?.value ?? 0;
     final notes = ref.watch(knowledgeProvider).asData?.value ?? const [];
 
     return zones.when(
@@ -67,16 +65,18 @@ class CriteriaView extends ConsumerWidget {
                       style: TextStyle(
                           fontSize: AppFont.section,
                           fontWeight: FontWeight.w800)),
+                  const Gap(3),
+                  const Text('예산으로 미리 걸러내지 않는다 — 살 물건을 찾으면 자금을 맞춘다',
+                      style: TextStyle(
+                          color: AppColors.textFaint,
+                          fontSize: AppFont.caption)),
                   const Gap(12),
-                  _num('매수 예산', budget <= 0 ? '미설정' : '${Won.compact(budget)}원',
-                      '내가 정한 값 · 경매 보증금·급매 계약금 공통', AppColors.gold),
-                  _num(
-                      '접근 가능 가격대',
-                      budget <= 0 ? '—' : '${Won.compact(budget * 10)}원',
-                      '보증금 10% 기준 · 자동',
-                      const Color(0xFF14B8A6)),
                   _num('경락잔금대출 (생애최초)', 'KB 70% / 낙찰 80%',
-                      '자료실 · 규제지역 수도권', AppColors.sky),
+                      '자료실 · 규제지역 수도권 · 낮은 금액 기준', AppColors.sky),
+                  _num('경락잔금대출 (일반 무주택)', 'KB 40% / 낙찰 80~90%',
+                      '자료실 · 규제지역 — 생애최초와 차이가 크다', AppColors.gold),
+                  _num('전세/매매 목표', '85% 이상',
+                      '플피 성립선 · 시세조사에서 자동 판정', AppColors.primary),
                   _num('조합설립까지', '약 4.5년', '자료실 · 모아통합기획 (6년 → 4.5년)',
                       AppColors.violet),
                 ],

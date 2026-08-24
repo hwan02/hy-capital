@@ -587,18 +587,6 @@ final lectureAnswersProvider =
   return {for (final a in list) a.qkey: a};
 });
 
-/// 경매에 쓸 수 있는 돈 — 자금 게이트의 기준값.
-///
-/// profiles.auction_budget 을 우선 쓴다. 전체 현금(financial_snapshots.cash)은
-/// 예비 2호 자금·배당 매수 자금 등이 섞여 있어 게이트 기준으로는 느슨하다.
-/// 예산이 설정되지 않았으면(0) 전체 현금으로 폴백하고, 그것도 없으면 0 →
-/// 게이트는 판정하지 않는다(0 을 "돈 없음"으로 단정하지 않음).
-final availableCashProvider = FutureProvider<double>((ref) async {
-  final profile = await ref.watch(profileProvider.future);
-  if ((profile?.auctionBudget ?? 0) > 0) return profile!.auctionBudget;
-  final snaps = await ref.watch(snapshotsProvider.future);
-  return snaps.isEmpty ? 0 : snaps.last.cash;
-});
 
 /// 공모주 청약 기록 — 상장일 최신순.
 final ipoProvider = FutureProvider<List<IpoSubscription>>((ref) async {

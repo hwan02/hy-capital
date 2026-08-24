@@ -9,7 +9,6 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/supabase/supabase_providers.dart';
-import '../../core/widgets/money_field.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
@@ -302,7 +301,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
-    final cash = ref.watch(availableCashProvider).asData?.value ?? 0;
     final surveys = ref.watch(latestSurveysProvider).asData?.value ??
         const <String, PriceSurvey>{};
     const amber = Color(0xFFF59E0B);
@@ -404,10 +402,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 return da.compareTo(db);
               });
 
-            // 자금 게이트는 '참고용' — 리스트는 숨기지 않고 전부 보여준다.
-            // (정보성으로 물건을 모으는 단계라 예산 초과도 그대로 노출)
-            final shortList =
-                byFilter.where((p) => p.cashShort(cash)).toList();
+            // 예산으로 걸러내지 않는다 — 살 물건을 찾으면 자금을 맞추는 순서다.
+            // 보증금·계약금은 «필요한 돈»으로 카드에 보여주기만 한다.
             final filtered = byFilter;
 
             return Column(
@@ -448,11 +444,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   current: _filter,
                   onSelect: (f) => setState(() => _filter = f),
                 ),
-                const Gap(12),
-                _CashBanner(
-                  cash: cash,
-                  shortCount: shortList.length,
-                ),
                 const Gap(14),
                 if (filtered.isEmpty)
                   const Padding(
@@ -464,7 +455,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 for (final p in filtered) ...[
                   _AuctionCard(
                     p: p,
-                    cash: cash,
                     price: effectivePrice(p, surveys),
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
@@ -555,14 +545,12 @@ class _Chip extends StatelessWidget {
 
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
-  final double cash; // 매수 예산 — 자금 게이트 기준(참고용)
   final EffectivePrice price; // 단지에서 상속받은 시세
   final VoidCallback onOpen;
   final VoidCallback onDelete;
   final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
   const _AuctionCard(
       {required this.p,
-      required this.cash,
       required this.price,
       required this.onOpen,
       required this.onDelete,
@@ -580,8 +568,7 @@ class _AuctionCardState extends State<_AuctionCard> {
     final p = widget.p;
     final onOpen = widget.onOpen;
     final onDelete = widget.onDelete;
-    final short = p.cashShort(widget.cash);
-    final vColor = short ? AppColors.textFaint : _verdictColor(p.verdict);
+    final vColor = _verdictColor(p.verdict);
     final d = p.daysToBid;
     return InkWell(
       onTap: onOpen,
@@ -642,17 +629,7 @@ class _AuctionCardState extends State<_AuctionCard> {
               RecordMenu(onEdit: onOpen, onDelete: onDelete),
             ],
           ),
-          // 자금 게이트 — 보증금이 안 되면 조사할 이유가 없다.
-          if (short) ...[
-            const Gap(12),
-            _Warn(
-              text: '${p.depositLabel} ${Won.compact(p.depositDue)}원 · '
-                  '매수 예산 ${Won.compact(widget.cash)}원 → '
-                  '${Won.compact(p.shortfall(widget.cash))}원 부족',
-              color: AppColors.textFaint,
-            ),
-          ],
-          if (!short && widget.price.stale) ...[
+          if (widget.price.stale) ...[
             const Gap(12),
             _Warn(
                 text: '단지 시세조사가 ${widget.price.ageDays}일 전 기록 · '
@@ -660,7 +637,7 @@ class _AuctionCardState extends State<_AuctionCard> {
                 color: AppColors.gold),
           ],
           // 경고 배너
-          if (!short && (p.overMaxBid || p.belowTarget)) ...[
+          if (p.overMaxBid || p.belowTarget) ...[
             const Gap(12),
             _Warn(
               text: p.overMaxBid
@@ -700,6 +677,8 @@ class _AuctionCardState extends State<_AuctionCard> {
                     color: AppColors.gold),
               _metric('예상순수익', '${Won.compact(p.netProfit)}원',
                   color: p.netProfit >= 0 ? AppColors.primary : AppColors.rose),
+              _metric(p.depositLabel, '${Won.compact(p.depositDue)}원',
+                  color: AppColors.gold),
               if (!p.isPlus)
                 _metric('ROI', Pct.of(p.roi),
                     color: p.roi >= 0 ? AppColors.primary : AppColors.rose),
@@ -897,164 +876,3 @@ class _Warn extends StatelessWidget {
 
 /// 경매 화면 상단 전환 탭 (물건 / 자료실).
 
-/// 가용현금 기준선 배너 — 내 돈으로 어디까지 입찰이 되는지 한 줄로 알려준다.
-/// 자금부족으로 접힌 물건이 있으면 여기서 펼친다.
-class _CashBanner extends ConsumerWidget {
-  final double cash;
-  final int shortCount;
-  const _CashBanner({
-    required this.cash,
-    required this.shortCount,
-  });
-
-  /// 경매에 쓸 돈을 직접 입력한다. 전체 현금과 분리된 값.
-  Future<void> _editBudget(
-      BuildContext context, WidgetRef ref, double current) async {
-    // MoneyField 가 콤마·환산을 처리하고, 값은 이 컨트롤러로 받는다.
-    final c = TextEditingController(
-        text: current > 0 ? current.toStringAsFixed(0) : '');
-    final v = await showDialog<double>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('매수에 쓸 돈',
-            style: TextStyle(fontSize: AppFont.section)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-                '전체 현금이 아니라 «부동산 매수에만» 쓸 수 있는 금액을 넣으세요.\n'
-                '이 값으로 물건마다 보증금이 되는지 판정합니다.',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: AppFont.label,
-                    height: 1.5)),
-            const Gap(14),
-            MoneyField(
-              label: '매수에 쓸 금액',
-              initial: current,
-              autofocus: true,
-              accent: AppColors.gold,
-              onChanged: (v) => c.text = v.toStringAsFixed(0),
-              onSubmitted: (v) => Navigator.pop(context, v),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
-            onPressed: () => Navigator.pop(context, moneyValue(c.text)),
-            child: const Text('저장'),
-          ),
-        ],
-      ),
-    );
-    if (v == null) return;
-    final sb = ref.read(supabaseProvider);
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
-    try {
-      await sb
-          .from('profiles')
-          .update({'auction_budget': v}).eq('id', uid);
-      invalidateAll(ref);
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('저장 실패: $e'), backgroundColor: AppColors.rose));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (cash <= 0) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(children: [
-          const Icon(Icons.info_outline_rounded,
-              size: 15, color: AppColors.textFaint),
-          const Gap(8),
-          const Expanded(
-            child: Text('매수 예산을 정하면 매물마다 「보증금·계약금이 되는지」 자동으로 판정해요.',
-                style: TextStyle(
-                    color: AppColors.textFaint, fontSize: AppFont.label)),
-          ),
-          TextButton(
-            onPressed: () => _editBudget(context, ref, 0),
-            style: TextButton.styleFrom(
-                foregroundColor: AppColors.gold,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-            child: const Text('설정',
-                style: TextStyle(
-                    fontSize: AppFont.label, fontWeight: FontWeight.w800)),
-          ),
-        ]),
-      );
-    }
-    // 보증금이 최저가의 10% 라는 통상 기준 → 접근 가능한 최저가 상한.
-    final maxMin = cash * 10;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
-      ),
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          InkWell(
-            onTap: () => _editBudget(context, ref, cash),
-            borderRadius: BorderRadius.circular(7),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.account_balance_wallet_rounded,
-                  size: 15, color: AppColors.gold),
-              const Gap(8),
-              Text('매수 예산 ${Won.compact(cash)}원',
-                  style: const TextStyle(
-                      color: AppColors.gold,
-                      fontSize: AppFont.label,
-                      fontWeight: FontWeight.w800)),
-              const Gap(4),
-              const Icon(Icons.edit_rounded, size: 12, color: AppColors.gold),
-            ]),
-          ),
-          Text('보증금 10% 기준 · 최저가 ${Won.compact(maxMin)}원까지 입찰 가능',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: AppFont.label)),
-          if (shortCount > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.info_outline_rounded,
-                    size: 13, color: AppColors.textFaint),
-                const Gap(6),
-                Text('예산 초과 $shortCount건 (참고용 · 숨기지 않음)',
-                    style: const TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: AppFont.label,
-                        fontWeight: FontWeight.w700)),
-              ]),
-            ),
-        ],
-      ),
-    );
-  }
-}
