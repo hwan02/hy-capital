@@ -362,6 +362,91 @@ void _viewer(BuildContext context, List<String> imgs, int start) {
 }
 
 // ── 계산기 탭 ───────────────────────────────────────────────
+/// 입찰가 산정 시 고려사항 도움말 (ⓘ 로 펼침).
+class _BidTips extends StatelessWidget {
+  const _BidTips();
+
+  static const _items = <(String, String)>[
+    ('매매 실거래가', '인근 같은 평형의 최근 실제 거래가 — 가치 판단의 기준'),
+    ('급매가격', '지금 시장에 나온 급매 호가 — 낙찰가가 이보다 낮아야 의미'),
+    ('취득세', '낙찰가 기준 · 다주택/중과 여부 확인'),
+    ('각종 비용', '명도비 · (미납)관리비 · 수리비 · 중개수수료 등'),
+  ];
+
+  Widget _row(String k, String v) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Icon(Icons.circle, size: 5, color: _teal),
+            ),
+            const Gap(9),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                      fontSize: AppFont.label,
+                      color: AppColors.textSecondary,
+                      height: 1.45),
+                  children: [
+                    TextSpan(
+                        text: '$k  ',
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w800)),
+                    TextSpan(text: v),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _teal.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _teal.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('입찰가 산정 시 고려사항',
+              style: TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800,
+                  color: _teal)),
+          const Gap(10),
+          for (final (k, v) in _items) _row(k, v),
+          const Gap(4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Text(
+              '예상 수익 = 예상 매도가 − (입찰가 + 비용) − 세금\n= 실제 수익',
+              style: TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  height: 1.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CalcTab extends StatefulWidget {
   final AuctionProperty p;
   final EffectivePrice price; // 단지에서 상속받은 시세
@@ -379,6 +464,7 @@ class _CalcTabState extends State<_CalcTab> {
   late String status;   // interest→…→won(낙찰)→sold(매각완료)
   late String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
   late double jeonse;   // 전세 시세 — 플피 계산의 핵심
+  bool _tips = false;   // 입찰가 산정 고려사항 펼치기
 
   // 진행 상태 옵션 (auction_screen 의 _statusLabel 과 동일 체계).
   static const _statuses = <(String, String, Color)>[
@@ -499,9 +585,26 @@ class _CalcTabState extends State<_CalcTab> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('예상 입찰가',
-                        style: TextStyle(
-                            fontSize: AppFont.label, color: AppColors.textSecondary)),
+                    Row(children: [
+                      const Text('예상 입찰가',
+                          style: TextStyle(
+                              fontSize: AppFont.label,
+                              color: AppColors.textSecondary)),
+                      const Gap(6),
+                      Tooltip(
+                        message: '입찰가 산정 시 고려사항 보기',
+                        child: InkWell(
+                          onTap: () => setState(() => _tips = !_tips),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Icon(
+                              _tips
+                                  ? Icons.help_rounded
+                                  : Icons.help_outline_rounded,
+                              size: 17,
+                              color: _tips ? _teal : AppColors.textFaint),
+                        ),
+                      ),
+                    ]),
                     Text('${Won.compact(bid)}원',
                         style: const TextStyle(
                             fontSize: AppFont.display,
@@ -509,6 +612,10 @@ class _CalcTabState extends State<_CalcTab> {
                             color: _teal)),
                   ],
                 ),
+                if (_tips) ...[
+                  const Gap(12),
+                  const _BidTips(),
+                ],
                 Slider(
                   value: bid.clamp(0, maxRange),
                   min: 0,
