@@ -32,7 +32,7 @@ class KnowledgeActions extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _SmallAdd(
-            label: 'PDF',
+            label: 'PDF·사진',
             icon: Icons.picture_as_pdf_rounded,
             color: AppColors.rose,
             onTap: () => uploadStandalonePdf(context, ref,
@@ -97,8 +97,9 @@ class KnowledgeView extends ConsumerStatefulWidget {
 class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
   final _q = TextEditingController();
   String _tag = '전체';
-  String _kind = 'all'; // all | qa | article | note
+  String _kind = 'all'; // all | qa | article | note | file
   bool _starOnly = false;
+  bool _album = false; // 목록 ↔ 앨범(첨부 격자)
 
   @override
   void dispose() {
@@ -189,6 +190,26 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                   ),
                 ),
                 const Gap(12),
+                // 목록 ↔ 앨범
+                Row(children: [
+                  Expanded(
+                    child: Text(
+                        _album
+                            ? '올린 PDF·사진을 한눈에 봅니다. 누르면 새 탭에서 열립니다.'
+                            : '',
+                        style: const TextStyle(
+                            color: AppColors.textFaint,
+                            fontSize: AppFont.caption)),
+                  ),
+                  _viewToggle(),
+                ]),
+                if (_album) ...[
+                  const Gap(12),
+                  _AlbumGrid(onlyTag: widget.onlyTag,
+                      excludeTag: widget.excludeTag),
+                ],
+                if (!_album) ...[
+                const Gap(12),
                 // 종류 구분 (강의 Q&A / 칼럼 / 내 메모)
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final k in const [
@@ -240,6 +261,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                   ),
                   const Gap(10),
                 ],
+                ],
               ],
             );
           },
@@ -247,6 +269,41 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
       ],
     );
   }
+
+  /// 목록 / 앨범 전환.
+  Widget _viewToggle() => Wrap(spacing: 6, children: [
+        for (final (on, label, icon) in [
+          (false, '목록', Icons.view_list_rounded),
+          (true, '앨범', Icons.grid_view_rounded),
+        ])
+          InkWell(
+            onTap: () => setState(() => _album = on),
+            borderRadius: BorderRadius.circular(9),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: _album == on
+                    ? _amber.withValues(alpha: 0.16)
+                    : Colors.transparent,
+                border: Border.all(
+                    color: _album == on ? _amber : AppColors.border),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon,
+                    size: 14,
+                    color: _album == on ? _amber : AppColors.textFaint),
+                const Gap(5),
+                Text(label,
+                    style: TextStyle(
+                        color:
+                            _album == on ? _amber : AppColors.textSecondary,
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+      ]);
 
   Widget _kindTab(String kind, String label, IconData icon, int n) {
     final sel = _kind == kind;
@@ -736,4 +793,136 @@ Future<void> _openLink(String url) async {
     mode: LaunchMode.externalApplication,
     webOnlyWindowName: '_blank',
   );
+}
+
+/// 앨범 보기 — 올린 PDF·사진을 격자로. 이미지는 썸네일, PDF 는 아이콘 카드.
+/// 누르면 새 탭, 길게 누르면 삭제.
+class _AlbumGrid extends ConsumerWidget {
+  final String? onlyTag;
+  final String? excludeTag;
+  const _AlbumGrid({this.onlyTag, this.excludeTag});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(knowledgeAlbumProvider);
+    return async.when(
+      loading: AsyncStatus.loading,
+      error: AsyncStatus.error,
+      data: (all) {
+        final items = all.where((e) {
+          if (excludeTag != null && e.note.tags.contains(excludeTag)) {
+            return false;
+          }
+          if (onlyTag != null && !e.note.tags.contains(onlyTag)) return false;
+          return true;
+        }).toList();
+        if (items.isEmpty) {
+          return const EmptyState(
+            icon: Icons.photo_library_rounded,
+            message: '올린 파일이 없어요.\n＋PDF 로 자료·사진을 올리면 여기 모입니다.',
+          );
+        }
+        final images = items.where((e) => e.imageUrl != null).length;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('${items.length}개 · 사진 $images · 문서 ${items.length - images}',
+                style: const TextStyle(
+                    color: AppColors.textFaint, fontSize: AppFont.label)),
+            const Gap(10),
+            LayoutBuilder(builder: (context, c) {
+              // 화면 폭에 따라 열 수 (폰 2열 · 데스크톱 최대 5열).
+              final cols = (c.maxWidth / 190).floor().clamp(2, 5);
+              const gap = 10.0;
+              final w = (c.maxWidth - gap * (cols - 1)) / cols;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final e in items)
+                    SizedBox(
+                      width: w,
+                      child: _AlbumTile(entry: e),
+                    ),
+                ],
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AlbumTile extends ConsumerWidget {
+  final AlbumEntry entry;
+  const _AlbumTile({required this.entry});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final f = entry.file;
+    final isImg = entry.imageUrl != null;
+    return InkWell(
+      onTap: () => openKnowledgeFile(context, ref, f),
+      onLongPress: () =>
+          deleteKnowledgeFile(context, ref, entry.note, f),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: isImg
+                  ? Image.network(entry.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const ColoredBox(
+                            color: AppColors.surface,
+                            child: Icon(Icons.broken_image_rounded,
+                                color: AppColors.textFaint),
+                          ))
+                  : ColoredBox(
+                      color: AppColors.rose.withValues(alpha: 0.10),
+                      child: const Center(
+                        child: Icon(Icons.picture_as_pdf_rounded,
+                            size: 40, color: AppColors.rose),
+                      ),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(f.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: AppFont.caption,
+                          fontWeight: FontWeight.w700)),
+                  const Gap(2),
+                  Text(
+                      [
+                        if (f.sizeLabel.isNotEmpty) f.sizeLabel,
+                        entry.note.title,
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: AppFont.micro,
+                          color: AppColors.textFaint)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

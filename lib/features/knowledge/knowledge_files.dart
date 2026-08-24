@@ -8,7 +8,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show FileOptions, SignedUrlSuccess;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
@@ -21,6 +22,21 @@ const _bucket = 'knowledge';
 /// 25MB. Storage 기본 한도(50MB) 안쪽으로 잡되, 웹에서 base64 없이
 /// 바이너리로 올리므로 이 정도면 강의 자료 PDF 는 충분하다.
 const _maxBytes = 25 * 1024 * 1024;
+
+/// PDF 와 이미지를 함께 받는다. 정책 인포그래픽·현장 사진이 섞여 온다.
+const _accept = '.pdf,application/pdf,image/*';
+
+/// 확장자로 Content-Type 을 정한다. 틀리면 브라우저가 새 탭에서 못 열고
+/// 파일을 내려받아 버린다(미리보기 대신 다운로드).
+String _mime(String name) {
+  final n = name.toLowerCase();
+  if (n.endsWith('.pdf')) return 'application/pdf';
+  if (n.endsWith('.png')) return 'image/png';
+  if (n.endsWith('.gif')) return 'image/gif';
+  if (n.endsWith('.webp')) return 'image/webp';
+  if (n.endsWith('.heic')) return 'image/heic';
+  return 'image/jpeg';
+}
 
 void _toast(BuildContext context, String msg, {bool error = false}) {
   if (!context.mounted) return;
@@ -44,7 +60,7 @@ Future<void> attachKnowledgeFiles(
   KnowledgeNote note,
 ) async {
   final input = html.FileUploadInputElement()
-    ..accept = '.pdf,application/pdf'
+    ..accept = _accept
     ..multiple = true;
   input.click();
   await input.onChange.first;
@@ -79,7 +95,7 @@ Future<void> attachKnowledgeFiles(
       await sb.storage.from(_bucket).uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(contentType: 'application/pdf'),
+            fileOptions: FileOptions(contentType: _mime(f.name)),
           );
       added.add(KnowledgeFile(name: f.name, path: path, size: f.size));
     } catch (e) {
@@ -99,12 +115,12 @@ Future<void> attachKnowledgeFiles(
   }
 }
 
-/// PDF 만 단독으로 올린다 — 항목을 먼저 만들 필요 없이,
+/// PDF·사진을 단독으로 올린다 — 항목을 먼저 만들 필요 없이,
 /// 파일명으로 자료실 항목(kind='file')을 만들고 거기에 첨부한다.
 Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref,
     {List<String> tags = const []}) async {
   final input = html.FileUploadInputElement()
-    ..accept = '.pdf,application/pdf'
+    ..accept = _accept
     ..multiple = true;
   input.click();
   await input.onChange.first;
@@ -135,13 +151,12 @@ Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref,
       await sb.storage.from(_bucket).uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(contentType: 'application/pdf'),
+            fileOptions: FileOptions(contentType: _mime(f.name)),
           );
       // 제목은 확장자를 뗀 파일명.
       var title = f.name;
-      if (title.toLowerCase().endsWith('.pdf')) {
-        title = title.substring(0, title.length - 4);
-      }
+      final dot = title.lastIndexOf('.');
+      if (dot > 0) title = title.substring(0, dot);
       await sb.from('knowledge_notes').insert({
         'user_id': uid,
         'kind': 'file',
@@ -159,7 +174,7 @@ Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref,
   }
   if (made > 0) {
     invalidateAll(ref);
-    _toast(context, 'PDF $made개 올렸습니다');
+    _toast(context, '$made개 올렸습니다');
   }
 }
 
@@ -226,6 +241,56 @@ Future<void> deleteKnowledgeFile(
     _toast(context, '삭제 실패: $e', error: true);
   }
 }
+
+/// 앨범에 걸 한 칸 — 자료 항목 + 파일 + (이미지면) 서명 URL.
+class AlbumEntry {
+  final KnowledgeNote note;
+  final KnowledgeFile file;
+  final String? imageUrl; // 이미지가 아니면 null
+  const AlbumEntry(this.note, this.file, this.imageUrl);
+}
+
+bool isImageName(String name) {
+  final n = name.toLowerCase();
+  return n.endsWith('.jpg') ||
+      n.endsWith('.jpeg') ||
+      n.endsWith('.png') ||
+      n.endsWith('.gif') ||
+      n.endsWith('.webp') ||
+      n.endsWith('.heic');
+}
+
+/// 자료실 첨부 전체를 앨범용으로 모은다.
+/// 이미지의 서명 URL 은 «한 번에» 발급한다 — 파일마다 요청하면 느리다.
+final knowledgeAlbumProvider = FutureProvider<List<AlbumEntry>>((ref) async {
+  final notes = await ref.watch(knowledgeProvider.future);
+  final pairs = <(KnowledgeNote, KnowledgeFile)>[];
+  for (final n in notes) {
+    for (final f in n.files) {
+      pairs.add((n, f));
+    }
+  }
+  if (pairs.isEmpty) return const [];
+
+  final imagePaths = [
+    for (final (_, f) in pairs)
+      if (isImageName(f.name)) f.path
+  ];
+  final signed = <String, String>{};
+  if (imagePaths.isNotEmpty) {
+    final results = await ref
+        .read(supabaseProvider)
+        .storage
+        .from(_bucket)
+        .createSignedUrlsResult(imagePaths, 3600);
+    for (final r in results) {
+      if (r is SignedUrlSuccess) signed[r.path] = r.signedUrl;
+    }
+  }
+  return [
+    for (final (n, f) in pairs) AlbumEntry(n, f, signed[f.path]),
+  ];
+});
 
 /// 카드 안에 붙는 첨부 목록. 누르면 새 탭, 길게 누르면 삭제.
 class KnowledgeFileChips extends ConsumerWidget {
