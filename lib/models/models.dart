@@ -264,6 +264,10 @@ class AuctionProperty {
   final String? districtType; // 모아타운|신통기획|없음
   final String? complexId; // 소속 단지 — 시세를 여기서 상속받는다
   final String acquisition; // auction=경매 · quick_sale=급매
+  final String mode; // sim=모의 · real=실제 (모의투자 트레이닝)
+  final double actualPrice; // 실제 낙찰가 (결과 회고용)
+  final String? reason; // 입찰 판단 근거 — 왜 이 물건/이 가격
+  final String? review; // 원인분석(회고) — 내 입찰가 vs 낙찰가
 
   AuctionProperty({
     required this.id,
@@ -298,6 +302,10 @@ class AuctionProperty {
     this.districtType,
     this.complexId,
     this.acquisition = 'auction',
+    this.mode = 'sim',
+    this.actualPrice = 0,
+    this.reason,
+    this.review,
   });
 
   /// 급매(일반 매매)인가. 경매와 계산 틀은 같고 이름만 다르다 —
@@ -420,7 +428,20 @@ class AuctionProperty {
         districtType: m['district_type'],
         complexId: m['complex_id'],
         acquisition: m['acquisition'] ?? 'auction',
+        mode: m['mode'] ?? 'sim',
+        actualPrice: _d(m['actual_price']),
+        reason: m['reason'],
+        review: m['review'],
       );
+
+  /// 모의투자인가 (기본값 모의).
+  bool get isSim => mode != 'real';
+
+  /// 실제 낙찰가가 있고, 내 입찰가로 이겼을지.
+  bool get wouldWin => actualPrice > 0 && bidPrice >= actualPrice;
+
+  /// 내 입찰가 − 실제 낙찰가 (양수면 더 썼다).
+  double get bidGap => actualPrice > 0 ? bidPrice - actualPrice : 0;
 }
 
 class DividendHolding {

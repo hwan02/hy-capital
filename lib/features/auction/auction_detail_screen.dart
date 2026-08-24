@@ -541,6 +541,10 @@ class _CalcTabState extends State<_CalcTab> {
   late String strategy; // flip=아파트 차익 · plus=모아·신속 빌라 플피
   late double jeonse;   // 전세 시세 — 플피 계산의 핵심
   bool _tips = false;   // 입찰가 산정 고려사항 펼치기
+  late String mode;     // sim=모의 · real=실제
+  late double actual;   // 실제 낙찰가
+  final _reasonC = TextEditingController(); // 판단 근거
+  final _reviewC = TextEditingController();  // 원인분석(회고)
 
   // 진행 상태 옵션 (auction_screen 의 _statusLabel 과 동일 체계).
   static const _statuses = <(String, String, Color)>[
@@ -574,6 +578,17 @@ class _CalcTabState extends State<_CalcTab> {
     status = p.status;
     strategy = p.strategy;
     jeonse = p.jeonsePrice > 0 ? p.jeonsePrice : widget.price.jeonse;
+    mode = p.mode;
+    actual = p.actualPrice;
+    _reasonC.text = p.reason ?? '';
+    _reviewC.text = p.review ?? '';
+  }
+
+  @override
+  void dispose() {
+    _reasonC.dispose();
+    _reviewC.dispose();
+    super.dispose();
   }
 
   bool get isPlus => strategy == 'plus';
@@ -813,6 +828,72 @@ class _CalcTabState extends State<_CalcTab> {
               ),
             ],
           ),
+          const Gap(20),
+          Row(children: [
+            const Text('모의투자 로그',
+                style: TextStyle(
+                    fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+            const Gap(8),
+            Icon(mode == 'real' ? Icons.verified_rounded : Icons.science_rounded,
+                size: 16,
+                color: mode == 'real' ? AppColors.primary : AppColors.violet),
+          ]),
+          const Gap(2),
+          const Text('실제로 하기 전에 모의로 부르고, 낙찰가를 적어 회고한다',
+              style: TextStyle(
+                  fontSize: AppFont.caption, color: AppColors.textFaint)),
+          const Gap(10),
+          Row(children: [
+            _modeChip('sim', '모의', Icons.science_rounded, AppColors.violet),
+            const Gap(8),
+            _modeChip('real', '실제', Icons.verified_rounded, AppColors.primary),
+          ]),
+          const Gap(12),
+          TextField(
+            controller: _reasonC,
+            maxLines: 3,
+            minLines: 2,
+            style: const TextStyle(fontSize: AppFont.label, height: 1.45),
+            decoration: const InputDecoration(
+                labelText: '판단 근거 — 왜 이 물건·이 입찰가?',
+                alignLabelWithHint: true),
+          ),
+          const Gap(12),
+          Wrap(spacing: 16, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            _metric('내 입찰가', '${Won.compact(bid)}원', _teal),
+            _money('실제 낙찰가', actual, (v) => setState(() => actual = v)),
+          ]),
+          if (actual > 0) ...[
+            const Gap(10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: (bid >= actual ? AppColors.primary : AppColors.rose)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                bid >= actual
+                    ? '내 입찰가가 낙찰가보다 ${Won.compact(bid - actual)}원 높음 → 낙찰이었을 것 (이겼다)'
+                    : '내 입찰가가 낙찰가보다 ${Won.compact(actual - bid)}원 낮음 → 패찰 (더 썼어야)',
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w700,
+                    color: bid >= actual ? AppColors.primary : AppColors.rose),
+              ),
+            ),
+          ],
+          const Gap(12),
+          TextField(
+            controller: _reviewC,
+            maxLines: 4,
+            minLines: 2,
+            style: const TextStyle(fontSize: AppFont.label, height: 1.45),
+            decoration: const InputDecoration(
+                labelText: '원인분석(회고) — 왜 이 결과였나',
+                alignLabelWithHint: true),
+          ),
           const Gap(16),
           Align(
             alignment: Alignment.centerRight,
@@ -823,6 +904,10 @@ class _CalcTabState extends State<_CalcTab> {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               onPressed: () async {
                 await widget.onSave({
+                  'mode': mode,
+                  'actual_price': actual,
+                  'reason': _reasonC.text.trim(),
+                  'review': _reviewC.text.trim(),
                   'bid_price': bid,
                   'expected_sale_price': sale,
                   'loan_amount': loan,
@@ -896,6 +981,32 @@ class _CalcTabState extends State<_CalcTab> {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 14, color: on ? c : AppColors.textFaint),
+          const Gap(6),
+          Text(label,
+              style: TextStyle(
+                  color: on ? c : AppColors.textSecondary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _modeChip(String key, String label, IconData icon, Color c) {
+    final on = mode == key;
+    return InkWell(
+      onTap: () => setState(() => mode = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border:
+              Border.all(color: on ? c : AppColors.border, width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 15, color: on ? c : AppColors.textFaint),
           const Gap(6),
           Text(label,
               style: TextStyle(

@@ -604,6 +604,9 @@ class _AuctionCardState extends State<_AuctionCard> {
                 ),
               ),
               const Gap(8),
+              Pill(p.isSim ? '모의' : '실제',
+                  color: p.isSim ? AppColors.violet : AppColors.primary),
+              const Gap(6),
               if (p.isQuickSale) ...[
                 const Pill('급매', color: AppColors.gold),
                 const Gap(6),
