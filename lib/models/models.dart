@@ -268,6 +268,7 @@ class AuctionProperty {
   final double actualPrice; // 실제 낙찰가 (결과 회고용)
   final String? reason; // 입찰 판단 근거 — 왜 이 물건/이 가격
   final String? review; // 원인분석(회고) — 내 입찰가 vs 낙찰가
+  final bool alertEnabled; // 매각기일 알림 받기 (D-3·2·1)
 
   AuctionProperty({
     required this.id,
@@ -306,6 +307,7 @@ class AuctionProperty {
     this.actualPrice = 0,
     this.reason,
     this.review,
+    this.alertEnabled = false,
   });
 
   /// 급매(일반 매매)인가. 경매와 계산 틀은 같고 이름만 다르다 —
@@ -432,6 +434,7 @@ class AuctionProperty {
         actualPrice: _d(m['actual_price']),
         reason: m['reason'],
         review: m['review'],
+        alertEnabled: m['alert_enabled'] == true,
       );
 
   /// 모의투자인가 (기본값 모의).

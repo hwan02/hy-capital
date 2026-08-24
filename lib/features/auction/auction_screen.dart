@@ -484,6 +484,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                           .update({'verdict': v}).eq('id', p.id);
                       invalidateAll(ref);
                     },
+                    onToggleAlert: (v) async {
+                      final sb = ref.read(supabaseProvider);
+                      await sb
+                          .from('auction_properties')
+                          .update({'alert_enabled': v}).eq('id', p.id);
+                      invalidateAll(ref);
+                    },
                   ),
                   const Gap(14),
                 ],
@@ -568,12 +575,14 @@ class _AuctionCard extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onDelete;
   final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
+  final ValueChanged<bool> onToggleAlert; // 매각기일 알림 받기
   const _AuctionCard(
       {required this.p,
       required this.price,
       required this.onOpen,
       required this.onDelete,
-      required this.onSetVerdict});
+      required this.onSetVerdict,
+      required this.onToggleAlert});
 
   @override
   State<_AuctionCard> createState() => _AuctionCardState();
@@ -648,6 +657,27 @@ class _AuctionCardState extends State<_AuctionCard> {
                   color: _statusColor[p.status] ?? AppColors.textFaint),
               const Gap(6),
               _ScorePill(score: p.score, verdict: p.verdict, color: vColor),
+              if (!p.isQuickSale)
+                GestureDetector(
+                  onTap: () => widget.onToggleAlert(!p.alertEnabled),
+                  child: Tooltip(
+                    message: p.alertEnabled
+                        ? '매각기일 알림 켜짐 (D-3·2·1)'
+                        : '매각기일 알림 받기',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Icon(
+                        p.alertEnabled
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_none_rounded,
+                        size: 19,
+                        color: p.alertEnabled
+                            ? AppColors.gold
+                            : AppColors.textFaint,
+                      ),
+                    ),
+                  ),
+                ),
               RecordMenu(onEdit: onOpen, onDelete: onDelete),
             ],
           ),
