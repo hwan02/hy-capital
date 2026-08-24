@@ -32,10 +32,8 @@ class ModulePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final page = RefreshIndicator(
-      onRefresh: () async => invalidateAll(ref),
-      // 텍스트 드래그 선택·복사 허용 (웹 기본은 선택 불가).
-      child: SelectionArea(
+    // 텍스트 드래그 선택·복사 허용 (웹 기본은 선택 불가).
+    final page = SelectionArea(
         child: LayoutBuilder(builder: (context, c) {
           // 좁은 화면(모바일)은 여백을 줄여 거의 꽉 차게, 넓은 화면은 90% 폭.
           final narrow = c.maxWidth < 700;
@@ -87,6 +85,13 @@ class ModulePage extends ConsumerWidget {
                           ],
                         ),
                       ),
+                      IconButton(
+                        tooltip: '새로고침',
+                        onPressed: () => invalidateAll(ref),
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.refresh_rounded,
+                            size: 18, color: AppColors.textFaint),
+                      ),
                       if (action != null) action!,
                     ],
                   ),
@@ -99,12 +104,19 @@ class ModulePage extends ConsumerWidget {
         ],
           );
         }),
-      ),
     );
 
-    if (fab == null) return page;
+    // 당겨서 새로고침은 «터치 화면»에서만. 데스크톱에서는 휠로 목록 맨 위를
+    // 넘길 때 실수로 발동해 전체 데이터가 다시 로드되고 화면이 깜빡인다.
+    final width = MediaQuery.of(context).size.width;
+    final body = width < 700
+        ? RefreshIndicator(
+            onRefresh: () async => invalidateAll(ref), child: page)
+        : page;
+
+    if (fab == null) return body;
     return Stack(children: [
-      page,
+      body,
       Positioned(right: 18, bottom: 22, child: fab!),
     ]);
   }
