@@ -558,6 +558,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(aiReportsProvider);
   ref.invalidate(dashboardMetricsProvider);
   ref.invalidate(customModulesProvider);
+  ref.invalidate(ipoProvider);
   ref.invalidate(customRecordsProvider);
   ref.invalidate(allocationsProvider);
   ref.invalidate(incomeSourcesProvider);
@@ -593,4 +594,14 @@ final availableCashProvider = FutureProvider<double>((ref) async {
   if ((profile?.auctionBudget ?? 0) > 0) return profile!.auctionBudget;
   final snaps = await ref.watch(snapshotsProvider.future);
   return snaps.isEmpty ? 0 : snaps.last.cash;
+});
+
+/// 공모주 청약 기록 — 상장일 최신순.
+final ipoProvider = FutureProvider<List<IpoSubscription>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('ipo_subscriptions')
+      .select()
+      .order('listing_date', ascending: false);
+  return rows.map<IpoSubscription>(IpoSubscription.fromMap).toList();
 });

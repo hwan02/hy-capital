@@ -249,3 +249,37 @@ const snapshotSpec = BuiltinSpec(
     FieldSpec(key: 'salary_cashflow', label: '월급 현금흐름', type: FieldType.money),
   ],
 );
+
+/// 공모주 청약. 수익금·수익률은 계산값이므로 입력 필드에 없다.
+const ipoSpec = BuiltinSpec(
+  table: 'ipo_subscriptions',
+  title: '공모주',
+  accent: Color(0xFF6366F1),
+  fields: [
+    FieldSpec(key: 'name', label: '종목', type: FieldType.text, required: true),
+    FieldSpec(
+        key: 'broker',
+        label: '증권사',
+        type: FieldType.select,
+        options: [
+          '한투',
+          '신한투자',
+          '삼성',
+          '나무',
+          'KB',
+          '미래에셋',
+          '키움',
+          'NH',
+          '대신',
+          '하나',
+          '기타'
+        ]),
+    FieldSpec(key: 'offer_price', label: '공모가 (주당)', type: FieldType.money, required: true),
+    FieldSpec(key: 'shares', label: '배정 수량(주)', type: FieldType.number),
+    FieldSpec(key: 'sell_price', label: '매도가 (주당 · 비우면 미매도)', type: FieldType.money),
+    FieldSpec(key: 'listing_date', label: '상장일', type: FieldType.date),
+    FieldSpec(key: 'invested', label: '청약금(증거금)', type: FieldType.money),
+    FieldSpec(key: 'competition_rate', label: '경쟁률', type: FieldType.number),
+    FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
+  ],
+);

@@ -1015,3 +1015,58 @@ class LectureAnswer {
         answer: (m['answer'] ?? '').toString(),
       );
 }
+
+/// 공모주 청약 한 건. 수익금·수익률은 저장하지 않고 계산한다.
+class IpoSubscription {
+  final String id;
+  final String? broker;        // 증권사
+  final String name;           // 종목
+  final double offerPrice;     // 공모가 (주당)
+  final double invested;       // 청약금(증거금)
+  final double competitionRate; // 경쟁률
+  final int shares;            // 배정 수량
+  final DateTime? listingDate; // 상장일
+  final double sellPrice;      // 매도가 (0 = 미매도)
+  final String? memo;
+
+  IpoSubscription({
+    required this.id,
+    this.broker,
+    required this.name,
+    this.offerPrice = 0,
+    this.invested = 0,
+    this.competitionRate = 0,
+    this.shares = 0,
+    this.listingDate,
+    this.sellPrice = 0,
+    this.memo,
+  });
+
+  /// 매도가가 없으면 아직 안 팔았다 — 손익 집계에서 뺀다.
+  bool get sold => sellPrice > 0;
+
+  /// 수익금 = (매도가 − 공모가) × 수량
+  double get profit => sold ? (sellPrice - offerPrice) * shares : 0;
+
+  /// 수익률 = (매도가 − 공모가) ÷ 공모가 (주당 기준)
+  double get profitRate =>
+      (!sold || offerPrice <= 0) ? 0 : (sellPrice - offerPrice) / offerPrice * 100;
+
+  bool get isWin => sold && profit > 0;
+
+  /// 배정 금액 = 공모가 × 배정수량 (실제로 받은 주식의 취득가)
+  double get allocated => offerPrice * shares;
+
+  factory IpoSubscription.fromMap(Map<String, dynamic> m) => IpoSubscription(
+        id: m['id'],
+        broker: m['broker'],
+        name: m['name'] ?? '',
+        offerPrice: _d(m['offer_price']),
+        invested: _d(m['invested']),
+        competitionRate: _d(m['competition_rate']),
+        shares: _i(m['shares']),
+        listingDate: _date(m['listing_date']),
+        sellPrice: _d(m['sell_price']),
+        memo: m['memo'],
+      );
+}
