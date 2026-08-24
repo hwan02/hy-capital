@@ -387,9 +387,18 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 ? 0.0
                 : items.fold(0.0, (s, p) => s + p.score) / items.length;
 
+            // 모의 적중률 — 낙찰가가 기록된 모의 물건 중, 내 입찰가 ≥ 낙찰가(이겼을) 비율.
+            final simDone =
+                items.where((p) => p.isSim && p.actualPrice > 0).toList();
+            final simHits = simDone.where((p) => p.wouldWin).length;
+            final hitRate =
+                simDone.isEmpty ? null : simHits / simDone.length * 100;
+
             final byFilter = switch (_filter) {
               'all' => items,
               'GO' => items.where((p) => p.verdict == 'GO').toList(),
+              'sim' => items.where((p) => p.isSim).toList(),
+              'real' => items.where((p) => !p.isSim).toList(),
               final s => items.where((p) => p.status == s).toList(),
             }.toList()
               // 입찰일 임박순. 날짜 없는 건 뒤로, 지난 건 맨 뒤로.
@@ -436,6 +445,14 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                       value: avgScore.toStringAsFixed(0),
                       icon: Icons.speed_rounded,
                       color: AppColors.violet,
+                    ),
+                    StatTile(
+                      label: '모의 적중률',
+                      value: hitRate == null
+                          ? '기록 전'
+                          : '${hitRate.toStringAsFixed(0)}% ($simHits/${simDone.length})',
+                      icon: Icons.military_tech_rounded,
+                      color: AppColors.rose,
                     ),
                   ],
                 ),
@@ -488,6 +505,8 @@ class _FilterChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final chips = <(String, String)>[
       ('all', '전체'),
+      ('sim', '모의'),
+      ('real', '실제'),
       ('GO', 'GO만'),
       ('interest', '관심'),
       ('researching', '조사중'),
