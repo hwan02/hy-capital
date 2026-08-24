@@ -1067,6 +1067,12 @@ class IpoSubscription {
   final int shares;            // 배정 수량
   final DateTime? listingDate; // 상장일
   final double sellPrice;      // 매도가 (0 = 미매도)
+  final DateTime? subStart;    // 청약 시작
+  final DateTime? subEnd;      // 청약 마감 — 놓치면 끝
+  final DateTime? refundDate;  // 환불일
+  final double bandLow;        // 희망공모가 하단
+  final double bandHigh;       // 희망공모가 상단
+  final String? source;        // 어디서 찾았나
   final String? memo;
 
   IpoSubscription({
@@ -1079,8 +1085,46 @@ class IpoSubscription {
     this.shares = 0,
     this.listingDate,
     this.sellPrice = 0,
+    this.subStart,
+    this.subEnd,
+    this.refundDate,
+    this.bandLow = 0,
+    this.bandHigh = 0,
+    this.source,
     this.memo,
   });
+
+  /// 아직 청약하지 않은 «예정» 건인가 (배치가 넣어둔 것).
+  bool get upcoming => shares == 0 && !sold && subEnd != null;
+
+  /// 오늘 기준 상태. 날짜로 계산한다 — 저장하지 않는다.
+  String get phase {
+    final t = DateTime.now();
+    final today = DateTime(t.year, t.month, t.day);
+    bool before(DateTime? d) => d != null && today.isBefore(d);
+    bool after(DateTime? d) => d != null && today.isAfter(d);
+    if (before(subStart)) return '예정';
+    if (subStart != null && subEnd != null && !before(subStart) && !after(subEnd)) {
+      return '청약중';
+    }
+    if (after(subEnd) && before(listingDate)) return '배정·환불';
+    if (listingDate != null && !before(listingDate)) return sold ? '매도' : '상장';
+    return sold ? '매도' : '기록';
+  }
+
+  /// 청약 마감까지 남은 날. 지났으면 음수.
+  int? get daysToSubEnd {
+    if (subEnd == null) return null;
+    final t = DateTime.now();
+    return DateTime(subEnd!.year, subEnd!.month, subEnd!.day)
+        .difference(DateTime(t.year, t.month, t.day))
+        .inDays;
+  }
+
+  /// 희망공모가 밴드 표기.
+  String get bandLabel => (bandLow <= 0 && bandHigh <= 0)
+      ? ''
+      : '${bandLow.round()}~${bandHigh.round()}원';
 
   /// 매도가가 없으면 아직 안 팔았다 — 손익 집계에서 뺀다.
   bool get sold => sellPrice > 0;
@@ -1107,6 +1151,12 @@ class IpoSubscription {
         shares: _i(m['shares']),
         listingDate: _date(m['listing_date']),
         sellPrice: _d(m['sell_price']),
+        subStart: _date(m['sub_start']),
+        subEnd: _date(m['sub_end']),
+        refundDate: _date(m['refund_date']),
+        bandLow: _d(m['band_low']),
+        bandHigh: _d(m['band_high']),
+        source: m['source'],
         memo: m['memo'],
       );
 }
