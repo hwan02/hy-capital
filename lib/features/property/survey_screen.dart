@@ -19,6 +19,8 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
 import 'visit_screen.dart';
+import '../../core/edit/builtin_crud.dart';
+import '../../core/edit/builtin_specs.dart';
 import 'package:go_router/go_router.dart';
 
 const _sky = AppColors.sky;
@@ -265,7 +267,20 @@ class _ComplexCardState extends ConsumerState<_ComplexCard> {
                         style: const TextStyle(
                             color: AppColors.textFaint,
                             fontSize: AppFont.caption)),
-                  const Gap(6),
+                  RecordMenu(
+                      onEdit: () => editBuiltinRecord(
+                          context, ref, complexSpec,
+                          initial: {
+                            'name': c.name,
+                            'kind': c.kind,
+                            'district': c.district,
+                            'address': c.address,
+                            'memo': c.memo,
+                          },
+                          id: c.id),
+                      onDelete: () => deleteBuiltinRecord(
+                          context, ref, complexSpec, c.id,
+                          name: c.name)),
                   Icon(
                       widget.open
                           ? Icons.keyboard_arrow_up_rounded
@@ -311,6 +326,8 @@ class _ComplexCardState extends ConsumerState<_ComplexCard> {
             const Divider(height: 1, color: AppColors.border),
             const Gap(14),
 
+            _ZonePicker(complex: c, current: widget.zone),
+            const Gap(14),
             _sectionLabel('책상 조사', _sky, '앉아서 채운다'),
             const Gap(8),
             for (final l in deskLabels) _row(l, 'desk'),
@@ -564,5 +581,84 @@ class _VisitSection extends ConsumerWidget {
         ],
       ],
     );
+  }
+}
+
+
+/// 단지를 구역에 연결한다. 구역이 정해지면 기준 ①②(선정지·속도)가 적용된다.
+class _ZonePicker extends ConsumerWidget {
+  final Complex complex;
+  final Zone? current;
+  const _ZonePicker({required this.complex, required this.current});
+
+  Future<void> _set(BuildContext context, WidgetRef ref, String? zoneId) async {
+    try {
+      await ref
+          .read(supabaseProvider)
+          .from('complexes')
+          .update({'zone_id': zoneId}).eq('id', complex.id);
+      invalidateAll(ref);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('연결 실패: $e'), backgroundColor: AppColors.rose));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zones = ref.watch(zonesProvider).asData?.value ?? const <Zone>[];
+    return Row(children: [
+      Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+              color: AppColors.violet,
+              borderRadius: BorderRadius.circular(3))),
+      const Gap(7),
+      const Text('구역',
+          style: TextStyle(
+              color: AppColors.violet,
+              fontSize: AppFont.label,
+              fontWeight: FontWeight.w800)),
+      const Gap(10),
+      Expanded(
+        child: DropdownButtonFormField<String?>(
+          initialValue: current?.id,
+          isDense: true,
+          dropdownColor: AppColors.surfaceAlt,
+          style: const TextStyle(fontSize: AppFont.label),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+            filled: true,
+            fillColor: AppColors.surfaceAlt,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(9),
+                borderSide: BorderSide.none),
+          ),
+          hint: const Text('구역 없음 (급매·구역 밖)',
+              style: TextStyle(
+                  color: AppColors.textFaint, fontSize: AppFont.label)),
+          items: [
+            const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('구역 없음 (급매·구역 밖)',
+                    style: TextStyle(fontSize: AppFont.label))),
+            for (final z in zones)
+              DropdownMenuItem<String?>(
+                value: z.id,
+                child: Text(
+                    [z.district, z.name]
+                        .where((e) => (e ?? '').isNotEmpty)
+                        .join(' · '),
+                    style: const TextStyle(fontSize: AppFont.label)),
+              ),
+          ],
+          onChanged: (v) => _set(context, ref, v),
+        ),
+      ),
+    ]);
   }
 }

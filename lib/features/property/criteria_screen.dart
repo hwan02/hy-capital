@@ -11,6 +11,8 @@ import 'package:gap/gap.dart';
 
 import '../../core/data/data_providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/edit/builtin_crud.dart';
+import '../../core/edit/builtin_specs.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
 
@@ -237,8 +239,18 @@ class CriteriaView extends ConsumerWidget {
   }
 }
 
-/// 구역 한 줄 — 기준으로 채점한 결과.
-class _ZoneRow extends StatelessWidget {
+Map<String, dynamic> zoneToMap(Zone z) => {
+      'name': z.name,
+      'kind': z.kind,
+      'district': z.district,
+      'consent_rate': z.consentRate,
+      'union_expected':
+          z.unionExpected?.toIso8601String().substring(0, 10),
+      'memo': z.memo,
+    };
+
+/// 구역 한 줄 — 기준으로 채점한 결과. 누르면 수정.
+class _ZoneRow extends ConsumerWidget {
   final Zone zone;
   final List<Complex> complexes;
   final Map<String, PriceSurvey> surveys;
@@ -251,7 +263,7 @@ class _ZoneRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final surveyed =
         complexes.where((c) => surveys[c.id] != null).length;
     final visited =
@@ -262,6 +274,8 @@ class _ZoneRow extends StatelessWidget {
     return GlassCard(
       padding: const EdgeInsets.all(16),
       accent: zone.imminent ? AppColors.primary : null,
+      onTap: () => editBuiltinRecord(context, ref, zoneSpec,
+          initial: zoneToMap(zone), id: zone.id),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -296,6 +310,14 @@ class _ZoneRow extends StatelessWidget {
             else
               Pill('${zone.consentRate.toStringAsFixed(0)}%',
                   color: AppColors.textFaint),
+            RecordMenu(
+              onEdit: () => editBuiltinRecord(context, ref, zoneSpec,
+                  initial: zoneToMap(zone), id: zone.id),
+              onDelete: () => deleteBuiltinRecord(
+                  context, ref, zoneSpec, zone.id,
+                  name: [zone.district, zone.name]
+                      .where((e) => (e ?? '').isNotEmpty)
+                      .join(' '))),
           ]),
           const Gap(11),
           Row(children: [
@@ -307,6 +329,17 @@ class _ZoneRow extends StatelessWidget {
             _m('임장', '$visited개',
                 color: visited > 0 ? AppColors.primary : AppColors.textFaint),
           ]),
+          if (unknownSpeed) ...[
+            const Gap(9),
+            Row(children: [
+              const Icon(Icons.touch_app_rounded,
+                  size: 13, color: AppColors.gold),
+              const Gap(6),
+              const Text('눌러서 동의율·조합설립 시기를 넣으세요',
+                  style: TextStyle(
+                      color: AppColors.gold, fontSize: AppFont.caption)),
+            ]),
+          ],
           if ((zone.memo ?? '').isNotEmpty) ...[
             const Gap(10),
             Text(zone.memo!,
