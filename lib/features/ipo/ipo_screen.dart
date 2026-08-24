@@ -14,6 +14,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import 'ipo_alert.dart';
 
 const _indigo = Color(0xFF6366F1);
 
@@ -57,6 +58,7 @@ class _IpoScreenState extends ConsumerState<IpoScreen> {
         child: const Icon(Icons.add_rounded),
       ),
       children: [
+        const IpoTodayBanner(linkToIpo: false),
         async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,

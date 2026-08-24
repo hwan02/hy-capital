@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../ipo/ipo_alert.dart';
 import '../plan/plan_roadmap.dart';
 
 /// profiles 값을 편집 폼 초기값으로.
@@ -43,6 +44,8 @@ class DashboardScreen extends ConsumerWidget {
       icon: Icons.dashboard_rounded,
       color: AppColors.primary,
       children: [
+        // 공모주 — 청약은 마감을 넘기면 끝이라 맨 위에 둔다.
+        const IpoTodayBanner(),
         metricsAsync.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
