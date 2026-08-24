@@ -266,12 +266,24 @@ class _ZoneRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(children: [
+            if ((zone.district ?? '').isNotEmpty) ...[
+              Text(zone.district!,
+                  style: const TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary)),
+              const Gap(6),
+            ],
             Expanded(
               child: Text(zone.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: AppFont.label, fontWeight: FontWeight.w800)),
+                  style: TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w700,
+                      color: zone.name.contains('확인 전')
+                          ? AppColors.textFaint
+                          : AppColors.textSecondary)),
             ),
             const Gap(8),
             Pill(zone.kind, color: AppColors.violet),
@@ -347,8 +359,10 @@ class _Blocked extends StatelessWidget {
     // 기준 ② 속도 — 동의율을 모르면 구역 순위가 안 정해진다.
     for (final z in zones.where((z) => z.consentRate <= 0)) {
       items.add((
-        '동의율 확인 — 자치구 문의',
-        z.name,
+        z.name.contains('확인 전')
+            ? '동·번지 + 동의율 확인 — 자치구 문의'
+            : '동의율 확인 — 자치구 문의',
+        [z.district, z.name].where((e) => (e ?? '').isNotEmpty).join(' · '),
         '기준 ②',
         AppColors.gold,
       ));
