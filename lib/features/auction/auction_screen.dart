@@ -279,7 +279,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         ]),
         const Gap(18),
         if (_tab == 2) const LectureQuestionsView(),
-        if (_tab == 1) const KnowledgeView(),
+        if (_tab == 1) const KnowledgeView(excludeTag: '에어비앤비'),
         if (_tab == 0)
           async.when(
           loading: AsyncStatus.loading,

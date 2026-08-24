@@ -84,7 +84,11 @@ class KnowledgeView extends ConsumerStatefulWidget {
   /// 이 태그가 붙은 자료만 보여준다. null 이면 전체.
   /// 에어비앤비 화면의 '자료실' 탭은 `에어비앤비` 태그로 좁혀서 쓴다.
   final String? onlyTag;
-  const KnowledgeView({super.key, this.onlyTag});
+
+  /// 이 태그가 붙은 자료는 제외한다. 모듈별 자료실을 «양방향»으로 분리하려면
+  /// 반대쪽에서 이걸 써야 한다 — 경매 자료실은 `에어비앤비` 를 제외한다.
+  final String? excludeTag;
+  const KnowledgeView({super.key, this.onlyTag, this.excludeTag});
 
   @override
   ConsumerState<KnowledgeView> createState() => _KnowledgeViewState();
@@ -118,6 +122,11 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                 icon: Icons.menu_book_rounded,
                 message: '자료가 없어요.\n강의 Q&A·칼럼을 불러오거나 메모를 추가하세요.',
               );
+            }
+            // 다른 모듈의 자료는 먼저 걷어낸다.
+            if (widget.excludeTag != null) {
+              all =
+                  all.where((n) => !n.tags.contains(widget.excludeTag)).toList();
             }
             // 고정 태그가 있으면 그 범위로 먼저 좁힌다.
             if (widget.onlyTag != null) {
