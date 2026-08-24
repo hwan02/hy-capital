@@ -284,6 +284,15 @@ const ipoSpec = BuiltinSpec(
   ],
 );
 
+/// 서울 25개 자치구 — 모아타운·신통기획은 서울시 제도라 서울이 기본이다.
+/// 서울 외 지역(경기 등)은 '서울 외'를 고르고 구역명에 적는다.
+const seoulDistricts = [
+  '강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구',
+  '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구',
+  '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구',
+  '종로구', '중구', '중랑구', '서울 외',
+];
+
 /// 구역 — 모아타운·신통기획 선정지.
 const zoneSpec = BuiltinSpec(
   table: 'zones',
@@ -297,7 +306,11 @@ const zoneSpec = BuiltinSpec(
         type: FieldType.select,
         required: true,
         options: ['모아타운', '신통기획', '일반']),
-    FieldSpec(key: 'district', label: '자치구', type: FieldType.text),
+    FieldSpec(
+        key: 'district',
+        label: '자치구',
+        type: FieldType.select,
+        options: seoulDistricts),
     FieldSpec(key: 'consent_rate', label: '조합설립 동의율(%)', type: FieldType.percent),
     FieldSpec(key: 'union_expected', label: '조합설립 예상 시기', type: FieldType.date),
     FieldSpec(key: 'memo', label: '메모 (강의 사례·특이사항)', type: FieldType.longtext),
@@ -317,6 +330,11 @@ const complexSpec = BuiltinSpec(
         type: FieldType.select,
         required: true,
         options: ['빌라', '다세대', '연립', '아파트', '기타']),
+    FieldSpec(
+        key: 'district',
+        label: '자치구',
+        type: FieldType.select,
+        options: seoulDistricts),
     FieldSpec(key: 'address', label: '주소', type: FieldType.text),
     FieldSpec(key: 'memo', label: '메모', type: FieldType.longtext),
   ],

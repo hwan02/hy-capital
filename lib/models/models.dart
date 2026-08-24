@@ -1132,6 +1132,7 @@ class Complex {
   final String name;
   final String? address;
   final String kind; // 빌라|다세대|연립|아파트|기타
+  final String? district; // 자치구 — 구역이 없어도 지역을 안다
   final String? memo;
 
   Complex({
@@ -1140,6 +1141,7 @@ class Complex {
     required this.name,
     this.address,
     this.kind = '빌라',
+    this.district,
     this.memo,
   });
 
@@ -1149,6 +1151,7 @@ class Complex {
         name: m['name'] ?? '',
         address: m['address'],
         kind: m['kind'] ?? '빌라',
+        district: m['district'],
         memo: m['memo'],
       );
 }

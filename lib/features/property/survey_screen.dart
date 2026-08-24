@@ -42,6 +42,10 @@ class SurveyView extends ConsumerStatefulWidget {
 
 class _SurveyViewState extends ConsumerState<SurveyView> {
   String? _openId; // 펼친 단지
+  String _district = '전체'; // 자치구 필터
+
+  /// 단지의 자치구 — 구역이 있으면 구역 것을 쓴다.
+  String? _districtOf(Complex c, Zone? z) => z?.district ?? c.district;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +66,21 @@ class _SurveyViewState extends ConsumerState<SurveyView> {
         final byId = {for (final z in zones) z.id: z};
         final sv = surveys.asData?.value ?? const <String, PriceSurvey>{};
 
+        // 자치구 집계 — 있는 구만 칩으로 보여준다.
+        final counts = <String, int>{};
+        for (final c in list) {
+          final d = _districtOf(c, c.zoneId == null ? null : byId[c.zoneId]);
+          if (d != null && d.isNotEmpty) counts[d] = (counts[d] ?? 0) + 1;
+        }
+        final districts = counts.keys.toList()..sort();
+        final shown = _district == '전체'
+            ? list
+            : list.where((c) {
+                final d =
+                    _districtOf(c, c.zoneId == null ? null : byId[c.zoneId]);
+                return d == _district;
+              }).toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -72,8 +91,15 @@ class _SurveyViewState extends ConsumerState<SurveyView> {
                     color: AppColors.textSecondary,
                     fontSize: AppFont.label,
                     height: 1.55)),
-            const Gap(16),
-            for (final c in list) ...[
+            const Gap(14),
+            if (districts.length > 1) ...[
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                _dChip('전체', list.length),
+                for (final d in districts) _dChip(d, counts[d]!),
+              ]),
+              const Gap(14),
+            ],
+            for (final c in shown) ...[
               _ComplexCard(
                 complex: c,
                 zone: c.zoneId == null ? null : byId[c.zoneId],
@@ -87,6 +113,28 @@ class _SurveyViewState extends ConsumerState<SurveyView> {
           ],
         );
       },
+    );
+  }
+
+  Widget _dChip(String label, int n) {
+    final on = _district == label;
+    return InkWell(
+      onTap: () => setState(() => _district = label),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? _sky.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: on ? _sky : AppColors.border, width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text('$label $n',
+            style: TextStyle(
+                color: on ? _sky : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w700)),
+      ),
     );
   }
 }
@@ -225,9 +273,17 @@ class _ComplexCardState extends ConsumerState<_ComplexCard> {
                       size: 20,
                       color: AppColors.textFaint),
                 ]),
-                if ((widget.zone?.name ?? c.address ?? '').isNotEmpty) ...[
+                if ((widget.zone?.name ??
+                        c.district ??
+                        c.address ??
+                        '')
+                    .isNotEmpty) ...[
                   const Gap(3),
-                  Text(widget.zone?.name ?? c.address ?? '',
+                  Text(
+                      [
+                        widget.zone?.district ?? c.district,
+                        widget.zone?.name ?? c.address,
+                      ].where((e) => (e ?? '').isNotEmpty).join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
