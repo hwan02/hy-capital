@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import 'file_viewer.dart';
 import 'knowledge_files.dart';
 
 const _amber = Color(0xFFF59E0B);
@@ -863,7 +864,8 @@ class _AlbumTile extends ConsumerWidget {
     final f = entry.file;
     final isImg = entry.imageUrl != null;
     return InkWell(
-      onTap: () => openKnowledgeFile(context, ref, f),
+      onTap: () =>
+          showFileViewer(context, ref, f, signedUrl: entry.imageUrl),
       onLongPress: () =>
           deleteKnowledgeFile(context, ref, entry.note, f),
       borderRadius: BorderRadius.circular(12),

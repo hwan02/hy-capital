@@ -16,6 +16,7 @@ import '../../core/data/data_providers.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
+import 'file_viewer.dart';
 
 const _bucket = 'knowledge';
 
@@ -178,7 +179,8 @@ Future<void> uploadStandalonePdf(BuildContext context, WidgetRef ref,
   }
 }
 
-/// 서명 URL(1시간)을 만들어 새 탭으로 연다.
+/// 서명 URL(1시간)을 만들어 «새 탭»으로 연다.
+/// 기본 동작은 앱 안 팝업(showFileViewer)이고, 이건 새 탭이 필요할 때만 쓴다.
 Future<void> openKnowledgeFile(
   BuildContext context,
   WidgetRef ref,
@@ -308,7 +310,7 @@ class KnowledgeFileChips extends ConsumerWidget {
         children: [
           for (final f in note.files)
             InkWell(
-              onTap: () => openKnowledgeFile(context, ref, f),
+              onTap: () => showFileViewer(context, ref, f),
               onLongPress: () => deleteKnowledgeFile(context, ref, note, f),
               borderRadius: BorderRadius.circular(8),
               child: Container(
