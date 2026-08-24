@@ -339,3 +339,30 @@ const complexSpec = BuiltinSpec(
     FieldSpec(key: 'memo', label: '메모', type: FieldType.longtext),
   ],
 );
+
+/// 숏폼 편성 한 칸 — 달력에서 바로 고친다.
+const shortsSlotSpec = BuiltinSpec(
+  table: 'shorts_slots',
+  title: '편성',
+  accent: AppColors.rose,
+  fields: [
+    FieldSpec(key: 'title', label: '제목', type: FieldType.text, required: true),
+    FieldSpec(key: 'slot_date', label: '올릴 날짜', type: FieldType.date, required: true),
+    FieldSpec(
+        key: 'cat',
+        label: '카테고리',
+        type: FieldType.select,
+        required: true,
+        options: ['fire', 'film', 'mind', 'data', 'trophy', 'swap']),
+    FieldSpec(key: 'hook', label: '한 줄 훅', type: FieldType.text),
+    FieldSpec(key: 'src', label: '출처', type: FieldType.text),
+    FieldSpec(key: 'url', label: '원문 링크', type: FieldType.text),
+    FieldSpec(
+        key: 'prio',
+        label: '우선순위',
+        type: FieldType.select,
+        options: ['5', '4.5', '4', '?']),
+    FieldSpec(key: 'done', label: '올림', type: FieldType.boolean),
+    FieldSpec(key: 'memo', label: '메모', type: FieldType.longtext),
+  ],
+);

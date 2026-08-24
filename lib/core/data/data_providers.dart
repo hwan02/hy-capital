@@ -559,6 +559,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(dashboardMetricsProvider);
   ref.invalidate(customModulesProvider);
   ref.invalidate(ipoProvider);
+  ref.invalidate(shortsSlotsProvider);
   ref.invalidate(zonesProvider);
   ref.invalidate(complexesProvider);
   ref.invalidate(latestSurveysProvider);
@@ -642,4 +643,11 @@ final visitsProvider = FutureProvider<Map<String, List<Visit>>>((ref) async {
     out.putIfAbsent(v.complexId, () => []).add(v);
   }
   return out;
+});
+
+/// 숏폼 편성표 — 날짜순.
+final shortsSlotsProvider = FutureProvider<List<ShortsSlotRow>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb.from('shorts_slots').select().order('slot_date');
+  return rows.map<ShortsSlotRow>(ShortsSlotRow.fromMap).toList();
 });

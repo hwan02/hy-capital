@@ -17,23 +17,13 @@ import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
-import 'shorts_schedule.dart';
+import 'shorts_schedule.dart' show shortsCats;
 
 const _rose = AppColors.rose;
-
-/// 편성표가 잡힌 해. '8/21' 같은 표기에는 연도가 없다.
-const _year = 2026;
 
 DateTime _dayOf(DateTime d) => DateTime(d.year, d.month, d.day);
 bool _same(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
-
-/// '8/21' → DateTime. 못 읽으면 null.
-DateTime? _slotDate(String s) {
-  final m = RegExp(r'^(\d{1,2})/(\d{1,2})$').firstMatch(s.trim());
-  if (m == null) return null;
-  return DateTime(_year, int.parse(m.group(1)!), int.parse(m.group(2)!));
-}
 
 class ShortsCalendar extends ConsumerStatefulWidget {
   const ShortsCalendar({super.key});
@@ -54,23 +44,12 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
     _month = DateTime(now.year, now.month);
   }
 
-  /// 편성표 한 칸을 «했다»로 기록한다. tasks 에 남긴다.
-  Future<void> _markSlot(ShortsSlot s, DateTime day, TodoTask? existing) async {
-    final sb = ref.read(supabaseProvider);
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
+  Future<void> _toggleSlot(ShortsSlotRow s) async {
     try {
-      if (existing != null) {
-        await sb.from('tasks').delete().eq('id', existing.id); // 체크 해제
-      } else {
-        await sb.from('tasks').insert({
-          'user_id': uid,
-          'title': s.title,
-          'module': 'shorts',
-          'due_date': day.toIso8601String().substring(0, 10),
-          'done': true,
-        });
-      }
+      await ref
+          .read(supabaseProvider)
+          .from('shorts_slots')
+          .update({'done': !s.done}).eq('id', s.id);
       invalidateAll(ref);
     } catch (e) {
       if (!mounted) return;
@@ -78,6 +57,18 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
           content: Text('저장 실패: $e'), backgroundColor: AppColors.rose));
     }
   }
+
+  Map<String, dynamic> _slotToMap(ShortsSlotRow s) => {
+        'title': s.title,
+        'slot_date': s.slotDate.toIso8601String().substring(0, 10),
+        'cat': s.cat,
+        'hook': s.hook,
+        'src': s.src,
+        'url': s.url,
+        'prio': s.prio,
+        'done': s.done,
+        'memo': s.memo,
+      };
 
   Future<void> _toggleTask(TodoTask t) async {
     try {
@@ -97,43 +88,32 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(tasksProvider);
+    final async = ref.watch(shortsSlotsProvider);
     return async.when(
       loading: AsyncStatus.loading,
       error: AsyncStatus.error,
-      data: (all) {
-        final tasks = all
+      data: (slots) {
+        final tasks = (ref.watch(tasksProvider).asData?.value ?? const <TodoTask>[])
             .where((t) => t.module == 'shorts' && t.dueDate != null)
             .toList();
 
-        // 날짜 → 편성표 슬롯
-        final slotsByDay = <DateTime, List<ShortsSlot>>{};
-        for (final s in shortsSlots) {
-          final d = _slotDate(s.date);
-          if (d != null) slotsByDay.putIfAbsent(d, () => []).add(s);
+        final slotsByDay = <DateTime, List<ShortsSlotRow>>{};
+        for (final s in slots) {
+          slotsByDay.putIfAbsent(_dayOf(s.slotDate), () => []).add(s);
         }
-        // 날짜 → 할 일
         final tasksByDay = <DateTime, List<TodoTask>>{};
         for (final t in tasks) {
           tasksByDay.putIfAbsent(_dayOf(t.dueDate!), () => []).add(t);
         }
-        // 편성표 완료 여부는 제목이 같은 할 일이 있는지로 본다.
-        TodoTask? doneOf(ShortsSlot s, DateTime d) {
-          for (final t in tasksByDay[d] ?? const <TodoTask>[]) {
-            if (t.title == s.title) return t;
-          }
-          return null;
-        }
 
         final today = _dayOf(DateTime.now());
-        final todaySlots = slotsByDay[today] ?? const <ShortsSlot>[];
-        final pickedSlots = slotsByDay[_selected] ?? const <ShortsSlot>[];
-        final pickedTasks = (tasksByDay[_selected] ?? const <TodoTask>[])
-            .where((t) => !pickedSlots.any((s) => s.title == t.title))
-            .toList();
-        final overdue = tasks
-            .where((t) => !t.done && _dayOf(t.dueDate!).isBefore(today))
-            .toList();
+        final todaySlots = slotsByDay[today] ?? const <ShortsSlotRow>[];
+        final pickedSlots = slotsByDay[_selected] ?? const <ShortsSlotRow>[];
+        final pickedTasks = tasksByDay[_selected] ?? const <TodoTask>[];
+        final overdue = [
+          for (final s in slots)
+            if (!s.done && _dayOf(s.slotDate).isBefore(today)) s
+        ];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -168,10 +148,14 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                     for (final s in todaySlots)
                       _SlotTile(
                         slot: s,
-                        done: doneOf(s, today) != null,
-                        onToggle: () =>
-                            _markSlot(s, today, doneOf(s, today)),
-                        onOpen: () => _open(s.url),
+                        onToggle: () => _toggleSlot(s),
+                        onOpen: () => _open(s.url ?? ''),
+                        onEdit: () => editBuiltinRecord(
+                            context, ref, shortsSlotSpec,
+                            initial: _slotToMap(s), id: s.id),
+                        onDelete: () => deleteBuiltinRecord(
+                            context, ref, shortsSlotSpec, s.id,
+                            name: s.title),
                       ),
                 ],
               ),
@@ -209,7 +193,6 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                   today: today,
                   slotsByDay: slotsByDay,
                   tasksByDay: tasksByDay,
-                  doneOf: doneOf,
                   onPick: (d) => setState(() => _selected = d),
                 ),
                 const Gap(8),
@@ -245,8 +228,8 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                     const Spacer(),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: const Color(0xFF1A1200),
+                        backgroundColor: _rose,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 9),
                         minimumSize: Size.zero,
@@ -255,14 +238,16 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                             fontSize: AppFont.label,
                             fontWeight: FontWeight.w800),
                       ),
-                      onPressed: () =>
-                          editBuiltinRecord(context, ref, taskSpec, initial: {
-                        'module': 'shorts',
-                        'due_date':
-                            _selected.toIso8601String().substring(0, 10),
-                      }),
+                      onPressed: () => editBuiltinRecord(
+                          context, ref, shortsSlotSpec,
+                          initial: {
+                            'slot_date':
+                                _selected.toIso8601String().substring(0, 10),
+                            'cat': 'fire',
+                            'prio': '4',
+                          }),
                       icon: const Icon(Icons.add_rounded, size: 16),
-                      label: const Text('할 일'),
+                      label: const Text('편성'),
                     ),
                   ]),
                   const Gap(10),
@@ -275,10 +260,14 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                     for (final s in pickedSlots)
                       _SlotTile(
                         slot: s,
-                        done: doneOf(s, _selected) != null,
-                        onToggle: () =>
-                            _markSlot(s, _selected, doneOf(s, _selected)),
-                        onOpen: () => _open(s.url),
+                        onToggle: () => _toggleSlot(s),
+                        onOpen: () => _open(s.url ?? ''),
+                        onEdit: () => editBuiltinRecord(
+                            context, ref, shortsSlotSpec,
+                            initial: _slotToMap(s), id: s.id),
+                        onDelete: () => deleteBuiltinRecord(
+                            context, ref, shortsSlotSpec, s.id,
+                            name: s.title),
                       ),
                     for (final t in pickedTasks) _taskRow(t),
                   ],
@@ -308,7 +297,19 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
                               fontSize: AppFont.caption)),
                     ]),
                     const Gap(8),
-                    for (final t in overdue) _taskRow(t, showDate: true),
+                    for (final s in overdue)
+                      _SlotTile(
+                        slot: s,
+                        onToggle: () => _toggleSlot(s),
+                        onOpen: () => _open(s.url ?? ''),
+                        onEdit: () => editBuiltinRecord(
+                            context, ref, shortsSlotSpec,
+                            initial: _slotToMap(s), id: s.id),
+                        onDelete: () => deleteBuiltinRecord(
+                            context, ref, shortsSlotSpec, s.id,
+                            name: s.title),
+                        showDate: true,
+                      ),
                   ],
                 ),
               ),
@@ -388,23 +389,28 @@ class _Legend extends StatelessWidget {
       );
 }
 
-/// 편성표 한 칸 — 제목·훅·출처, 링크가 있으면 열 수 있다.
+/// 편성 한 칸 — 제목·훅·출처. 누르면 수정, 체크하면 «올림».
 class _SlotTile extends StatelessWidget {
-  final ShortsSlot slot;
-  final bool done;
+  final ShortsSlotRow slot;
   final VoidCallback onToggle;
   final VoidCallback onOpen;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final bool showDate;
   const _SlotTile({
     required this.slot,
-    required this.done,
     required this.onToggle,
     required this.onOpen,
+    required this.onEdit,
+    required this.onDelete,
+    this.showDate = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cat = shortsCats[slot.cat];
     final c = cat?.color ?? AppColors.textFaint;
+    final done = slot.done;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -432,67 +438,84 @@ class _SlotTile extends StatelessWidget {
         ),
         const Gap(10),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              if (cat != null) ...[
-                Text(cat.emoji, style: const TextStyle(fontSize: AppFont.caption)),
-                const Gap(5),
-                Text(cat.label,
-                    style: TextStyle(
-                        color: c,
-                        fontSize: AppFont.micro,
-                        fontWeight: FontWeight.w800)),
-                const Gap(8),
-              ],
-              if (slot.prio == '5')
-                const Pill('우선', color: AppColors.rose),
-            ]),
-            const Gap(4),
-            Text(slot.title,
-                style: TextStyle(
-                    fontSize: AppFont.label,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    color: done ? AppColors.textFaint : AppColors.textPrimary,
-                    decoration: done ? TextDecoration.lineThrough : null,
-                    decorationColor: AppColors.textFaint)),
-            if (slot.hook.isNotEmpty) ...[
-              const Gap(3),
-              Text(slot.hook,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: AppFont.caption,
-                      height: 1.45)),
-            ],
-            if (slot.src.isNotEmpty) ...[
-              const Gap(4),
-              InkWell(
-                onTap: slot.url.isEmpty ? null : onOpen,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                      slot.url.isEmpty
-                          ? Icons.description_rounded
-                          : Icons.open_in_new_rounded,
-                      size: 12,
-                      color: slot.url.isEmpty
-                          ? AppColors.textFaint
-                          : AppColors.sky),
-                  const Gap(5),
-                  Flexible(
-                    child: Text(slot.src,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: slot.url.isEmpty
-                                ? AppColors.textFaint
-                                : AppColors.sky,
-                            fontSize: AppFont.micro)),
-                  ),
+          child: InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(8),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    if (cat != null) ...[
+                      Text(cat.emoji,
+                          style: const TextStyle(fontSize: AppFont.caption)),
+                      const Gap(5),
+                      Text(cat.label,
+                          style: TextStyle(
+                              color: c,
+                              fontSize: AppFont.micro,
+                              fontWeight: FontWeight.w800)),
+                      const Gap(8),
+                    ],
+                    if (slot.isTop) const Pill('우선', color: AppColors.rose),
+                    if (showDate) ...[
+                      const Gap(6),
+                      Text('${slot.slotDate.month}/${slot.slotDate.day}',
+                          style: const TextStyle(
+                              color: AppColors.gold,
+                              fontSize: AppFont.micro,
+                              fontWeight: FontWeight.w800)),
+                    ],
+                  ]),
+                  const Gap(4),
+                  Text(slot.title,
+                      style: TextStyle(
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w700,
+                          height: 1.4,
+                          color:
+                              done ? AppColors.textFaint : AppColors.textPrimary,
+                          decoration:
+                              done ? TextDecoration.lineThrough : null,
+                          decorationColor: AppColors.textFaint)),
+                  if ((slot.hook ?? '').isNotEmpty) ...[
+                    const Gap(3),
+                    Text(slot.hook!,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: AppFont.caption,
+                            height: 1.45)),
+                  ],
+                  if ((slot.src ?? '').isNotEmpty) ...[
+                    const Gap(4),
+                    InkWell(
+                      onTap: slot.hasUrl ? onOpen : null,
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(
+                            slot.hasUrl
+                                ? Icons.open_in_new_rounded
+                                : Icons.description_rounded,
+                            size: 12,
+                            color: slot.hasUrl
+                                ? AppColors.sky
+                                : AppColors.textFaint),
+                        const Gap(5),
+                        Flexible(
+                          child: Text(slot.src!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: slot.hasUrl
+                                      ? AppColors.sky
+                                      : AppColors.textFaint,
+                                  fontSize: AppFont.micro)),
+                        ),
+                      ]),
+                    ),
+                  ],
                 ]),
-              ),
-            ],
-          ]),
+          ),
         ),
+        RecordMenu(onEdit: onEdit, onDelete: onDelete),
       ]),
     );
   }
@@ -502,9 +525,8 @@ class _Grid extends StatelessWidget {
   final DateTime month;
   final DateTime selected;
   final DateTime today;
-  final Map<DateTime, List<ShortsSlot>> slotsByDay;
+  final Map<DateTime, List<ShortsSlotRow>> slotsByDay;
   final Map<DateTime, List<TodoTask>> tasksByDay;
-  final TodoTask? Function(ShortsSlot, DateTime) doneOf;
   final ValueChanged<DateTime> onPick;
   const _Grid({
     required this.month,
@@ -512,7 +534,6 @@ class _Grid extends StatelessWidget {
     required this.today,
     required this.slotsByDay,
     required this.tasksByDay,
-    required this.doneOf,
     required this.onPick,
   });
 
@@ -554,13 +575,11 @@ class _Grid extends StatelessWidget {
   }
 
   Widget _cell(DateTime day) {
-    final slots = slotsByDay[day] ?? const <ShortsSlot>[];
+    final slots = slotsByDay[day] ?? const <ShortsSlotRow>[];
     final tasks = tasksByDay[day] ?? const <TodoTask>[];
-    final slotDone = slots.where((s) => doneOf(s, day) != null).length;
+    final slotDone = slots.where((s) => s.done).length;
     final slotLeft = slots.length - slotDone;
-    // 편성표와 겹치지 않는 «추가한 할 일»
-    final extra =
-        tasks.where((t) => !slots.any((s) => s.title == t.title)).length;
+    final extra = tasks.length;
 
     final isToday = _same(day, today);
     final isSel = _same(day, selected);

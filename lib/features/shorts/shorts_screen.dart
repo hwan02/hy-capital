@@ -14,7 +14,6 @@ import '../../core/widgets/module_page.dart';
 import '../../core/widgets/monthly_tracker.dart';
 import '../../models/models.dart';
 import 'shorts_calendar.dart';
-import 'shorts_schedule.dart';
 
 Map<String, dynamic> _channelToMap(ShortsChannel c) => {
       'name': c.name,
@@ -48,7 +47,6 @@ class ShortsScreen extends ConsumerStatefulWidget {
 
 class _ShortsScreenState extends ConsumerState<ShortsScreen> {
   int _tab = 0; // 0=내 채널 · 1=롤모델 · 2=편성표
-  bool _scheduleList = false; // 편성표: 달력 ↔ 목록
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +67,11 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
                   label: '롤모델',
                   onTap: () =>
                       editBuiltinRecord(context, ref, referenceAccountSpec))
-              : null,
+              : AddButton(
+                  color: AppColors.rose,
+                  label: '편성',
+                  onTap: () =>
+                      editBuiltinRecord(context, ref, shortsSlotSpec)),
       children: [
         Row(children: [
           _ShortsTab(
@@ -94,54 +96,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
               onTap: () => setState(() => _tab = 2)),
         ]),
         const Gap(18),
-        if (_tab == 2) ...[
-          Row(children: [
-            const Expanded(
-              child: Text('편성표 8/21~9/30 · 달력에서 날짜를 누르면 그 날 올릴 것이 보입니다',
-                  style: TextStyle(
-                      color: AppColors.textFaint, fontSize: AppFont.caption)),
-            ),
-            for (final v in const [(false, '달력', Icons.calendar_month_rounded),
-                                   (true, '목록', Icons.view_list_rounded)]) ...[
-              InkWell(
-                onTap: () => setState(() => _scheduleList = v.$1),
-                borderRadius: BorderRadius.circular(9),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: _scheduleList == v.$1
-                        ? AppColors.gold.withValues(alpha: 0.16)
-                        : Colors.transparent,
-                    border: Border.all(
-                        color: _scheduleList == v.$1
-                            ? AppColors.gold
-                            : AppColors.border),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(v.$3,
-                        size: 14,
-                        color: _scheduleList == v.$1
-                            ? AppColors.gold
-                            : AppColors.textFaint),
-                    const Gap(5),
-                    Text(v.$2,
-                        style: TextStyle(
-                            color: _scheduleList == v.$1
-                                ? AppColors.gold
-                                : AppColors.textSecondary,
-                            fontSize: AppFont.label,
-                            fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-              ),
-              const Gap(6),
-            ],
-          ]),
-          const Gap(14),
-          if (_scheduleList) const ShortsScheduleTab() else const ShortsCalendar(),
-        ],
+        if (_tab == 2) const ShortsCalendar(),
         if (_tab == 1) const _RoleModelList(),
         if (_tab == 0)
           async.when(

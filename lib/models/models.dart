@@ -1380,3 +1380,46 @@ class Visit {
         memo: m['memo'],
       );
 }
+
+/// 숏폼 편성 한 칸. 예전에는 Dart 코드에 박혀 있어 고칠 수 없었다.
+class ShortsSlotRow {
+  final String id;
+  final DateTime slotDate;
+  final String cat; // fire|film|mind|data|trophy|swap
+  final String title;
+  final String? hook;
+  final String? src;
+  final String? url;
+  final String prio;
+  final bool done;
+  final String? memo;
+
+  ShortsSlotRow({
+    required this.id,
+    required this.slotDate,
+    this.cat = 'fire',
+    required this.title,
+    this.hook,
+    this.src,
+    this.url,
+    this.prio = '4',
+    this.done = false,
+    this.memo,
+  });
+
+  bool get isTop => prio == '5';
+  bool get hasUrl => (url ?? '').isNotEmpty;
+
+  factory ShortsSlotRow.fromMap(Map<String, dynamic> m) => ShortsSlotRow(
+        id: m['id'],
+        slotDate: DateTime.parse(m['slot_date']),
+        cat: m['cat'] ?? 'fire',
+        title: m['title'] ?? '',
+        hook: m['hook'],
+        src: m['src'],
+        url: m['url'],
+        prio: (m['prio'] ?? '4').toString(),
+        done: m['done'] == true,
+        memo: m['memo'],
+      );
+}
