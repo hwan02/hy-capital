@@ -18,6 +18,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
+import 'visit_screen.dart';
+import 'package:go_router/go_router.dart';
 
 const _sky = AppColors.sky;
 
@@ -281,6 +283,10 @@ class _ComplexCardState extends ConsumerState<_ComplexCard> {
                   const Color(0xFF14B8A6)),
             ]),
 
+            const Gap(16),
+            // 임장 — 단지에 붙는다. 매물이 없어도 간다.
+            _VisitSection(complex: widget.complex),
+
             const Gap(14),
             Align(
               alignment: Alignment.centerRight,
@@ -416,4 +422,91 @@ class _ComplexCardState extends ConsumerState<_ComplexCard> {
           ],
         ),
       );
+}
+
+
+/// 단지 카드 안의 임장 요약 + 시작 버튼.
+class _VisitSection extends ConsumerWidget {
+  final Complex complex;
+  const _VisitSection({required this.complex});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all = ref.watch(visitsProvider).asData?.value ?? const {};
+    final list = all[complex.id] ?? const <Visit>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(children: [
+          Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(3))),
+          const Gap(7),
+          const Text('임장',
+              style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800)),
+          const Gap(8),
+          Text(list.isEmpty ? '아직 안 감' : '${list.length}회',
+              style: const TextStyle(
+                  color: AppColors.textFaint, fontSize: AppFont.caption)),
+          const Spacer(),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(
+                  fontSize: AppFont.label, fontWeight: FontWeight.w800),
+            ),
+            onPressed: () => startVisit(context, ref, complex),
+            icon: const Icon(Icons.directions_walk_rounded, size: 16),
+            label: const Text('임장 시작'),
+          ),
+        ]),
+        for (final v in list) ...[
+          const Gap(7),
+          InkWell(
+            onTap: () => context.go('/visit/${v.id}'),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                Icon(
+                    v.done
+                        ? Icons.check_circle_rounded
+                        : Icons.pending_rounded,
+                    size: 15,
+                    color: v.done ? AppColors.primary : AppColors.gold),
+                const Gap(9),
+                Expanded(
+                  child: Text(
+                      '${Dates.ymd(v.visitedAt)} · 확인 ${v.checkedCount}/6'
+                      '${v.photos.isEmpty ? '' : ' · 사진 ${v.photos.length}'}'
+                      '${v.heard.isEmpty ? '' : ' · 들은시세 ${v.heard.length}'}',
+                      style: const TextStyle(fontSize: AppFont.label)),
+                ),
+                Text(v.done ? '완료' : '진행 중',
+                    style: TextStyle(
+                        fontSize: AppFont.caption,
+                        fontWeight: FontWeight.w800,
+                        color:
+                            v.done ? AppColors.textFaint : AppColors.gold)),
+              ]),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
