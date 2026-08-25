@@ -83,10 +83,19 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
   /// 나가는 돈 — 실제로 냈는지 표시. 적어둔 것과 나간 것은 다르다.
   Future<void> _togglePaid(FlowEntry e) async {
     final now = !e.paid;
-    await ref.read(supabaseProvider).from('flow_entries').update({
-      'paid': now,
-      'paid_at': now ? DateTime.now().toIso8601String() : null,
-    }).eq('id', e.id);
+    try {
+      await ref.read(supabaseProvider).from('flow_entries').update({
+        'paid': now,
+        'paid_at': now ? DateTime.now().toIso8601String() : null,
+      }).eq('id', e.id);
+    } catch (err) {
+      // 체크가 조용히 안 먹으면 원인을 알 길이 없다 — 반드시 알린다.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장 실패 — $err')),
+      );
+      return;
+    }
     ref.invalidate(flowEntriesProvider);
   }
 
