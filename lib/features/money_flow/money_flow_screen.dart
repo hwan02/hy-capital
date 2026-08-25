@@ -289,8 +289,16 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                       const Gap(4),
                       Builder(builder: (context) {
                         final q = _query.trim().toLowerCase();
+                        // 날짜만으로 정렬하면 같은 날 항목끼리 순서가 매번
+                        // 달라진다(Dart sort 는 안정 정렬이 아니다).
+                        // 금액·id 까지 내려가 순서를 못박는다.
                         var ledger = [...manualIncome, ...expense]
-                          ..sort((a, b) => b.date.compareTo(a.date));
+                          ..sort((a, b) {
+                            final d = b.date.compareTo(a.date);
+                            if (d != 0) return d;
+                            final m = b.amount.compareTo(a.amount);
+                            return m != 0 ? m : a.id.compareTo(b.id);
+                          });
                         if (_unpaidOnly) {
                           ledger = ledger.where((e) => e.unpaid).toList();
                         }

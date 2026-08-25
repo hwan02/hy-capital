@@ -143,10 +143,13 @@ final aiReportsProvider = FutureProvider<List<AiReport>>((ref) async {
 final flowEntriesProvider = FutureProvider<List<FlowEntry>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   if (sb.auth.currentUser == null) return [];
+  // 같은 날짜가 많다. id 까지 정렬해야 매번 같은 순서로 온다 —
+  // 그러지 않으면 체크 한 번에 목록이 뒤섞인다.
   final rows = await sb
       .from('flow_entries')
       .select()
-      .order('entry_date', ascending: false);
+      .order('entry_date', ascending: false)
+      .order('id');
   return rows.map<FlowEntry>(FlowEntry.fromMap).toList();
 });
 
