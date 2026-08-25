@@ -726,6 +726,10 @@ class FlowEntry {
   final double amount;
   final String? memo;
 
+  /// 나가는 돈만 쓴다 — 실제로 입금(이체)했는지.
+  final bool paid;
+  final DateTime? paidAt;
+
   FlowEntry({
     required this.id,
     required this.date,
@@ -733,10 +737,15 @@ class FlowEntry {
     required this.label,
     required this.amount,
     this.memo,
+    this.paid = false,
+    this.paidAt,
   });
 
   bool get isIn => direction == '들어오는 돈';
   double get signed => isIn ? amount : -amount;
+
+  /// 아직 안 낸 지출. 들어오는 돈은 해당 없다.
+  bool get unpaid => !isIn && !paid;
 
   factory FlowEntry.fromMap(Map<String, dynamic> m) => FlowEntry(
         id: m['id'],
@@ -745,6 +754,8 @@ class FlowEntry {
         label: m['label'] ?? '',
         amount: _d(m['amount']),
         memo: m['memo'],
+        paid: m['paid'] == true,
+        paidAt: m['paid_at'] == null ? null : DateTime.parse(m['paid_at']),
       );
 }
 

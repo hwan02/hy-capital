@@ -27,6 +27,7 @@ class MoneyFlowScreen extends ConsumerStatefulWidget {
 class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
   DateTime? _month; // null = 전체
   String _query = '';
+  bool _unpaidOnly = false; // 아직 안 낸 지출만 보기
 
   static const _palette = [
     AppColors.primary, AppColors.sky, AppColors.gold, AppColors.rose,
@@ -76,6 +77,16 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
     } else {
       await sb.from('flow_entries').update(clean).eq('id', entry.id);
     }
+    ref.invalidate(flowEntriesProvider);
+  }
+
+  /// 나가는 돈 — 실제로 냈는지 표시. 적어둔 것과 나간 것은 다르다.
+  Future<void> _togglePaid(FlowEntry e) async {
+    final now = !e.paid;
+    await ref.read(supabaseProvider).from('flow_entries').update({
+      'paid': now,
+      'paid_at': now ? DateTime.now().toIso8601String() : null,
+    }).eq('id', e.id);
     ref.invalidate(flowEntriesProvider);
   }
 
@@ -206,6 +217,22 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                     ),
                   );
                 }),
+                // 아직 안 낸 지출 — 있을 때만.
+                Builder(builder: (context) {
+                  final unpaid = expense.where((e) => !e.paid).toList();
+                  // 필터가 켜져 있으면 0건이어도 남긴다 — 끌 곳이 없어진다.
+                  if (unpaid.isEmpty && !_unpaidOnly) return const Gap(16);
+                  final sum = unpaid.fold(0.0, (s, e) => s + e.amount);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _UnpaidBar(
+                      count: unpaid.length,
+                      amount: sum,
+                      only: _unpaidOnly,
+                      onToggle: () => setState(() => _unpaidOnly = !_unpaidOnly),
+                    ),
+                  );
+                }),
                 const Gap(16),
                 // 나가는 돈 — 현재 단계 기본세팅(계획) vs 이번 달 실제
                 const PhasePlanVsActual(),
@@ -253,8 +280,11 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                       const Gap(4),
                       Builder(builder: (context) {
                         final q = _query.trim().toLowerCase();
-                        final ledger = [...manualIncome, ...expense]
+                        var ledger = [...manualIncome, ...expense]
                           ..sort((a, b) => b.date.compareTo(a.date));
+                        if (_unpaidOnly) {
+                          ledger = ledger.where((e) => e.unpaid).toList();
+                        }
                         final shown = q.isEmpty
                             ? ledger
                             : ledger
@@ -265,9 +295,11 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                         if (shown.isEmpty) {
                           return EmptyState(
                               icon: Icons.receipt_long_rounded,
-                              message: _query.isEmpty
-                                  ? '거래를 추가하세요'
-                                  : "'$_query' 검색 결과 없음");
+                              message: _unpaidOnly
+                                  ? '안 낸 지출이 없습니다'
+                                  : _query.isEmpty
+                                      ? '거래를 추가하세요'
+                                      : "'$_query' 검색 결과 없음");
                         }
                         return Column(
                           children: [
@@ -276,6 +308,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                                 entry: e,
                                 onEdit: () => _addOrEdit(entry: e),
                                 onDelete: () => _delete(e),
+                                onTogglePaid: () => _togglePaid(e),
                               ),
                           ],
                         );
@@ -520,19 +553,87 @@ class _MonthlyFlowBars extends StatelessWidget {
   }
 }
 
+/// 아직 안 낸 지출 요약. 「미납만 보기」로 목록을 좁힌다.
+class _UnpaidBar extends StatelessWidget {
+  final int count;
+  final double amount;
+  final bool only;
+  final VoidCallback onToggle;
+  const _UnpaidBar({
+    required this.count,
+    required this.amount,
+    required this.only,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      accent: AppColors.rose,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.rose.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.schedule_send_rounded,
+                size: 17, color: AppColors.rose),
+          ),
+          const Gap(11),
+          const Expanded(
+            child: Text('아직 안 낸 지출',
+                style: TextStyle(
+                    fontSize: AppFont.body,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.rose)),
+          ),
+          Text('$count건 · ${Won.compact(amount)}원',
+              style: const TextStyle(
+                  fontSize: AppFont.body, fontWeight: FontWeight.w900)),
+          const Gap(10),
+          TextButton(
+            onPressed: onToggle,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              foregroundColor: only ? AppColors.rose : AppColors.textSecondary,
+            ),
+            child: Text(only ? '전체 보기' : '미납만',
+                style: const TextStyle(
+                    fontSize: AppFont.label, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EntryRow extends StatelessWidget {
   final FlowEntry entry;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _EntryRow(
-      {required this.entry, required this.onEdit, required this.onDelete});
+
+  /// 나가는 돈에만 쓴다 — 입금 완료 토글.
+  final VoidCallback onTogglePaid;
+
+  const _EntryRow({
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTogglePaid,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isIn = entry.isIn;
     final color = isIn ? AppColors.gold : AppColors.sky;
+    // 낸 것은 한 톤 죽인다 — 남은 것(미납)이 눈에 먼저 들어와야 한다.
+    final done = !isIn && entry.paid;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           SizedBox(
@@ -542,11 +643,29 @@ class _EntryRow extends StatelessWidget {
                     color: AppColors.textSecondary, fontSize: AppFont.label)),
           ),
           const Gap(8),
-          Container(
-            width: 8, height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const Gap(10),
+          if (isIn) ...[
+            Container(
+              width: 8, height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const Gap(10),
+          ] else
+            // 나가는 돈 — 실제로 냈는지 체크
+            Tooltip(
+              message: entry.paid ? '입금 완료 (눌러서 취소)' : '입금했으면 체크',
+              child: SizedBox(
+                width: 34,
+                height: 34,
+                child: Checkbox(
+                  value: entry.paid,
+                  onChanged: (_) => onTogglePaid(),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  activeColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.border, width: 1.6),
+                ),
+              ),
+            ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +673,12 @@ class _EntryRow extends StatelessWidget {
                 Text(entry.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFont.body)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: AppFont.body,
+                        color: done
+                            ? AppColors.textSecondary
+                            : AppColors.textPrimary)),
                 if (entry.memo?.isNotEmpty == true) ...[
                   const Gap(2),
                   Text(entry.memo!,
@@ -566,9 +690,15 @@ class _EntryRow extends StatelessWidget {
               ],
             ),
           ),
+          if (entry.unpaid) ...[
+            const Pill('미납', color: AppColors.rose),
+            const Gap(8),
+          ],
           Text('${isIn ? '+' : '-'}${Won.compact(entry.amount)}원',
               style: TextStyle(
-                  color: isIn ? AppColors.primary : AppColors.rose,
+                  color: isIn
+                      ? AppColors.primary
+                      : (done ? AppColors.textFaint : AppColors.rose),
                   fontWeight: FontWeight.w800,
                   fontSize: AppFont.body)),
           RecordMenu(onEdit: onEdit, onDelete: onDelete),
