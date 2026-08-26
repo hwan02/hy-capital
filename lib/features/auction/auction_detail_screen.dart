@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
+import 'progress.dart' show kStatusOptions;
 import 'auction_checklist.dart';
 import '../property/inherit.dart';
 
@@ -573,16 +574,8 @@ class _CalcTabState extends State<_CalcTab> {
   final _reasonC = TextEditingController(); // 판단 근거
   final _reviewC = TextEditingController();  // 원인분석(회고)
 
-  // 진행 상태 옵션 (auction_screen 의 _statusLabel 과 동일 체계).
-  static const _statuses = <(String, String, Color)>[
-    ('interest', '관심', AppColors.sky),
-    ('researching', '조사중', AppColors.gold),
-    ('visited', '현장방문', _teal),
-    ('bidding', '입찰예정', AppColors.violet),
-    ('won', '낙찰', AppColors.primary),
-    ('sold', '매각완료', AppColors.textFaint),
-    ('pass', 'PASS', AppColors.rose),
-  ];
+  // 진행 상태 옵션 — progress.dart 의 9단계 + 종료 상태.
+  static final _statuses = kStatusOptions;
 
   @override
   void initState() {

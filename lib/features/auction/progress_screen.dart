@@ -42,6 +42,12 @@ List<_Due> _duesOf(AuctionProperty p) {
   if (p.evictDue != null && idx <= stageIndex('evicting')) {
     out.add(_Due(p, '명도', p.evictDue!, AppColors.violet));
   }
+  if (p.repairDue != null && idx <= stageIndex('repairing')) {
+    out.add(_Due(p, '수리', p.repairDue!, const Color(0xFFF59E0B)));
+  }
+  if (p.exitDue != null && idx <= stageIndex('exiting')) {
+    out.add(_Due(p, '출구', p.exitDue!, const Color(0xFF6366F1)));
+  }
   return out;
 }
 
@@ -456,9 +462,10 @@ class _ProgressCardState extends State<_ProgressCard> {
     final stage = stageOf(p.status);
     if (stage == null) return const SizedBox.shrink();
 
-    final pending = pendingTasks(stage, p.checklist);
-    final done = stage.tasks.length - pending.length;
-    final ratio = stageProgress(stage, p.checklist);
+    final pending = pendingTasks(stage, p.checklist, p.strategy);
+    final all = tasksFor(stage, p.strategy);
+    final done = all.length - pending.length;
+    final ratio = stageProgress(stage, p.checklist, p.strategy);
     final idx = stageIndex(p.status);
     final next = idx + 1 < kStages.length ? kStages[idx + 1] : null;
     final dues = _duesOf(p);
@@ -571,7 +578,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                         horizontal: 14, vertical: 9),
                   ),
                   onPressed: () => widget.onNext('sold'),
-                  child: const Text('매도 완료',
+                  child: const Text('물건 종료',
                       style: TextStyle(
                           fontSize: AppFont.label,
                           fontWeight: FontWeight.w800)),
@@ -618,7 +625,8 @@ class _ProgressCardState extends State<_ProgressCard> {
           ],
 
           // 날짜 채우기 — 단계에 맞는 것만 노출한다
-          if (p.status == 'won' || p.status == 'evicting') ...[
+          if (const {'won', 'evicting', 'repairing', 'exiting', 'settling'}
+              .contains(p.status)) ...[
             const Gap(10),
             const Divider(height: 1, color: AppColors.border),
             const Gap(10),
@@ -632,14 +640,29 @@ class _ProgressCardState extends State<_ProgressCard> {
                     label: '잔금 기한',
                     value: p.balanceDue,
                     urgent: true,
-                    onTap: () =>
-                        widget.onDate('balance_due', p.balanceDue)),
+                    onTap: () => widget.onDate('balance_due', p.balanceDue)),
               ],
               if (p.status == 'evicting')
                 _DateButton(
                     label: '명도 목표일',
                     value: p.evictDue,
                     onTap: () => widget.onDate('evict_due', p.evictDue)),
+              if (p.status == 'repairing')
+                _DateButton(
+                    label: '수리 완료 목표',
+                    value: p.repairDue,
+                    onTap: () => widget.onDate('repair_due', p.repairDue)),
+              if (p.status == 'exiting')
+                _DateButton(
+                    label: '출구 목표일',
+                    value: p.exitDue,
+                    urgent: true,
+                    onTap: () => widget.onDate('exit_due', p.exitDue)),
+              if (p.status == 'settling')
+                _DateButton(
+                    label: '매도·세팅 완료일',
+                    value: p.soldDate,
+                    onTap: () => widget.onDate('sold_date', p.soldDate)),
             ]),
           ],
         ],

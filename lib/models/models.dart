@@ -275,6 +275,8 @@ class AuctionProperty {
   final DateTime? wonDate; // 낙찰일
   final DateTime? balanceDue; // 잔금 납부 기한 — 넘기면 보증금 몰수
   final DateTime? evictDue; // 명도 목표일 / 합의 이사일
+  final DateTime? repairDue; // 수리 완료 목표일
+  final DateTime? exitDue; // 매도·전세 세팅 목표일
   final DateTime? soldDate; // 매도·전세 세팅 완료일
 
   AuctionProperty({
@@ -319,6 +321,8 @@ class AuctionProperty {
     this.wonDate,
     this.balanceDue,
     this.evictDue,
+    this.repairDue,
+    this.exitDue,
     this.soldDate,
   });
 
@@ -451,6 +455,8 @@ class AuctionProperty {
         wonDate: _date(m['won_date']),
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),
+        repairDue: _date(m['repair_due']),
+        exitDue: _date(m['exit_due']),
         soldDate: _date(m['sold_date']),
       );
 

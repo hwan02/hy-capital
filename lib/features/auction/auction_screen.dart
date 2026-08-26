@@ -15,7 +15,8 @@ import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
-import 'progress.dart' show kProgressAccent;
+import 'progress.dart'
+    show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
@@ -264,24 +265,10 @@ class _PasteDialogState extends State<_PasteDialog> {
       );
 }
 
-const _statusLabel = {
-  'interest': '관심',
-  'researching': '조사중',
-  'visited': '현장방문',
-  'bidding': '입찰예정',
-  'won': '낙찰',
-  'sold': '매각완료',
-  'pass': 'PASS',
-};
-const _statusColor = {
-  'interest': AppColors.sky,
-  'researching': AppColors.gold,
-  'visited': _teal,
-  'bidding': AppColors.violet,
-  'won': AppColors.primary,
-  'sold': AppColors.textFaint,
-  'pass': AppColors.rose,
-};
+// 상태 이름·색은 «progress.dart 가 유일한 출처»다.
+// 단계를 늘렸는데 여기 안 고쳐서 어긋나는 일을 막는다.
+final _statusLabel = kStatusLabel;
+final _statusColor = kStatusColor;
 
 Color _verdictColor(String v) => switch (v) {
       'GO' => AppColors.primary,
@@ -539,13 +526,7 @@ class _FilterChips extends StatelessWidget {
       ('sim', '모의'),
       ('real', '실제'),
       ('GO', 'GO만'),
-      ('interest', '관심'),
-      ('researching', '조사중'),
-      ('visited', '현장방문'),
-      ('bidding', '입찰예정'),
-      ('won', '낙찰'),
-      ('sold', '매각완료'),
-      ('pass', 'PASS'),
+      for (final (k, label, _) in kStatusOptions) (k, label),
       ('excluded', '제외됨'),
     ];
     return Wrap(
