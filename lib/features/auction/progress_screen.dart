@@ -60,7 +60,6 @@ class ProgressView extends ConsumerStatefulWidget {
 
 class _ProgressViewState extends ConsumerState<ProgressView> {
   String? _only; // 선택한 단계 status. null = 전체
-  bool _guide = false; // 단계 안내 펼침
 
   Future<void> _setStatus(AuctionProperty p, String status) async {
     await ref
@@ -158,12 +157,22 @@ class _ProgressViewState extends ConsumerState<ProgressView> {
             ),
             const Gap(10),
 
-            // ── 순서 안내 ───────────────────────────────────
-            _GuideCard(
-              open: _guide,
-              onToggle: () => setState(() => _guide = !_guide),
-            ),
-            const Gap(16),
+            // ── 이 단계를 «어떻게» 하나 ────────────────────
+            // 위 막대가 이미 순서를 보여준다. 여기서는 «방법»을 준다.
+            if (_only != null) ...[
+              const Gap(6),
+              _HowCard(stage: stageOf(_only!)!),
+              const Gap(16),
+            ] else ...[
+              const Gap(4),
+              const Padding(
+                padding: EdgeInsets.only(left: 2, bottom: 12),
+                child: Text('단계를 누르면 그 단계를 «어떻게» 하는지 나온다',
+                    style: TextStyle(
+                        fontSize: AppFont.caption,
+                        color: AppColors.textFaint)),
+              ),
+            ],
 
             if (shown.isEmpty)
               EmptyState(
@@ -344,85 +353,96 @@ class _StageBar extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-// 순서 안내 — 이 앱을 처음 쓰거나 순서를 잊었을 때
+// 이 단계를 어떻게 하나 — 방법
 // ══════════════════════════════════════════════════════════
 
-class _GuideCard extends StatelessWidget {
-  final bool open;
-  final VoidCallback onToggle;
-  const _GuideCard({required this.open, required this.onToggle});
+class _HowCard extends StatelessWidget {
+  final Stage stage;
+  const _HowCard({required this.stage});
 
   @override
   Widget build(BuildContext context) {
+    final n = stageIndex(stage.status) + 1;
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      onTap: onToggle,
+      accent: stage.color,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.menu_book_rounded,
-                size: 16, color: AppColors.textFaint),
-            const Gap(9),
-            const Expanded(
-              child: Text('경매는 이 순서로 간다',
-                  style: TextStyle(
-                      fontSize: AppFont.label,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary)),
-            ),
-            Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                size: 18, color: AppColors.textFaint),
-          ]),
-          if (open) ...[
-            const Gap(12),
-            for (var i = 0; i < kStages.length; i++) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: kStages[i].color.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text('${i + 1}',
-                        style: TextStyle(
-                            color: kStages[i].color,
-                            fontSize: AppFont.micro,
-                            fontWeight: FontWeight.w900)),
-                  ),
-                  const Gap(10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(kStages[i].label,
-                            style: TextStyle(
-                                fontSize: AppFont.label,
-                                fontWeight: FontWeight.w800,
-                                color: kStages[i].color)),
-                        const Gap(2),
-                        Text(kStages[i].goal,
-                            style: const TextStyle(
-                                fontSize: AppFont.caption,
-                                color: AppColors.textSecondary,
-                                height: 1.45)),
-                      ],
-                    ),
-                  ),
-                ]),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: stage.color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(9),
               ),
+              child: Icon(stage.icon, size: 16, color: stage.color),
+            ),
+            const Gap(11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$n. ${stage.label} — 어떻게 하나',
+                      style: TextStyle(
+                          fontSize: AppFont.section,
+                          fontWeight: FontWeight.w800,
+                          color: stage.color)),
+                  const Gap(3),
+                  Text(stage.goal,
+                      style: const TextStyle(
+                          fontSize: AppFont.caption,
+                          color: AppColors.textSecondary,
+                          height: 1.45)),
+                ],
+              ),
+            ),
+          ]),
+          if (stage.how.isNotEmpty) ...[
+            const Gap(14),
+            for (var i = 0; i < stage.how.length; i++) ...[
+              if (i > 0) ...[
+                const Gap(12),
+                const Divider(height: 1, color: AppColors.border),
+                const Gap(12),
+              ],
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 18,
+                  height: 18,
+                  margin: const EdgeInsets.only(top: 2),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: stage.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text('${i + 1}',
+                      style: TextStyle(
+                          color: stage.color,
+                          fontSize: AppFont.micro,
+                          fontWeight: FontWeight.w900)),
+                ),
+                const Gap(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(stage.how[i].title,
+                          style: const TextStyle(
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w800,
+                              height: 1.4)),
+                      const Gap(5),
+                      Text(stage.how[i].body,
+                          style: const TextStyle(
+                              fontSize: AppFont.label,
+                              color: AppColors.textSecondary,
+                              height: 1.65)),
+                    ],
+                  ),
+                ),
+              ]),
             ],
-            const Gap(8),
-            const Text(
-                '각 단계의 할 일은 물건 카드에서 체크한다. 다 체크하면 다음 단계로 넘어간다.',
-                style: TextStyle(
-                    fontSize: AppFont.caption,
-                    color: AppColors.textFaint,
-                    height: 1.5)),
           ],
         ],
       ),
