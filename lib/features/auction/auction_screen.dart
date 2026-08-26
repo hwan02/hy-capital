@@ -15,6 +15,8 @@ import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
+import 'progress.dart' show kProgressAccent;
+import 'progress_screen.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
@@ -296,7 +298,8 @@ class AuctionScreen extends ConsumerStatefulWidget {
 
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
-  int _tab = 0; // 0=매물 · 1=단지·시세 · 2=기준 · 3=자료실 · 4=강의 질문
+  // 0=매물 · 1=진행 · 2=단지·시세 · 3=기준 · 4=자료실 · 5=강의 질문
+  int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -310,14 +313,15 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
       icon: Icons.location_city_rounded,
       color: switch (_tab) {
         0 => _teal,
-        1 => AppColors.sky,
-        2 => amber,
+        1 => kProgressAccent,
+        2 => AppColors.sky,
         3 => amber,
+        4 => amber,
         _ => orange
       },
       action: switch (_tab) {
         0 => AddButton(color: _teal, onTap: () => _quickAdd(context, ref)),
-        1 => Row(mainAxisSize: MainAxisSize.min, children: [
+        2 => Row(mainAxisSize: MainAxisSize.min, children: [
               AddButton(
                   color: AppColors.violet,
                   label: '구역',
@@ -328,7 +332,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   label: '단지',
                   onTap: () => editBuiltinRecord(context, ref, complexSpec)),
             ]),
-        3 => const KnowledgeActions(),
+        4 => const KnowledgeActions(),
         _ => null,
       },
       children: [
@@ -341,35 +345,42 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               selected: _tab == 0,
               onTap: () => setState(() => _tab = 0)),
           ModuleTab(
+              label: '진행',
+              icon: Icons.timeline_rounded,
+              color: kProgressAccent,
+              selected: _tab == 1,
+              onTap: () => setState(() => _tab = 1)),
+          ModuleTab(
               label: '단지·시세',
               icon: Icons.domain_rounded,
               color: AppColors.sky,
-              selected: _tab == 1,
-              onTap: () => setState(() => _tab = 1)),
+              selected: _tab == 2,
+              onTap: () => setState(() => _tab = 2)),
           ModuleTab(
               label: '기준',
               icon: Icons.rule_rounded,
               color: amber,
-              selected: _tab == 2,
-              onTap: () => setState(() => _tab = 2)),
+              selected: _tab == 3,
+              onTap: () => setState(() => _tab = 3)),
           ModuleTab(
               label: '자료실',
               icon: Icons.menu_book_rounded,
               color: amber,
-              selected: _tab == 3,
-              onTap: () => setState(() => _tab = 3)),
+              selected: _tab == 4,
+              onTap: () => setState(() => _tab = 4)),
           ModuleTab(
               label: '강의 질문',
               icon: Icons.live_help_rounded,
               color: orange,
-              selected: _tab == 4,
-              onTap: () => setState(() => _tab = 4)),
+              selected: _tab == 5,
+              onTap: () => setState(() => _tab = 5)),
         ]),
         const Gap(18),
-        if (_tab == 4) const LectureQuestionsView(),
-        if (_tab == 3) const KnowledgeView(excludeTag: '에어비앤비'),
-        if (_tab == 2) const CriteriaView(),
-        if (_tab == 1) const SurveyView(),
+        if (_tab == 5) const LectureQuestionsView(),
+        if (_tab == 4) const KnowledgeView(excludeTag: '에어비앤비'),
+        if (_tab == 3) const CriteriaView(),
+        if (_tab == 2) const SurveyView(),
+        if (_tab == 1) const ProgressView(),
         if (_tab == 0)
           async.when(
           loading: AsyncStatus.loading,

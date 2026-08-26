@@ -119,21 +119,49 @@ def build(token, today):
     if s_lines:
         lines.append(('🎬 Shorts', s_lines))
 
-    # ── 부동산: 입찰일이 다가오는 매물 ──────────────────────
-    props = get('/rest/v1/auction_properties?select=title,bid_date,min_price,'
-                'deposit,acquisition&order=bid_date', token)
+    # ── 부동산: 지켜야 할 날짜 ──────────────────────────────
+    # 입찰일뿐 아니라 «잔금»과 «명도»도 본다.
+    # 잔금 기한을 넘기면 입찰보증금을 몰수당한다 — 제일 무서운 날짜라
+    # 더 일찍(D-21)부터, 지난 것도 계속 알린다.
+    props = get('/rest/v1/auction_properties?select=title,status,bid_date,'
+                'balance_due,evict_due,min_price,deposit,acquisition,excluded'
+                '&order=bid_date', token)
+    d0 = datetime.date.fromisoformat(today)
     p_lines = []
     for r in props:
-        if not r.get('bid_date'):
+        if r.get('excluded') or r.get('status') in ('sold', 'pass'):
             continue
-        d = (datetime.datetime.fromisoformat(
-            r['bid_date'].replace('Z', '+00:00')).date()
-            - datetime.date.fromisoformat(today)).days
-        if 0 <= d <= 7:
-            dep = won(r.get('deposit') or (r.get('min_price') or 0) * 0.1)
-            tag = '오늘 입찰' if d == 0 else f'D-{d}'
-            p_lines.append(
-                f'⚖️ *{tag}* — {r["title"][:40]}' + (f' · 보증금 {dep}원' if dep else ''))
+
+        # 입찰 — D-7 이내
+        if r.get('bid_date'):
+            d = (datetime.datetime.fromisoformat(
+                r['bid_date'].replace('Z', '+00:00')).date() - d0).days
+            if 0 <= d <= 7:
+                dep = won(r.get('deposit') or (r.get('min_price') or 0) * 0.1)
+                tag = '오늘 입찰' if d == 0 else f'D-{d}'
+                p_lines.append(f'⚖️ *{tag}* — {r["title"][:40]}'
+                               + (f' · 보증금 {dep}원' if dep else ''))
+
+        # 잔금 — D-21 이내 + 기한 지난 것
+        if r.get('balance_due'):
+            d = (datetime.date.fromisoformat(r['balance_due']) - d0).days
+            if d < 0:
+                p_lines.append(
+                    f'🚨 *잔금 기한 {-d}일 지남* — {r["title"][:40]} · 보증금 몰수 위험')
+            elif d <= 21:
+                tag = '오늘이 잔금 기한' if d == 0 else f'잔금 D-{d}'
+                p_lines.append(f'💳 *{tag}* — {r["title"][:40]}')
+
+        # 명도 — D-7 이내 + 지난 것
+        if r.get('evict_due'):
+            d = (datetime.date.fromisoformat(r['evict_due']) - d0).days
+            if d < 0:
+                p_lines.append(
+                    f'🔑 명도 목표일 {-d}일 지남 — {r["title"][:40]}')
+            elif d <= 7:
+                tag = '오늘 명도' if d == 0 else f'명도 D-{d}'
+                p_lines.append(f'🔑 {tag} — {r["title"][:40]}')
+
     if p_lines:
         lines.append(('🏠 부동산', p_lines))
 

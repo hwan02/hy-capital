@@ -271,6 +271,12 @@ class AuctionProperty {
   final bool alertEnabled; // 매각기일 알림 받기 (D-3·2·1)
   final bool excluded; // 목록에서 제외(삭제 아님)
 
+  // ── 진행 일정 ──────────────────────────────────────────
+  final DateTime? wonDate; // 낙찰일
+  final DateTime? balanceDue; // 잔금 납부 기한 — 넘기면 보증금 몰수
+  final DateTime? evictDue; // 명도 목표일 / 합의 이사일
+  final DateTime? soldDate; // 매도·전세 세팅 완료일
+
   AuctionProperty({
     required this.id,
     required this.title,
@@ -310,6 +316,10 @@ class AuctionProperty {
     this.review,
     this.alertEnabled = false,
     this.excluded = false,
+    this.wonDate,
+    this.balanceDue,
+    this.evictDue,
+    this.soldDate,
   });
 
   /// 급매(일반 매매)인가. 경매와 계산 틀은 같고 이름만 다르다 —
@@ -438,6 +448,10 @@ class AuctionProperty {
         review: m['review'],
         alertEnabled: m['alert_enabled'] == true,
         excluded: m['excluded'] == true,
+        wonDate: _date(m['won_date']),
+        balanceDue: _date(m['balance_due']),
+        evictDue: _date(m['evict_due']),
+        soldDate: _date(m['sold_date']),
       );
 
   /// 모의투자인가 (기본값 모의).
