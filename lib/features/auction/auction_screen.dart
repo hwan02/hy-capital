@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
+import 'auction_calculator.dart';
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
@@ -304,7 +305,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         2 => AppColors.sky,
         3 => amber,
         4 => amber,
-        _ => orange
+        5 => orange,
+        _ => AppColors.gold
       },
       action: switch (_tab) {
         0 => AddButton(color: _teal, onTap: () => _quickAdd(context, ref)),
@@ -361,8 +363,15 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: orange,
               selected: _tab == 5,
               onTap: () => setState(() => _tab = 5)),
+          ModuleTab(
+              label: '계산기',
+              icon: Icons.calculate_rounded,
+              color: AppColors.gold,
+              selected: _tab == 6,
+              onTap: () => setState(() => _tab = 6)),
         ]),
         const Gap(18),
+        if (_tab == 6) const AuctionCalculator(),
         if (_tab == 5) const LectureQuestionsView(),
         if (_tab == 4) const KnowledgeView(excludeTag: '에어비앤비'),
         if (_tab == 3) const CriteriaView(),
