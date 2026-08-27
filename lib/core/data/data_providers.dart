@@ -612,6 +612,13 @@ final zonesProvider = FutureProvider<List<Zone>>((ref) async {
   return rows.map<Zone>(Zone.fromMap).toList();
 });
 
+final calcRecordsProvider = FutureProvider<List<CalcRecord>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows =
+      await sb.from('calc_records').select().order('created_at', ascending: false);
+  return rows.map<CalcRecord>(CalcRecord.fromMap).toList();
+});
+
 /// 단지.
 final complexesProvider = FutureProvider<List<Complex>>((ref) async {
   final sb = ref.watch(supabaseProvider);

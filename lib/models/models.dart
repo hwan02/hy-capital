@@ -470,6 +470,27 @@ class AuctionProperty {
   double get bidGap => actualPrice > 0 ? bidPrice - actualPrice : 0;
 }
 
+/// 경매 계산기 이력 — 입력값 전체를 inputs(jsonb)로 저장.
+class CalcRecord {
+  final String id;
+  final String label;
+  final Map<String, dynamic> inputs;
+  final DateTime createdAt;
+  CalcRecord({
+    required this.id,
+    required this.label,
+    required this.inputs,
+    required this.createdAt,
+  });
+  double num_(String k) => (inputs[k] as num?)?.toDouble() ?? 0;
+  factory CalcRecord.fromMap(Map<String, dynamic> m) => CalcRecord(
+        id: m['id'],
+        label: m['label'] ?? '',
+        inputs: (m['inputs'] as Map?)?.cast<String, dynamic>() ?? const {},
+        createdAt: DateTime.parse(m['created_at']),
+      );
+}
+
 class DividendHolding {
   final String id;
   final String ticker;
