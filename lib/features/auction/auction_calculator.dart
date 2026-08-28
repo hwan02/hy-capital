@@ -8,6 +8,7 @@ import '../../core/format/formatters.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
+import '../../core/widgets/module_page.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
 
@@ -184,10 +185,9 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SectionHeader('초기투자비'),
             const Gap(14),
-            Wrap(spacing: 10, runSpacing: 10, children: [
+            ResponsiveGrid(minTileWidth: 150, spacing: 10, children: [
               _money('낙찰가', bid, (v) => setState(() => bid = v)),
               _pct('은행대출 비율', loanPct, (v) => setState(() => loanPct = v)),
-              _money('입찰보증금', deposit, (v) => setState(() => deposit = v)),
               _pct('취득세율', acqPct, (v) => setState(() => acqPct = v)),
               _money('법무비용', legal, (v) => setState(() => legal = v)),
               _money('인수 보증금', takeover, (v) => setState(() => takeover = v)),
@@ -197,6 +197,7 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
               _money('중개비', agent, (v) => setState(() => agent = v)),
             ]),
             const Gap(14),
+            _calc('입찰보증금 (낙찰가 10%)', bid * 0.1),
             _calc('은행대출', loan),
             _calc('취득세', acqTax),
             _calc('총비용', costTotal),
@@ -310,7 +311,7 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
           Text(title, style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
         ]),
         const Gap(12),
-        Wrap(spacing: 10, runSpacing: 10, children: inputs),
+        ResponsiveGrid(minTileWidth: 150, spacing: 10, children: inputs),
         const Gap(12),
         for (final (l, v, s) in rows) _calc(l, v, strong: s, color: s ? color : null),
         const Gap(6),
@@ -329,24 +330,26 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
   }
 
   Widget _money(String label, double value, ValueChanged<double> onChanged) =>
-      SizedBox(
-        width: 160,
-        child: MoneyField(
-            key: ValueKey('$label-$_revision'),
-            label: label, initial: value, accent: AppColors.gold, onChanged: onChanged),
-      );
+      MoneyField(
+          key: ValueKey('$label-$_revision'),
+          label: label,
+          initial: value,
+          accent: AppColors.gold,
+          onChanged: onChanged);
 
   Widget _pct(String label, double value, ValueChanged<double> onChanged) =>
-      SizedBox(
-        width: 110,
-        child: TextFormField(
-          key: ValueKey('$label-$_revision'),
-          initialValue: value == 0 ? '' : (value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toString()),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-          decoration: InputDecoration(labelText: label, isDense: true, suffixText: '%'),
-          onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
-        ),
+      TextFormField(
+        key: ValueKey('$label-$_revision'),
+        initialValue: value == 0
+            ? ''
+            : (value == value.roundToDouble()
+                ? value.toStringAsFixed(0)
+                : value.toString()),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+        decoration:
+            InputDecoration(labelText: label, isDense: true, suffixText: '%'),
+        onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
       );
 
   Widget _calc(String label, double value, {bool strong = false, Color? color}) =>
