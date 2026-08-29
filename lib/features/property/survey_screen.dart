@@ -36,7 +36,12 @@ PriceSource _srcOf(PriceSurvey? s, String label, String at) =>
     PriceSource(label: label, at: at);
 
 class SurveyView extends ConsumerStatefulWidget {
-  const SurveyView({super.key});
+  /// 지정 시 이 구역(zone id)의 단지만 보여준다. '__none__'이면 구역 없는 단지만.
+  final String? onlyZoneId;
+
+  /// 매물 탭 안에 얹혀서 쓰일 때 — 안내문·자치구칩 등 군더더기를 줄인다.
+  final bool embedded;
+  const SurveyView({super.key, this.onlyZoneId, this.embedded = false});
 
   @override
   ConsumerState<SurveyView> createState() => _SurveyViewState();
@@ -58,12 +63,29 @@ class _SurveyViewState extends ConsumerState<SurveyView> {
     return complexes.when(
       loading: AsyncStatus.loading,
       error: AsyncStatus.error,
-      data: (list) {
+      data: (all) {
+        // 구역 필터(매물 탭 임베드 시). null=전체, '__none__'=구역없음.
+        final list = widget.onlyZoneId == null
+            ? all
+            : [
+                for (final c in all)
+                  if (widget.onlyZoneId == '__none__'
+                      ? c.zoneId == null
+                      : c.zoneId == widget.onlyZoneId)
+                    c
+              ];
         if (list.isEmpty) {
-          return const EmptyState(
-            icon: Icons.domain_rounded,
-            message: '조사할 단지가 없어요.\n＋단지 로 추가하면 여기에 시세가 쌓입니다.',
-          );
+          return widget.embedded
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Text('이 구역에 등록된 단지가 없어요. ＋단지 로 추가하세요.',
+                      style: TextStyle(
+                          color: AppColors.textFaint, fontSize: AppFont.label)),
+                )
+              : const EmptyState(
+                  icon: Icons.domain_rounded,
+                  message: '조사할 단지가 없어요.\n＋단지 로 추가하면 여기에 시세가 쌓입니다.',
+                );
         }
         final byId = {for (final z in zones) z.id: z};
         final sv = surveys.asData?.value ?? const <String, PriceSurvey>{};
@@ -86,15 +108,17 @@ class _SurveyViewState extends ConsumerState<SurveyView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-                '한 단지를 한 번 조사하면 계속 쓴다. 매물이 나오면 시세를 여기서 가져간다.\n'
-                '책상 조사(네이버·실거래·KB)만으로도 결론이 나고, 부동산 칸은 임장에서 채워진다.',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: AppFont.label,
-                    height: 1.55)),
-            const Gap(14),
-            if (districts.length > 1) ...[
+            if (!widget.embedded) ...[
+              const Text(
+                  '한 단지를 한 번 조사하면 계속 쓴다. 매물이 나오면 시세를 여기서 가져간다.\n'
+                  '책상 조사(네이버·실거래·KB)만으로도 결론이 나고, 부동산 칸은 임장에서 채워진다.',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFont.label,
+                      height: 1.55)),
+              const Gap(14),
+            ],
+            if (!widget.embedded && districts.length > 1) ...[
               Wrap(spacing: 6, runSpacing: 6, children: [
                 _dChip('전체', list.length),
                 for (final d in districts) _dChip(d, counts[d]!),

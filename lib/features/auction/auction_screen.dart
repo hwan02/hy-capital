@@ -18,6 +18,7 @@ import 'auction_paste.dart';
 import 'auction_calculator.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
+import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
@@ -288,14 +289,56 @@ class AuctionScreen extends ConsumerStatefulWidget {
 
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
-  // 0=매물 · 1=진행 · 2=단지·시세 · 3=기준 · 4=자료실 · 5=강의 질문
+  String _zone = 'all'; // all | <zoneId> | __none__ (구역 필터)
+  // 0=매물·단지 · 1=진행 · 3=기준 · 4=자료실 · 5=강의 질문 · 6=계산기 · 7=세제 · 8=재개발절차
   int _tab = 0;
+
+  /// 물건이 속한 구역 — 소속 단지(complex.zoneId) 우선, 없으면 주소로 매칭.
+  Zone? _zoneOfProp(
+      AuctionProperty p, Map<String, Complex> cById, List<Zone> zones) {
+    final c = p.complexId == null ? null : cById[p.complexId];
+    if (c?.zoneId != null) {
+      for (final z in zones) {
+        if (z.id == c!.zoneId) return z;
+      }
+    }
+    return matchZoneForAddress(p.address, zones);
+  }
+
+  Widget _zoneChip(String key, String label, int n) {
+    final on = _zone == key;
+    return InkWell(
+      onTap: () => setState(() => _zone = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color:
+              on ? AppColors.violet.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: on ? AppColors.violet : AppColors.border,
+              width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text('$label $n',
+            style: TextStyle(
+                color: on ? AppColors.violet : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
     final surveys = ref.watch(latestSurveysProvider).asData?.value ??
         const <String, PriceSurvey>{};
+    final complexesList =
+        ref.watch(complexesProvider).asData?.value ?? const <Complex>[];
+    final zonesList =
+        ref.watch(zonesProvider).asData?.value ?? const <Zone>[];
+    final complexById = {for (final c in complexesList) c.id: c};
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
@@ -312,17 +355,21 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         _ => AppColors.violet
       },
       action: switch (_tab) {
-        0 => AddButton(color: _teal, onTap: () => _quickAdd(context, ref)),
-        2 => Row(mainAxisSize: MainAxisSize.min, children: [
+        0 => Row(mainAxisSize: MainAxisSize.min, children: [
               AddButton(
-                  color: AppColors.violet,
-                  label: '구역',
-                  onTap: () => editBuiltinRecord(context, ref, zoneSpec)),
+                  color: _teal,
+                  label: '매물',
+                  onTap: () => _quickAdd(context, ref)),
               const Gap(8),
               AddButton(
                   color: AppColors.sky,
                   label: '단지',
                   onTap: () => editBuiltinRecord(context, ref, complexSpec)),
+              const Gap(8),
+              AddButton(
+                  color: AppColors.violet,
+                  label: '구역',
+                  onTap: () => editBuiltinRecord(context, ref, zoneSpec)),
             ]),
         4 => const KnowledgeActions(),
         _ => null,
@@ -331,7 +378,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         // 물건 / 자료실 / 강의 질문 전환 (좁은 화면에서 줄바꿈)
         Wrap(spacing: 8, runSpacing: 8, children: [
           ModuleTab(
-              label: '매물',
+              label: '매물·단지',
               icon: Icons.gavel_rounded,
               color: _teal,
               selected: _tab == 0,
@@ -342,12 +389,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: kProgressAccent,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
-          ModuleTab(
-              label: '단지·시세',
-              icon: Icons.domain_rounded,
-              color: AppColors.sky,
-              selected: _tab == 2,
-              onTap: () => setState(() => _tab = 2)),
           ModuleTab(
               label: '기준',
               icon: Icons.rule_rounded,
@@ -392,7 +433,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         if (_tab == 5) const LectureQuestionsView(),
         if (_tab == 4) const KnowledgeView(excludeTag: '에어비앤비'),
         if (_tab == 3) const CriteriaView(),
-        if (_tab == 2) const SurveyView(),
         if (_tab == 1) const ProgressView(),
         if (_tab == 0)
           async.when(
@@ -441,9 +481,23 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 return da.compareTo(db);
               });
 
+            // 구역별 — 물건의 소속 구역(단지 우선, 없으면 주소 매칭)으로 집계·필터.
+            final zoneCount = <String, int>{};
+            final zoneName = <String, String>{};
+            for (final p in items.where((p) => !p.excluded)) {
+              final z = _zoneOfProp(p, complexById, zonesList);
+              final k = z?.id ?? '__none__';
+              zoneCount[k] = (zoneCount[k] ?? 0) + 1;
+              zoneName[k] = z?.name ?? '구역 없음';
+            }
+            String zoneKey(AuctionProperty p) =>
+                _zoneOfProp(p, complexById, zonesList)?.id ?? '__none__';
+
             // 예산으로 걸러내지 않는다 — 살 물건을 찾으면 자금을 맞추는 순서다.
             // 보증금·계약금은 «필요한 돈»으로 카드에 보여주기만 한다.
-            final filtered = byFilter;
+            final filtered = _zone == 'all'
+                ? byFilter
+                : byFilter.where((p) => zoneKey(p) == _zone).toList();
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -487,6 +541,16 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   ],
                 ),
                 const Gap(18),
+                if (zoneCount.length > 1) ...[
+                  Wrap(spacing: 6, runSpacing: 6, children: [
+                    _zoneChip('all', '전체 구역',
+                        items.where((p) => !p.excluded).length),
+                    for (final e in (zoneCount.entries.toList()
+                          ..sort((a, b) => b.value.compareTo(a.value))))
+                      _zoneChip(e.key, zoneName[e.key] ?? '구역', e.value),
+                  ]),
+                  const Gap(12),
+                ],
                 _FilterChips(
                   current: _filter,
                   onSelect: (f) => setState(() => _filter = f),
@@ -531,6 +595,21 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   ),
                   const Gap(14),
                 ],
+                // ── 단지 시세 (합친 뷰) — 선택 구역의 단지만 ──────────
+                const Gap(6),
+                Row(children: [
+                  const Icon(Icons.domain_rounded,
+                      size: 18, color: AppColors.sky),
+                  const Gap(7),
+                  Text(_zone == 'all' ? '단지 시세' : '이 구역 단지 시세',
+                      style: const TextStyle(
+                          fontSize: AppFont.section,
+                          fontWeight: FontWeight.w800)),
+                ]),
+                const Gap(12),
+                SurveyView(
+                    embedded: true,
+                    onlyZoneId: _zone == 'all' ? null : _zone),
               ],
             );
           },
