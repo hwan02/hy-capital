@@ -255,7 +255,9 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                     note: n,
                     keyword: kw,
                     onStar: () => _toggleStar(ref, n),
-                    onEdit: n.kind == 'note'
+                    onEdit: (n.kind == 'note' ||
+                            n.kind == 'qa' ||
+                            n.kind == 'article')
                         ? () => _noteDialog(context, ref, note: n)
                         : null,
                     onDelete: () => _delete(context, ref, n),
@@ -424,11 +426,13 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
     final b = TextEditingController(text: note?.body ?? '');
     final g = TextEditingController(
         text: note?.tags.join(', ') ?? (defaultTag ?? ''));
+    final isQa = note?.kind == 'qa';
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: Text(note == null ? '메모 추가' : '메모 수정',
+        title: Text(
+            note == null ? '메모 추가' : (isQa ? 'Q&A 수정' : '메모 수정'),
             style: const TextStyle(fontSize: AppFont.section)),
         content: SizedBox(
           width: 460,
@@ -437,13 +441,15 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
               TextField(
                   controller: t,
                   autofocus: true,
-                  decoration: const InputDecoration(labelText: '제목')),
+                  decoration:
+                      InputDecoration(labelText: isQa ? '질문' : '제목')),
               const Gap(10),
               TextField(
                   controller: b,
                   minLines: 4,
                   maxLines: 12,
-                  decoration: const InputDecoration(labelText: '내용')),
+                  decoration:
+                      InputDecoration(labelText: isQa ? '답변' : '내용')),
               const Gap(10),
               TextField(
                   controller: g,
@@ -472,11 +478,12 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
         .where((e) => e.isNotEmpty)
         .toList();
     final data = {
-      'kind': 'note',
+      // 기존 노트 수정 시 원래 kind/source 보존, 신규는 note/내 메모
+      'kind': note?.kind ?? 'note',
       'title': t.text.trim(),
       'body': b.text.trim(),
       'tags': tags,
-      'source': '내 메모',
+      if (note == null) 'source': '내 메모',
     };
     try {
       if (note == null) {
