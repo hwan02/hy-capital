@@ -14,6 +14,7 @@ import '../../core/widgets/module_page.dart';
 import '../../core/widgets/monthly_tracker.dart';
 import '../../models/models.dart';
 import 'shorts_calendar.dart';
+import 'shorts_coupang.dart';
 
 Map<String, dynamic> _channelToMap(ShortsChannel c) => {
       'name': c.name,
@@ -26,6 +27,7 @@ Map<String, dynamic> _channelToMap(ShortsChannel c) => {
     };
 
 const _insta = Color(0xFFE1306C);
+const _coupangC = Color(0xFFE94F37);
 
 /// 팔로워 수 표기 (1.2만 / 350만 / 8,500).
 String _followers(double v) {
@@ -54,9 +56,12 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     return ModulePage(
       title: 'Shorts',
       icon: Icons.play_circle_fill_rounded,
-      color: _tab == 0
-          ? AppColors.rose
-          : (_tab == 1 ? _insta : AppColors.gold),
+      color: switch (_tab) {
+        0 => AppColors.rose,
+        1 => _insta,
+        2 => AppColors.gold,
+        _ => _coupangC,
+      },
       action: _tab == 0
           ? AddButton(
               color: AppColors.rose,
@@ -67,35 +72,42 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
                   label: '롤모델',
                   onTap: () =>
                       editBuiltinRecord(context, ref, referenceAccountSpec))
-              : AddButton(
-                  color: AppColors.rose,
-                  label: '편성',
-                  onTap: () =>
-                      editBuiltinRecord(context, ref, shortsSlotSpec)),
+              : _tab == 2
+                  ? AddButton(
+                      color: AppColors.rose,
+                      label: '편성',
+                      onTap: () =>
+                          editBuiltinRecord(context, ref, shortsSlotSpec))
+                  : null,
       children: [
-        Row(children: [
+        Wrap(spacing: 8, runSpacing: 8, children: [
           _ShortsTab(
               label: '내 채널',
               icon: Icons.play_circle_fill_rounded,
               color: AppColors.rose,
               selected: _tab == 0,
               onTap: () => setState(() => _tab = 0)),
-          const Gap(8),
           _ShortsTab(
               label: '롤모델',
               icon: Icons.star_rounded,
               color: _insta,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
-          const Gap(8),
           _ShortsTab(
               label: '편성표',
               icon: Icons.calendar_month_rounded,
               color: AppColors.gold,
               selected: _tab == 2,
               onTap: () => setState(() => _tab = 2)),
+          _ShortsTab(
+              label: '쿠팡',
+              icon: Icons.shopping_bag_rounded,
+              color: _coupangC,
+              selected: _tab == 3,
+              onTap: () => setState(() => _tab = 3)),
         ]),
         const Gap(18),
+        if (_tab == 3) const CoupangGuide(),
         if (_tab == 2) const ShortsCalendar(),
         if (_tab == 1) const _RoleModelList(),
         if (_tab == 0)
