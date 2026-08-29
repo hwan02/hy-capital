@@ -619,6 +619,12 @@ final calcRecordsProvider = FutureProvider<List<CalcRecord>>((ref) async {
   return rows.map<CalcRecord>(CalcRecord.fromMap).toList();
 });
 
+final taxEventsProvider = FutureProvider<List<TaxEvent>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb.from('tax_events').select().order('event_date');
+  return rows.map<TaxEvent>(TaxEvent.fromMap).toList();
+});
+
 /// 단지.
 final complexesProvider = FutureProvider<List<Complex>>((ref) async {
   final sb = ref.watch(supabaseProvider);

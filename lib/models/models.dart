@@ -491,6 +491,35 @@ class CalcRecord {
       );
 }
 
+/// 부동산 세제·규제 타임라인 이벤트.
+class TaxEvent {
+  final String id;
+  final DateTime date;
+  final String title;
+  final String? description;
+  final String kind; // 세제 | 정비
+  final bool pending; // 국회 통과 전(확정 아님)
+  final String? source;
+  TaxEvent({
+    required this.id,
+    required this.date,
+    required this.title,
+    this.description,
+    this.kind = '세제',
+    this.pending = false,
+    this.source,
+  });
+  factory TaxEvent.fromMap(Map<String, dynamic> m) => TaxEvent(
+        id: m['id'],
+        date: DateTime.parse(m['event_date']),
+        title: m['title'] ?? '',
+        description: m['description'],
+        kind: m['kind'] ?? '세제',
+        pending: m['pending'] == true,
+        source: m['source'],
+      );
+}
+
 class DividendHolding {
   final String id;
   final String ticker;

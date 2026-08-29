@@ -1,52 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
+import '../../core/data/data_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
+import '../../models/models.dart';
 
-/// 부동산 세제·규제 일자별 타임라인 (시행일 기준).
-/// 2026 세제개편(8.3 발표)은 국회 통과 전 → '개편안' 배지.
-class _Item {
-  final DateTime date;
-  final String title;
-  final String desc;
-  final String kind; // 세제 · 정비
-  final bool pending; // 국회 통과 전(확정 아님)
-  const _Item(this.date, this.title, this.desc, this.kind,
-      {this.pending = false});
-}
-
-final _items = <_Item>[
-  _Item(DateTime(2020, 8, 12), '법인 주택 취득세 12% 중과',
-      '법인이 주택 취득 시 대부분 12%. 공시가 1억 이하 등은 예외.', '세제'),
-  _Item(DateTime(2026, 2, 27), '모아타운 조합설립 동의율 완화',
-      '소규모재건축 75%→70%, 소규모재개발 80%→75%.', '정비'),
-  _Item(DateTime(2026, 7, 10), '모아주택 심의기준 손질',
-      '준주거 상향·용적률 최대 500%·제2종 층수제한 폐지(중고층 가능).', '정비'),
-  _Item(DateTime(2026, 8, 18), '조합설립 기간 1년→4개월',
-      '추진위 조기구성 + 75%↑ 동의 시 병행 처리. 365일→120일.', '정비'),
-  _Item(DateTime(2026, 10, 1), '일시적 2주택 처분기간 3년→2년',
-      '조정대상지역. 2026 세제개편안.', '세제', pending: true),
-  _Item(DateTime(2027, 1, 1), '종부세 인상 + 양도세 공제 확대',
-      '고가·다주택 보유세↑ (1주택 공제 거주 14억/비거주 9억, 공정시장가액비율 60→70%·3주택+ 80%). '
-          '양도세: 10년 거주 1주택 기본공제 250만→2,500만.',
-      '세제',
-      pending: true),
-  _Item(DateTime(2028, 1, 1), '장기보유특별공제 «거주 중심» 개편',
-      '거주 연 8% + 보유 연 2%, 최대 80%. 보유공제 → 거주공제로 이동.', '세제', pending: true),
-];
-
+/// 부동산 세제·규제 일자별 타임라인 — DB(tax_events)에서 읽는다.
+const _teal = Color(0xFF14B8A6);
 Color _kindColor(String k) => k == '정비' ? _teal : AppColors.violet;
 
-const _teal = Color(0xFF14B8A6);
-
-class TaxTimeline extends StatelessWidget {
+class TaxTimeline extends ConsumerWidget {
   const TaxTimeline({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(taxEventsProvider);
     final now = DateTime.now();
-    final sorted = [..._items]..sort((a, b) => a.date.compareTo(b.date));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -58,13 +29,31 @@ class TaxTimeline extends StatelessWidget {
             style:
                 TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
         const Gap(16),
-        for (var i = 0; i < sorted.length; i++)
-          _row(sorted[i], now, first: i == 0, last: i == sorted.length - 1),
+        async.when(
+          loading: AsyncStatus.loading,
+          error: AsyncStatus.error,
+          data: (list) {
+            if (list.isEmpty) {
+              return const EmptyState(
+                  icon: Icons.receipt_long_rounded,
+                  message: '등록된 세제 항목이 없어요.\n(마이그레이션 0038 실행 필요)');
+            }
+            final sorted = [...list]..sort((a, b) => a.date.compareTo(b.date));
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < sorted.length; i++)
+                  _row(sorted[i], now,
+                      first: i == 0, last: i == sorted.length - 1),
+              ],
+            );
+          },
+        ),
         const Gap(10),
         _legend(),
         const Gap(8),
         const Text(
-          '※ 확정 아님(개편안)은 원문(기재부 보도자료)·세무사로 재확인. 규제지역 지정/해제·대출 규제는 자료실 참조. 자동 갱신 아님.',
+          '※ 확정 아님(개편안)은 원문(기재부 보도자료)·세무사로 재확인. 규제지역 지정/해제·대출 규제는 자료실 참조.',
           style: TextStyle(
               fontSize: AppFont.caption, color: AppColors.textFaint, height: 1.5),
         ),
@@ -72,16 +61,17 @@ class TaxTimeline extends StatelessWidget {
     );
   }
 
-  Widget _row(_Item it, DateTime now, {required bool first, required bool last}) {
+  Widget _row(TaxEvent it, DateTime now,
+      {required bool first, required bool last}) {
     final future = it.date.isAfter(now);
-    final dday = it.date.difference(DateTime(now.year, now.month, now.day)).inDays;
+    final dday =
+        it.date.difference(DateTime(now.year, now.month, now.day)).inDays;
     final c = _kindColor(it.kind);
     final nodeColor = future ? c : AppColors.textFaint;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 타임라인 축(선 + 노드)
           SizedBox(
             width: 20,
             child: Column(
@@ -108,7 +98,6 @@ class TaxTimeline extends StatelessWidget {
             ),
           ),
           const Gap(12),
-          // 카드
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -133,9 +122,7 @@ class TaxTimeline extends StatelessWidget {
                       ],
                       const Spacer(),
                       Text(
-                          future
-                              ? (dday == 0 ? '오늘' : 'D-$dday')
-                              : '시행',
+                          future ? (dday == 0 ? '오늘' : 'D-$dday') : '시행',
                           style: TextStyle(
                               fontSize: AppFont.caption,
                               fontWeight: FontWeight.w700,
@@ -149,12 +136,21 @@ class TaxTimeline extends StatelessWidget {
                             fontSize: AppFont.section,
                             fontWeight: FontWeight.w800,
                             height: 1.35)),
-                    const Gap(4),
-                    Text(it.desc,
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            color: AppColors.textSecondary,
-                            height: 1.5)),
+                    if ((it.description ?? '').isNotEmpty) ...[
+                      const Gap(4),
+                      Text(it.description!,
+                          style: const TextStyle(
+                              fontSize: AppFont.body,
+                              color: AppColors.textSecondary,
+                              height: 1.5)),
+                    ],
+                    if ((it.source ?? '').isNotEmpty) ...[
+                      const Gap(6),
+                      Text('출처: ${it.source}',
+                          style: const TextStyle(
+                              fontSize: AppFont.caption,
+                              color: AppColors.textFaint)),
+                    ],
                   ],
                 ),
               ),
@@ -165,22 +161,21 @@ class TaxTimeline extends StatelessWidget {
     );
   }
 
-  Widget _legend() => Row(children: [
+  Widget _legend() => Wrap(spacing: 14, runSpacing: 6, children: [
         _dot(_teal, '정비(모아타운·규제완화)'),
-        const Gap(14),
         _dot(AppColors.violet, '세제'),
-        const Gap(14),
         _dot(AppColors.gold, '개편안(국회 전)'),
       ]);
 
-  Widget _dot(Color c, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget _dot(Color c, String label) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
         Container(
             width: 9,
             height: 9,
             decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
         const Gap(6),
         Text(label,
-            style:
-                const TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
+            style: const TextStyle(
+                fontSize: AppFont.caption, color: AppColors.textFaint)),
       ]);
 }
