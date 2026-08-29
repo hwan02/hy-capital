@@ -17,6 +17,7 @@ import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
 import 'auction_calculator.dart';
 import 'tax_timeline.dart';
+import 'redevelopment_flow.dart';
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
@@ -377,8 +378,15 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: AppColors.violet,
               selected: _tab == 7,
               onTap: () => setState(() => _tab = 7)),
+          ModuleTab(
+              label: '재개발절차',
+              icon: Icons.account_tree_rounded,
+              color: AppColors.rose,
+              selected: _tab == 8,
+              onTap: () => setState(() => _tab = 8)),
         ]),
         const Gap(18),
+        if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const AuctionCalculator(),
         if (_tab == 5) const LectureQuestionsView(),
