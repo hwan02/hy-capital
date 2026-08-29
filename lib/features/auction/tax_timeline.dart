@@ -11,11 +11,18 @@ import '../../models/models.dart';
 const _teal = Color(0xFF14B8A6);
 Color _kindColor(String k) => k == '정비' ? _teal : AppColors.violet;
 
-class TaxTimeline extends ConsumerWidget {
+class TaxTimeline extends ConsumerStatefulWidget {
   const TaxTimeline({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TaxTimeline> createState() => _TaxTimelineState();
+}
+
+class _TaxTimelineState extends ConsumerState<TaxTimeline> {
+  String _filter = 'all'; // all | 세제 | 정비
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(taxEventsProvider);
     final now = DateTime.now();
     return Column(
@@ -28,7 +35,7 @@ class TaxTimeline extends ConsumerWidget {
         const Text('시행일 기준 · 2026 세제개편은 8.3 발표안(국회 통과 전 → 변동 가능)',
             style:
                 TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
-        const Gap(16),
+        const Gap(14),
         async.when(
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
@@ -38,13 +45,26 @@ class TaxTimeline extends ConsumerWidget {
                   icon: Icons.receipt_long_rounded,
                   message: '등록된 세제 항목이 없어요.\n(마이그레이션 0038 실행 필요)');
             }
-            final sorted = [...list]..sort((a, b) => a.date.compareTo(b.date));
+            final taxN = list.where((e) => e.kind != '정비').length;
+            final fixN = list.where((e) => e.kind == '정비').length;
+            final filtered = [
+              for (final e in list)
+                if (_filter == 'all' ||
+                    (_filter == '정비' ? e.kind == '정비' : e.kind != '정비'))
+                  e
+            ]..sort((a, b) => a.date.compareTo(b.date));
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var i = 0; i < sorted.length; i++)
-                  _row(sorted[i], now,
-                      first: i == 0, last: i == sorted.length - 1),
+                _filterBar(list.length, taxN, fixN),
+                const Gap(14),
+                if (filtered.isEmpty)
+                  const EmptyState(
+                      icon: Icons.filter_alt_off_rounded, message: '해당 항목이 없어요.')
+                else
+                  for (var i = 0; i < filtered.length; i++)
+                    _row(filtered[i], now,
+                        first: i == 0, last: i == filtered.length - 1),
               ],
             );
           },
@@ -58,6 +78,38 @@ class TaxTimeline extends ConsumerWidget {
               fontSize: AppFont.caption, color: AppColors.textFaint, height: 1.5),
         ),
       ],
+    );
+  }
+
+  Widget _filterBar(int all, int taxN, int fixN) => Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          _tab('all', '전체 $all', AppColors.gold),
+          _tab('세제', '세제 $taxN', AppColors.violet),
+          _tab('정비', '정비 $fixN', _teal),
+        ],
+      );
+
+  Widget _tab(String key, String label, Color c) {
+    final selected = _filter == key;
+    return InkWell(
+      onTap: () => setState(() => _filter = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: selected ? c : AppColors.border, width: selected ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? c : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w700)),
+      ),
     );
   }
 
