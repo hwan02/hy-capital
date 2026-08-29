@@ -18,6 +18,7 @@ import 'auction_paste.dart';
 import 'auction_calculator.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
+import 'moa_town_screen.dart';
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
@@ -352,6 +353,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         4 => amber,
         5 => orange,
         6 => AppColors.gold,
+        9 => AppColors.sky,
         _ => AppColors.violet
       },
       action: switch (_tab) {
@@ -425,8 +427,15 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: AppColors.rose,
               selected: _tab == 8,
               onTap: () => setState(() => _tab = 8)),
+          ModuleTab(
+              label: '모아타운',
+              icon: Icons.map_rounded,
+              color: AppColors.sky,
+              selected: _tab == 9,
+              onTap: () => setState(() => _tab = 9)),
         ]),
         const Gap(18),
+        if (_tab == 9) const MoaTownView(),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const AuctionCalculator(),
