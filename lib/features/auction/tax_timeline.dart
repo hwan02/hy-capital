@@ -52,7 +52,7 @@ class _TaxTimelineState extends ConsumerState<TaxTimeline> {
                 if (_filter == 'all' ||
                     (_filter == '정비' ? e.kind == '정비' : e.kind != '정비'))
                   e
-            ]..sort((a, b) => a.date.compareTo(b.date));
+            ]..sort((a, b) => b.date.compareTo(a.date)); // 최신이 위로
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
