@@ -270,6 +270,7 @@ class AuctionProperty {
   final String? review; // 원인분석(회고) — 내 입찰가 vs 낙찰가
   final bool alertEnabled; // 매각기일 알림 받기 (D-3·2·1)
   final bool excluded; // 목록에서 제외(삭제 아님)
+  final String? corpStatus; // 법인 취득세: ok(공시가1억↓·중과제외) | heavy(중과12%) | check(확인필요)
 
   // ── 진행 일정 ──────────────────────────────────────────
   final DateTime? wonDate; // 낙찰일
@@ -318,6 +319,7 @@ class AuctionProperty {
     this.review,
     this.alertEnabled = false,
     this.excluded = false,
+    this.corpStatus,
     this.wonDate,
     this.balanceDue,
     this.evictDue,
@@ -452,6 +454,7 @@ class AuctionProperty {
         review: m['review'],
         alertEnabled: m['alert_enabled'] == true,
         excluded: m['excluded'] == true,
+        corpStatus: m['corp_status'],
         wonDate: _date(m['won_date']),
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),

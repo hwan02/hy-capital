@@ -281,6 +281,19 @@ Color _verdictColor(String v) => switch (v) {
       _ => AppColors.gold,
     };
 
+String _corpLabel(String s) => switch (s) {
+      'ok' => '법인 가능',
+      'heavy' => '법인 중과',
+      'check' => '법인 확인',
+      _ => '법인?',
+    };
+Color _corpColor(String s) => switch (s) {
+      'ok' => AppColors.primary,
+      'heavy' => AppColors.rose,
+      'check' => AppColors.gold,
+      _ => AppColors.textFaint,
+    };
+
 class AuctionScreen extends ConsumerStatefulWidget {
   const AuctionScreen({super.key});
 
@@ -474,6 +487,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                         'GO' => items.where((p) => p.verdict == 'GO').toList(),
                         'sim' => items.where((p) => p.isSim).toList(),
                         'real' => items.where((p) => !p.isSim).toList(),
+                        'corp' =>
+                          items.where((p) => p.corpStatus == 'ok').toList(),
                         final s => items.where((p) => p.status == s).toList(),
                       })
                         // 제외한 물건은 기본 목록에서 숨긴다(제외 필터에서만 보임).
@@ -601,6 +616,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                           .update({'excluded': v}).eq('id', p.id);
                       invalidateAll(ref);
                     },
+                    onSetCorp: (v) async {
+                      final sb = ref.read(supabaseProvider);
+                      await sb
+                          .from('auction_properties')
+                          .update({'corp_status': v}).eq('id', p.id);
+                      invalidateAll(ref);
+                    },
                   ),
                   const Gap(14),
                 ],
@@ -640,6 +662,7 @@ class _FilterChips extends StatelessWidget {
       ('sim', '모의'),
       ('real', '실제'),
       ('GO', 'GO만'),
+      ('corp', '법인가능'),
       for (final (k, label, _) in kStatusOptions) (k, label),
       ('excluded', '제외됨'),
     ];
@@ -697,6 +720,7 @@ class _AuctionCard extends StatefulWidget {
   final ValueChanged<String> onSetVerdict; // 할래(GO)/보류(HOLD)/패스(PASS)
   final ValueChanged<bool> onToggleAlert; // 매각기일 알림 받기
   final ValueChanged<bool> onToggleExclude; // 목록에서 제외/복원
+  final ValueChanged<String?> onSetCorp; // 법인 취득세 태그(ok/heavy/check/null)
   const _AuctionCard(
       {required this.p,
       required this.price,
@@ -704,7 +728,8 @@ class _AuctionCard extends StatefulWidget {
       required this.onDelete,
       required this.onSetVerdict,
       required this.onToggleAlert,
-      required this.onToggleExclude});
+      required this.onToggleExclude,
+      required this.onSetCorp});
 
   @override
   State<_AuctionCard> createState() => _AuctionCardState();
@@ -765,6 +790,10 @@ class _AuctionCardState extends State<_AuctionCard> {
                 const Pill('플피', color: AppColors.violet),
                 const Gap(6),
               ],
+              if (p.corpStatus != null) ...[
+                Pill(_corpLabel(p.corpStatus!), color: _corpColor(p.corpStatus!)),
+                const Gap(6),
+              ],
               if (!p.isQuickSale && d != null) ...[
                 Pill(
                     p.bidPassed
@@ -812,6 +841,14 @@ class _AuctionCardState extends State<_AuctionCard> {
                     widget.onToggleExclude(!p.excluded);
                   } else if (v == 'delete') {
                     onDelete();
+                  } else if (v == 'corp_ok') {
+                    widget.onSetCorp('ok');
+                  } else if (v == 'corp_heavy') {
+                    widget.onSetCorp('heavy');
+                  } else if (v == 'corp_check') {
+                    widget.onSetCorp('check');
+                  } else if (v == 'corp_clear') {
+                    widget.onSetCorp(null);
                   }
                 },
                 itemBuilder: (_) => [
@@ -819,6 +856,17 @@ class _AuctionCardState extends State<_AuctionCard> {
                   PopupMenuItem(
                       value: 'exclude',
                       child: Text(p.excluded ? '목록에 복원' : '목록에서 제외')),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                      value: 'corp_ok', child: Text('법인: 가능 (공시가1억↓)')),
+                  const PopupMenuItem(
+                      value: 'corp_check', child: Text('법인: 확인필요')),
+                  const PopupMenuItem(
+                      value: 'corp_heavy', child: Text('법인: 중과(12%)')),
+                  if (p.corpStatus != null)
+                    const PopupMenuItem(
+                        value: 'corp_clear', child: Text('법인: 태그 지우기')),
+                  const PopupMenuDivider(),
                   const PopupMenuItem(value: 'delete', child: Text('삭제')),
                 ],
               ),
