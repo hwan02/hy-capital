@@ -70,7 +70,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -123,6 +123,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
             Tab(icon: Icon(Icons.search_rounded, size: 19), text: '조사표'),
             Tab(icon: Icon(Icons.photo_library_rounded, size: 19), text: '사진'),
             Tab(icon: Icon(Icons.calculate_rounded, size: 19), text: '계산기'),
+            Tab(icon: Icon(Icons.rule_rounded, size: 19), text: '모아판정'),
             Tab(icon: Icon(Icons.edit_note_rounded, size: 19), text: '메모'),
           ],
         ),
@@ -136,6 +137,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
               p: p,
               zone: zone,
               price: effectivePrice(
+                  p,
+                  ref.watch(latestSurveysProvider).asData?.value ??
+                      const <String, PriceSurvey>{}),
+              onSave: _update),
+          _MoaTab(p: p, price: effectivePrice(
                   p,
                   ref.watch(latestSurveysProvider).asData?.value ??
                       const <String, PriceSurvey>{}),
@@ -1217,6 +1223,325 @@ class _MemoTabState extends State<_MemoTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── 모아타운 단타 판정(6게이트) ──────────────────────────────
+class _MoaTab extends StatefulWidget {
+  final AuctionProperty p;
+  final EffectivePrice price;
+  final Future<void> Function(Map<String, dynamic>) onSave;
+  const _MoaTab({required this.p, required this.price, required this.onSave});
+
+  @override
+  State<_MoaTab> createState() => _MoaTabState();
+}
+
+class _MoaTabState extends State<_MoaTab> {
+  late double _official;
+  late double _land;
+  late String _pz; // out|in|unknown
+  late int _deals;
+  late int _listings;
+  late final TextEditingController _note;
+  late final TextEditingController _landC;
+  late final TextEditingController _dealsC;
+  late final TextEditingController _listC;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.p;
+    _official = p.officialPrice;
+    _land = p.landShare;
+    _pz = p.projectZone ?? 'unknown';
+    _deals = p.recentDeals;
+    _listings = p.listingsCount;
+    _note = TextEditingController(text: p.moaNote ?? '');
+    _landC = TextEditingController(text: _land > 0 ? _trim(_land) : '');
+    _dealsC = TextEditingController(text: _deals > 0 ? '$_deals' : '');
+    _listC = TextEditingController(text: _listings > 0 ? '$_listings' : '');
+  }
+
+  String _trim(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    _landC.dispose();
+    _dealsC.dispose();
+    _listC.dispose();
+    super.dispose();
+  }
+
+  // 게이트 판정: (라벨, 상태 ok|no|check, 설명)
+  List<(String, String, String)> _gates() {
+    final sale = widget.price.sale > 0 ? widget.price.sale : widget.p.currentPrice;
+    final jeonse =
+        widget.price.jeonse > 0 ? widget.price.jeonse : widget.p.jeonsePrice;
+    final gap = sale - jeonse;
+    final g = <(String, String, String)>[];
+    // G1 갭 ≤ 8천
+    if (sale <= 0 || jeonse <= 0) {
+      g.add(('G1 갭 ≤ 8천 (시드)', 'check', '현재시세·전세 입력 필요'));
+    } else if (gap > 0 && gap <= 80000000) {
+      g.add(('G1 갭 ≤ 8천 (시드)', 'ok', '갭 ${Won.compact(gap)}원'));
+    } else {
+      g.add(('G1 갭 ≤ 8천 (시드)', 'no', '갭 ${Won.compact(gap)}원 > 8천'));
+    }
+    // G2 공시가 ≤ 1억
+    if (_official <= 0) {
+      g.add(('G2 공시가 ≤ 1억 (법인 기본세율)', 'check', '공시가 입력 필요'));
+    } else if (_official <= 100000000) {
+      g.add(('G2 공시가 ≤ 1억 (법인 기본세율)', 'ok', '${Won.compact(_official)}원'));
+    } else {
+      g.add(('G2 공시가 ≤ 1억 (법인 기본세율)', 'no', '${Won.compact(_official)}원 > 1억 → 중과'));
+    }
+    // G3 사업시행구역 아님
+    g.add(switch (_pz) {
+      'out' => ('G3 사업시행구역 아님', 'ok', '미해당 → 1억↓ 중과제외 유지'),
+      'in' => ('G3 사업시행구역 아님', 'no', '해당 → 법인 12% 중과'),
+      _ => ('G3 사업시행구역 아님', 'check', '고시로 확인 필요'),
+    });
+    // G4 권리산정·입주권 (수동)
+    g.add(('G4 권리산정일·입주권 승계', 'check', '메모로 직접 확인'));
+    // G5 거래량
+    if (_deals <= 0) {
+      g.add(('G5 거래량(환금성)', 'check', '최근 실거래 건수 입력'));
+    } else if (_deals >= 3) {
+      g.add(('G5 거래량(환금성)', 'ok', '최근 $_deals건${_listings > 0 ? ' · 매물 $_listings' : ''}'));
+    } else {
+      g.add(('G5 거래량(환금성)', 'no', '최근 $_deals건 — 약함'));
+    }
+    // G6 프리미엄 매도가 (수동)
+    g.add(('G6 6~12개월 내 프리미엄 매도가', 'check', '수요·매도가 직접 확인'));
+    return g;
+  }
+
+  Color _sc(String s) => switch (s) {
+        'ok' => AppColors.primary,
+        'no' => AppColors.rose,
+        _ => AppColors.gold,
+      };
+  IconData _si(String s) => switch (s) {
+        'ok' => Icons.check_circle_rounded,
+        'no' => Icons.cancel_rounded,
+        _ => Icons.help_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final gates = _gates();
+    final okN = gates.where((e) => e.$2 == 'ok').length;
+    final noN = gates.where((e) => e.$2 == 'no').length;
+    final checkN = gates.where((e) => e.$2 == 'check').length;
+    final (verdict, vColor) = noN > 0
+        ? ('복제 불가 / 보류 (탈락 $noN)', AppColors.rose)
+        : checkN > 0
+            ? ('확인 필요 ($checkN건)', AppColors.gold)
+            : ('복제 가능', AppColors.primary);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('은천동 단기매도 복제 판정 — 6게이트',
+              style: TextStyle(
+                  fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+          const Gap(2),
+          const Text('임장에서 채운 값으로 실시간 판정. 전부 O면 복제 가능.',
+              style:
+                  TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
+          const Gap(16),
+
+          // 판정 요약
+          GlassCard(
+            accent: vColor,
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Icon(_si(noN > 0 ? 'no' : (checkN > 0 ? 'check' : 'ok')),
+                  color: vColor, size: 30),
+              const Gap(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(verdict,
+                        style: TextStyle(
+                            fontSize: AppFont.section,
+                            fontWeight: FontWeight.w800,
+                            color: vColor)),
+                    const Gap(2),
+                    Text('통과 $okN · 탈락 $noN · 확인 $checkN / 6',
+                        style: const TextStyle(
+                            fontSize: AppFont.caption,
+                            color: AppColors.textFaint)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          const Gap(14),
+
+          // 게이트 리스트
+          for (final (label, st, detail) in gates) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _sc(st).withValues(alpha: 0.4)),
+              ),
+              child: Row(children: [
+                Icon(_si(st), color: _sc(st), size: 20),
+                const Gap(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: const TextStyle(
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w700)),
+                      const Gap(1),
+                      Text(detail,
+                          style: const TextStyle(
+                              fontSize: AppFont.caption,
+                              color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          ],
+          const Gap(10),
+
+          // ── 입력 필드 ──
+          const Text('임장 입력',
+              style: TextStyle(
+                  fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+          const Gap(12),
+          MoneyField(
+              label: '공시가(시가표준액) 원',
+              initial: _official,
+              onChanged: (v) => setState(() => _official = v),
+              dense: true,
+              accent: _teal),
+          const Gap(12),
+          Row(children: [
+            Expanded(child: _numField('대지지분 ㎡', _landC, (v) => _land = v)),
+            const Gap(10),
+            Expanded(
+                child: _numField(
+                    '최근 실거래(건)', _dealsC, (v) => _deals = v.toInt())),
+            const Gap(10),
+            Expanded(
+                child: _numField(
+                    '현재 매물(개)', _listC, (v) => _listings = v.toInt())),
+          ]),
+          const Gap(14),
+          const Text('사업시행구역 여부 (G3 · 법인 중과 판정)',
+              style: TextStyle(
+                  fontSize: AppFont.label, fontWeight: FontWeight.w700)),
+          const Gap(8),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _pzChip('out', '미해당(1억↓ 유지)'),
+            _pzChip('in', '해당(법인 중과)'),
+            _pzChip('unknown', '미확인'),
+          ]),
+          const Gap(14),
+          const Text('권리산정일 · 입주권 승계 · 기타 (G4/G6)',
+              style: TextStyle(
+                  fontSize: AppFont.label, fontWeight: FontWeight.w700)),
+          const Gap(8),
+          TextField(
+            controller: _note,
+            minLines: 3,
+            maxLines: 8,
+            decoration: InputDecoration(
+              hintText:
+                  '권리산정기준일 2022-01-20 이전 취득 → 입주권 O\n조합설립 전 · 매도 6개월 내 2.9억 가능(부동산 확인)',
+              filled: true,
+              fillColor: AppColors.surfaceAlt,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+            ),
+          ),
+          const Gap(16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: _teal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+              onPressed: () async {
+                await widget.onSave({
+                  'official_price': _official,
+                  'land_share': _land,
+                  'project_zone': _pz,
+                  'recent_deals': _deals,
+                  'listings_count': _listings,
+                  'moa_note': _note.text,
+                });
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('모아판정 저장됨'), backgroundColor: _teal));
+                }
+              },
+              icon: const Icon(Icons.save_rounded, size: 18),
+              label: const Text('저장'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numField(
+          String label, TextEditingController c, ValueChanged<double> on) =>
+      TextField(
+        controller: c,
+        keyboardType: TextInputType.number,
+        onChanged: (t) => setState(() => on(double.tryParse(t.trim()) ?? 0)),
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          filled: true,
+          fillColor: AppColors.surfaceAlt,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none),
+        ),
+      );
+
+  Widget _pzChip(String key, String label) {
+    final on = _pz == key;
+    final c = key == 'in'
+        ? AppColors.rose
+        : (key == 'out' ? AppColors.primary : AppColors.gold);
+    return InkWell(
+      onTap: () => setState(() => _pz = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+          border:
+              Border.all(color: on ? c : AppColors.border, width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: on ? c : AppColors.textSecondary,
+                fontSize: AppFont.label,
+                fontWeight: FontWeight.w700)),
       ),
     );
   }

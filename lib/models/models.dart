@@ -271,6 +271,13 @@ class AuctionProperty {
   final bool alertEnabled; // 매각기일 알림 받기 (D-3·2·1)
   final bool excluded; // 목록에서 제외(삭제 아님)
   final String? corpStatus; // 법인 취득세: ok(공시가1억↓·중과제외) | heavy(중과12%) | check(확인필요)
+  // ── 모아타운 단타 판정(6게이트) ──
+  final double officialPrice; // 공시가(시가표준액) 원
+  final double landShare; // 대지지분 ㎡
+  final String? projectZone; // 사업시행구역: out(미해당)|in(해당)|unknown
+  final int recentDeals; // 최근 6~12개월 실거래 건수
+  final int listingsCount; // 현재 매물 수
+  final String? moaNote; // 권리산정일·입주권 승계·기타 임장 메모
 
   // ── 진행 일정 ──────────────────────────────────────────
   final DateTime? wonDate; // 낙찰일
@@ -320,6 +327,12 @@ class AuctionProperty {
     this.alertEnabled = false,
     this.excluded = false,
     this.corpStatus,
+    this.officialPrice = 0,
+    this.landShare = 0,
+    this.projectZone,
+    this.recentDeals = 0,
+    this.listingsCount = 0,
+    this.moaNote,
     this.wonDate,
     this.balanceDue,
     this.evictDue,
@@ -455,6 +468,12 @@ class AuctionProperty {
         alertEnabled: m['alert_enabled'] == true,
         excluded: m['excluded'] == true,
         corpStatus: m['corp_status'],
+        officialPrice: _d(m['official_price']),
+        landShare: _d(m['land_share']),
+        projectZone: m['project_zone'],
+        recentDeals: _i(m['recent_deals']),
+        listingsCount: _i(m['listings_count']),
+        moaNote: m['moa_note'],
         wonDate: _date(m['won_date']),
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),
