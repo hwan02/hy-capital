@@ -31,7 +31,10 @@ const _teal = Color(0xFF14B8A6);
 
 /// 붙여넣기 한 판으로 물건을 등록한다. 사용자가 받는 카톡/사이트 텍스트에
 /// 필요한 숫자가 다 들어있으므로 손입력을 최소화한다.
-Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
+/// 경매물건 빠른 추가. [prefillAddress] 주면 파싱된 주소가 없을 때 그 값으로 채운다
+/// (모아타운 구역에서 추가 시 구역 주소를 넣어 구역 매칭이 되게).
+Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
+    {String? prefillAddress}) async {
   final c = TextEditingController();
   final res = await showDialog<(ParsedAuction, String)>(
     context: context,
@@ -40,6 +43,7 @@ Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
   if (res == null) return;
   final saved = res.$1;
   final acq = res.$2;
+  final addr = saved.address ?? prefillAddress;
   try {
     final sb = ref.read(supabaseProvider);
     final row = await sb
@@ -51,7 +55,7 @@ Future<void> _quickAdd(BuildContext context, WidgetRef ref) async {
           'verdict': 'HOLD',
           'acquisition': acq,
           if (saved.caseNo != null) 'case_no': saved.caseNo,
-          if (saved.address != null) 'address': saved.address,
+          if (addr != null) 'address': addr,
           if (saved.court != null) 'court': saved.court,
           if (saved.propertyKind != null) 'property_kind': saved.propertyKind,
           if (saved.appraisalPrice > 0) 'appraisal_price': saved.appraisalPrice,
@@ -374,7 +378,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               AddButton(
                   color: _teal,
                   label: '매물',
-                  onTap: () => _quickAdd(context, ref)),
+                  onTap: () => quickAddAuction(context, ref)),
               const Gap(8),
               AddButton(
                   color: AppColors.sky,
