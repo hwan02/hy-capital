@@ -18,6 +18,14 @@ const _teal = Color(0xFF14B8A6);
 
 Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 
+/// 다음 가격 상승 이벤트 — 이 «직전»이 매도 라인.
+String? _nextJump(Zone z) {
+  final moa = z.kind != '신통기획';
+  if (z.stage <= 1) return moa ? '통합심의(관리계획 고시)' : '정비구역 지정고시';
+  if (z.stage == 2) return '조합설립인가';
+  return null; // 3단계↑ 이미 상승 반영
+}
+
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
       'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
@@ -287,6 +295,21 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           style: const TextStyle(
                               fontSize: AppFont.section,
                               fontWeight: FontWeight.w800)),
+                      if (_nextJump(z) != null) ...[
+                        const Gap(4),
+                        Row(children: [
+                          const Icon(Icons.trending_up_rounded,
+                              size: 14, color: AppColors.rose),
+                          const Gap(4),
+                          Flexible(
+                            child: Text('다음 상승: ${_nextJump(z)} 직전 매도',
+                                style: const TextStyle(
+                                    fontSize: AppFont.caption,
+                                    color: AppColors.rose,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        ]),
+                      ],
                       if (z.aliases.isNotEmpty) ...[
                         const Gap(4),
                         Text('포함 번지: ${z.aliases.join(', ')}',
