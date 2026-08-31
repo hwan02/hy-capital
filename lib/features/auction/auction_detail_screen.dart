@@ -1166,6 +1166,8 @@ class _MemoTab extends StatefulWidget {
 
 class _MemoTabState extends State<_MemoTab> {
   late final TextEditingController _c;
+  final _shopC = TextEditingController(); // 부동산명
+  final _entryC = TextEditingController(); // 방문 내용
 
   @override
   void initState() {
@@ -1176,7 +1178,30 @@ class _MemoTabState extends State<_MemoTab> {
   @override
   void dispose() {
     _c.dispose();
+    _shopC.dispose();
+    _entryC.dispose();
     super.dispose();
+  }
+
+  /// 부동산 방문 메모를 날짜·상호 붙여 맨 위에 누적하고 저장.
+  Future<void> _addVisit() async {
+    final txt = _entryC.text.trim();
+    if (txt.isEmpty) return;
+    final now = DateTime.now();
+    final d =
+        '${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final shop = _shopC.text.trim();
+    final head = shop.isEmpty ? '[$d #부동산]' : '[$d $shop]';
+    final line = '$head $txt';
+    _c.text = _c.text.isEmpty ? line : '$line\n${_c.text}';
+    await widget.onSave({'memo': _c.text});
+    _entryC.clear();
+    _shopC.clear();
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('부동산 메모 추가됨'), backgroundColor: _teal));
+    }
   }
 
   @override
@@ -1186,6 +1211,66 @@ class _MemoTabState extends State<_MemoTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── 부동산 방문 메모 빠른 추가 ──
+          GlassCard(
+            accent: _teal,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(children: [
+                  Icon(Icons.storefront_rounded, size: 18, color: _teal),
+                  Gap(6),
+                  Text('부동산 방문 메모',
+                      style: TextStyle(
+                          fontSize: AppFont.section,
+                          fontWeight: FontWeight.w800)),
+                ]),
+                const Gap(10),
+                TextField(
+                  controller: _shopC,
+                  decoration: InputDecoration(
+                    labelText: '부동산 상호 (선택)',
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppColors.surfaceAlt,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const Gap(8),
+                TextField(
+                  controller: _entryC,
+                  minLines: 2,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    hintText: '전세 2.6억까진 나감 · 매물 적음 · 다용도실 크다고 함',
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppColors.surfaceAlt,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const Gap(10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: _teal,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10)),
+                    onPressed: _addVisit,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('메모에 추가'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Gap(16),
           const Text('#시세 #부동산전화 #대출 #권리 #임차인 #명도 #현장 #수리 #입찰',
               style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label)),
           const Gap(10),
