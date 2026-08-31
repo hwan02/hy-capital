@@ -34,6 +34,42 @@ class MoaTownView extends ConsumerStatefulWidget {
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
+  int _stageF = -1; // 단계 필터: -1 전체 / 1 진입適期 / 2 관리계획 / 3 조합설립↑
+
+  bool _stageMatch(Zone z) => _stageF < 0
+      ? true
+      : (_stageF == 3 ? z.stage >= 3 : z.stage == _stageF);
+
+  Widget _stageChips() {
+    Widget chip(int v, String label, Color c) {
+      final on = _stageF == v;
+      return InkWell(
+        onTap: () => setState(() => _stageF = v),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
+            border: Border.all(
+                color: on ? c : AppColors.border, width: on ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: on ? c : AppColors.textSecondary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700)),
+        ),
+      );
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: [
+      chip(-1, '전체', _teal),
+      chip(1, '① 진입適期(수립중)', AppColors.primary),
+      chip(2, '② 관리계획 고시', AppColors.gold),
+      chip(3, '③ 조합설립↑', AppColors.rose),
+    ]);
+  }
 
   /// 구역의 네이버 검색어 / 물건 추가 시 주소 seed (동+번지 포함).
   String _zoneSeed(Zone z) {
@@ -62,9 +98,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         }
         final props =
             ref.watch(auctionProvider).asData?.value ?? const <AuctionProperty>[];
+        final shown = zones.where(_stageMatch).toList();
         return _district == null
-            ? _overview(zones)
-            : _districtList(zones, props, _district!);
+            ? _overview(shown)
+            : _districtList(shown, props, _district!);
       },
     );
   }
@@ -88,15 +125,33 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             style:
                 TextStyle(fontSize: AppFont.title, fontWeight: FontWeight.w800)),
         const Gap(2),
-        Text('서울 $moaTotal개 모아타운 · $sinTotal개 신통기획 · 자치구를 눌러 구역 리스트로.',
+        Text('모아 $moaTotal · 신통 $sinTotal · 자치구를 눌러 구역 리스트로.',
             style: const TextStyle(
                 fontSize: AppFont.caption, color: AppColors.textFaint)),
+        const Gap(10),
+        _stageChips(),
+        if (_stageF == 1) ...[
+          const Gap(8),
+          const Text('★ 진입適期 = 대상지 선정~관리계획 수립 중(고시 전) = 저점. 은천처럼 여기서 매수.',
+              style: TextStyle(
+                  fontSize: AppFont.caption,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600)),
+        ],
         const Gap(16),
-        ResponsiveGrid(
-          minTileWidth: 150,
-          ratio: 1.35,
-          children: [for (final d in dists) _distTile(d, byDist[d]!)],
-        ),
+        if (dists.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text('이 단계에 해당하는 구역이 없어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textFaint)),
+          )
+        else
+          ResponsiveGrid(
+            minTileWidth: 150,
+            ratio: 1.35,
+            children: [for (final d in dists) _distTile(d, byDist[d]!)],
+          ),
         const Gap(14),
         const Text('※ 등록된 신청지입니다. 새 지정은 «세제→정비» 타임라인·슬랙으로 매일 갱신돼요.',
             style: TextStyle(
@@ -180,6 +235,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         const Text('구역을 누르면 경매물건이 펼쳐집니다. ＋로 물건 추가, 물건을 누르면 상세(임장 입력)로.',
             style:
                 TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
+        const Gap(10),
+        _stageChips(),
         const Gap(14),
         for (final z in zs) ...[
           _zoneCard(z, props, zones),
