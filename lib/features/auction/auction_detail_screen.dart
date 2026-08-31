@@ -1201,6 +1201,7 @@ class _ChecksTab extends StatefulWidget {
 class _ChecksTabState extends State<_ChecksTab> {
   late Map<String, dynamic> _v;
   final Map<String, TextEditingController> _notes = {};
+  final Set<String> _open = {}; // 메모 펼친 항목
   bool _dirty = false;
 
   @override
@@ -1280,76 +1281,135 @@ class _ChecksTabState extends State<_ChecksTab> {
       );
 
   Widget _tile((String, String, String) it, Color c) {
-    final on = _v[it.$1] == true;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+    final key = it.$1;
+    final on = _v[key] == true;
+    final note = (_notes[key]?.text ?? '').trim();
+    final open = _open.contains(key);
+    final hasNote = note.isNotEmpty;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: on ? c.withValues(alpha: 0.07) : AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: on ? c.withValues(alpha: 0.35) : AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => setState(() {
-              _v[it.$1] = !on;
-              _dirty = true;
-            }),
-            borderRadius: BorderRadius.circular(10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                    on
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded,
-                    color: on ? c : AppColors.textFaint,
-                    size: 22),
-                const Gap(10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(it.$2,
-                          style: TextStyle(
-                              fontSize: AppFont.body,
-                              fontWeight: FontWeight.w700,
-                              color: on ? AppColors.textFaint : null,
-                              decoration:
-                                  on ? TextDecoration.lineThrough : null)),
-                      if (it.$3.isNotEmpty) ...[
-                        const Gap(1),
-                        Text(it.$3,
-                            style: const TextStyle(
-                                fontSize: AppFont.caption,
-                                color: AppColors.textFaint)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 체크 토글 영역
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() {
+                    _v[key] = !on;
+                    _dirty = true;
+                  }),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                            on
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: on ? c : AppColors.textFaint,
+                            size: 21),
+                        const Gap(10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(it.$2,
+                                  style: TextStyle(
+                                      fontSize: AppFont.body,
+                                      fontWeight: FontWeight.w700,
+                                      color: on ? AppColors.textSecondary : null,
+                                      decoration: on
+                                          ? TextDecoration.lineThrough
+                                          : null)),
+                              if (it.$3.isNotEmpty) ...[
+                                const Gap(1),
+                                Text(it.$3,
+                                    style: const TextStyle(
+                                        fontSize: AppFont.caption,
+                                        color: AppColors.textFaint,
+                                        height: 1.3)),
+                              ],
+                              // 접힌 상태 + 메모 있으면 미리보기
+                              if (!open && hasNote) ...[
+                                const Gap(4),
+                                Row(children: [
+                                  Icon(Icons.sticky_note_2_rounded,
+                                      size: 13, color: c),
+                                  const Gap(4),
+                                  Expanded(
+                                    child: Text(note,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: AppFont.caption,
+                                            color: c,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                ]),
+                              ],
+                            ],
+                          ),
+                        ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              // 메모 펼치기 버튼
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: '메모',
+                icon: Icon(
+                    open
+                        ? Icons.expand_less_rounded
+                        : (hasNote
+                            ? Icons.sticky_note_2_rounded
+                            : Icons.note_add_outlined),
+                    size: 20,
+                    color: hasNote || open ? c : AppColors.textFaint),
+                onPressed: () => setState(
+                    () => open ? _open.remove(key) : _open.add(key)),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 32, top: 4),
-            child: TextField(
-              controller: _notes[it.$1],
-              minLines: 1,
-              maxLines: 4,
-              style: const TextStyle(fontSize: AppFont.label),
-              onChanged: (t) {
-                _v['${it.$1}__note'] = t;
-                if (!_dirty) setState(() => _dirty = true);
-              },
-              decoration: InputDecoration(
-                hintText: '메모…',
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                filled: true,
-                fillColor: AppColors.surfaceAlt,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none),
+          if (open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: TextField(
+                controller: _notes[key],
+                autofocus: true,
+                minLines: 2,
+                maxLines: 5,
+                style: const TextStyle(fontSize: AppFont.label),
+                onChanged: (t) {
+                  _v['${key}__note'] = t;
+                  if (!_dirty) setState(() => _dirty = true);
+                },
+                decoration: InputDecoration(
+                  hintText: '확인 내용 메모…',
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  filled: true,
+                  fillColor: AppColors.bg,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
