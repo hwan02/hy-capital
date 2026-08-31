@@ -1228,19 +1228,32 @@ class _ChecksTabState extends State<_ChecksTab> {
   @override
   Widget build(BuildContext context) {
     final spDone = _done(_sonpum), bpDone = _done(_balpum);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _section('손품 (책상)', spDone, _sonpum.length, AppColors.sky),
-          const Gap(6),
-          for (final it in _sonpum) _tile(it, AppColors.sky),
-          const Gap(18),
-          _section('발품 (현장)', bpDone, _balpum.length, _teal),
-          const Gap(6),
-          for (final it in _balpum) _tile(it, _teal),
-          const Gap(10),
+    return LayoutBuilder(builder: (context, cons) {
+      final cols = (cons.maxWidth / 340).floor().clamp(1, 3);
+      final tileW = cols <= 1
+          ? cons.maxWidth
+          : (cons.maxWidth - 10 * (cols - 1)) / cols;
+      Widget grid(List<(String, String, String)> items, Color c) => Wrap(
+            spacing: 10,
+            runSpacing: 0,
+            children: [
+              for (final it in items)
+                SizedBox(width: tileW, child: _tile(it, c)),
+            ],
+          );
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _section('손품 (책상)', spDone, _sonpum.length, AppColors.sky),
+            const Gap(8),
+            grid(_sonpum, AppColors.sky),
+            const Gap(18),
+            _section('발품 (현장)', bpDone, _balpum.length, _teal),
+            const Gap(8),
+            grid(_balpum, _teal),
+            const Gap(10),
           const Text('※ 질문 스크립트·상세는 자료실 «부동산 질문 스크립트/손품·발품 실전»에서.',
               style: TextStyle(
                   fontSize: AppFont.caption, color: AppColors.textFaint)),
@@ -1265,9 +1278,10 @@ class _ChecksTabState extends State<_ChecksTab> {
                 label: const Text('저장'),
               ),
             ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
   Widget _section(String title, int done, int total, Color c) => Row(
