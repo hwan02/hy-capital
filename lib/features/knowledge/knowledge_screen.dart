@@ -98,6 +98,7 @@ class KnowledgeView extends ConsumerStatefulWidget {
 class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
   final _q = TextEditingController();
   String _tag = '전체';
+  bool _allTags = false; // 태그 전체 펼치기
   String _kind = 'all'; // all | qa | article | note | file
   bool _starOnly = false;
   bool _album = false; // 목록 ↔ 앨범(첨부 격자)
@@ -225,19 +226,29 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                   ],
                 ]),
                 const Gap(12),
-                // 태그 필터
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _chip('전체', all.length, _tag == '전체',
-                        () => setState(() => _tag = '전체')),
-                    _starChip(all.where((n) => n.starred).length),
+                // 태그 필터 — 기본은 2개 이상 태그만(선택된 태그·검색은 항상 노출)
+                Builder(builder: (_) {
+                  final major = [
                     for (final t in tags)
-                      _chip(t, counts[t]!, _tag == t,
-                          () => setState(() => _tag = _tag == t ? '전체' : t)),
-                  ],
-                ),
+                      if (_allTags || counts[t]! >= 2 || t == _tag) t
+                  ];
+                  final hidden = tags.length - major.length;
+                  return Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _chip('전체', all.length, _tag == '전체',
+                          () => setState(() => _tag = '전체')),
+                      _starChip(all.where((n) => n.starred).length),
+                      for (final t in major)
+                        _chip(t, counts[t]!, _tag == t,
+                            () => setState(() => _tag = _tag == t ? '전체' : t)),
+                      if (hidden > 0 || _allTags)
+                        _chip(_allTags ? '접기' : '＋$hidden개', 0, false,
+                            () => setState(() => _allTags = !_allTags)),
+                    ],
+                  );
+                }),
                 const Gap(14),
                 Text('${list.length}건',
                     style: const TextStyle(
@@ -344,7 +355,7 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
                 color: sel ? _amber : AppColors.border, width: sel ? 1.4 : 1),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text('$label $n',
+          child: Text(n > 0 ? '$label $n' : label,
               style: TextStyle(
                   color: sel ? _amber : AppColors.textSecondary,
                   fontSize: AppFont.label,

@@ -395,7 +395,14 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
       },
       children: [
         // 물건 / 자료실 / 강의 질문 전환 (좁은 화면에서 줄바꿈)
+        // 프로세스 순서: 발굴(모아타운·매물) → 판단(계산기) → 실행(진행) → 참고(세제·절차·기준·자료실·강의)
         Wrap(spacing: 8, runSpacing: 8, children: [
+          ModuleTab(
+              label: '모아타운',
+              icon: Icons.map_rounded,
+              color: AppColors.sky,
+              selected: _tab == 9,
+              onTap: () => setState(() => _tab = 9)),
           ModuleTab(
               label: '매물·단지',
               icon: Icons.gavel_rounded,
@@ -403,11 +410,29 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               selected: _tab == 0,
               onTap: () => setState(() => _tab = 0)),
           ModuleTab(
+              label: '계산기',
+              icon: Icons.calculate_rounded,
+              color: AppColors.gold,
+              selected: _tab == 6,
+              onTap: () => setState(() => _tab = 6)),
+          ModuleTab(
               label: '진행',
               icon: Icons.timeline_rounded,
               color: kProgressAccent,
               selected: _tab == 1,
               onTap: () => setState(() => _tab = 1)),
+          ModuleTab(
+              label: '세제',
+              icon: Icons.receipt_long_rounded,
+              color: AppColors.violet,
+              selected: _tab == 7,
+              onTap: () => setState(() => _tab = 7)),
+          ModuleTab(
+              label: '재개발절차',
+              icon: Icons.account_tree_rounded,
+              color: AppColors.rose,
+              selected: _tab == 8,
+              onTap: () => setState(() => _tab = 8)),
           ModuleTab(
               label: '기준',
               icon: Icons.rule_rounded,
@@ -426,30 +451,6 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: orange,
               selected: _tab == 5,
               onTap: () => setState(() => _tab = 5)),
-          ModuleTab(
-              label: '계산기',
-              icon: Icons.calculate_rounded,
-              color: AppColors.gold,
-              selected: _tab == 6,
-              onTap: () => setState(() => _tab = 6)),
-          ModuleTab(
-              label: '세제',
-              icon: Icons.receipt_long_rounded,
-              color: AppColors.violet,
-              selected: _tab == 7,
-              onTap: () => setState(() => _tab = 7)),
-          ModuleTab(
-              label: '재개발절차',
-              icon: Icons.account_tree_rounded,
-              color: AppColors.rose,
-              selected: _tab == 8,
-              onTap: () => setState(() => _tab = 8)),
-          ModuleTab(
-              label: '모아타운',
-              icon: Icons.map_rounded,
-              color: AppColors.sky,
-              selected: _tab == 9,
-              onTap: () => setState(() => _tab = 9)),
         ]),
         const Gap(18),
         if (_tab == 9) const MoaTownView(),
