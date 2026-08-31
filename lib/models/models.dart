@@ -278,6 +278,7 @@ class AuctionProperty {
   final int recentDeals; // 최근 6~12개월 실거래 건수
   final int listingsCount; // 현재 매물 수
   final String? moaNote; // 권리산정일·입주권 승계·기타 임장 메모
+  final Map<String, dynamic> checks; // 손품·발품 체크리스트 key→bool
 
   // ── 진행 일정 ──────────────────────────────────────────
   final DateTime? wonDate; // 낙찰일
@@ -333,6 +334,7 @@ class AuctionProperty {
     this.recentDeals = 0,
     this.listingsCount = 0,
     this.moaNote,
+    this.checks = const {},
     this.wonDate,
     this.balanceDue,
     this.evictDue,
@@ -474,6 +476,7 @@ class AuctionProperty {
         recentDeals: _i(m['recent_deals']),
         listingsCount: _i(m['listings_count']),
         moaNote: m['moa_note'],
+        checks: (m['checks'] as Map?)?.cast<String, dynamic>() ?? const {},
         wonDate: _date(m['won_date']),
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),

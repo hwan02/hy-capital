@@ -70,7 +70,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -124,6 +124,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
             Tab(icon: Icon(Icons.photo_library_rounded, size: 19), text: '사진'),
             Tab(icon: Icon(Icons.calculate_rounded, size: 19), text: '계산기'),
             Tab(icon: Icon(Icons.rule_rounded, size: 19), text: '모아판정'),
+            Tab(icon: Icon(Icons.checklist_rounded, size: 19), text: '손품·발품'),
             Tab(icon: Icon(Icons.edit_note_rounded, size: 19), text: '메모'),
           ],
         ),
@@ -146,6 +147,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
                   ref.watch(latestSurveysProvider).asData?.value ??
                       const <String, PriceSurvey>{}),
               onSave: _update),
+          _ChecksTab(p: p, onSave: _update),
           _MemoTab(p: p, onSave: _update),
         ],
       ),
@@ -1155,6 +1157,156 @@ class _CalcTabState extends State<_CalcTab> {
 }
 
 // ── 메모 탭 ───────────────────────────────────────────────
+// ── 손품·발품 체크리스트 ──────────────────────────────────
+const _sonpum = <(String, String, String)>[
+  ('sp_profit', '예상수익 3,000만원↑', '빌라는 최소 3천만↑ 나는 것만. 안 되면 패스'),
+  ('sp_bldg', '건축물대장 확인(현황=실제)', '대장과 실제 다른지(위반·용도·면적)'),
+  ('sp_regi', '등기부 소유권보존·근저당', '최선순위 근저당/압류 = 말소기준'),
+  ('sp_year', '연식 확인', '신축/구옥 시세 크게 갈림'),
+  ('sp_aptprice', '주변 아파트 시세', '빌라 가치 상한 가늠'),
+  ('sp_deal', '최근 거래시점(매매/월세)', '언제 거래됐는지'),
+  ('sp_loc', '역세권·초품아/중품빌', '학교·역 인접 여부'),
+  ('sp_stage', '재개발/재건축 단계·인프라', '모아타운 등 진행 단계'),
+  ('sp_royal', '로얄층(엘베無 2~3층/有 5~6층)', '1층·탑층 비선호'),
+  ('sp_fund', '투자금·이자·월세 커버 계산', '이자 내고 남는지, 시드 8천 안'),
+];
+const _balpum = <(String, String, String)>[
+  ('bp_lease', '임차권등기명령·공실 여부', '전세사기 물건·현재 공실 확인'),
+  ('bp_illegal', '위반건축물 등재 확인', '건축물대장 위반 표기'),
+  ('bp_ext', '제시외 물건 확인', '등기 외 부속·증축'),
+  ('bp_safety', '안전점검표·방수·우수관', '관리 상태 신호'),
+  ('bp_leak', '옥상 누수(탑층만)', '물 고인 흔적 = 누수 위험'),
+  ('bp_park', '주차 세대당 1대', ''),
+  ('bp_inter', '인테리어비 산정(입찰 전)', '리모델링 후 받을 값과 비교'),
+  ('bp_price', '실매매가·급매가 확인', '호가 말고 성사가'),
+  ('bp_rent', '월세 시세(연식·층·엘베별)', '3000/70, 5000/80 식으로'),
+  ('bp_multi', '부동산 3곳↑ 교차', '물건과 사랑에 빠지지 말 것'),
+];
+
+class _ChecksTab extends StatefulWidget {
+  final AuctionProperty p;
+  final Future<void> Function(Map<String, dynamic>) onSave;
+  const _ChecksTab({required this.p, required this.onSave});
+
+  @override
+  State<_ChecksTab> createState() => _ChecksTabState();
+}
+
+class _ChecksTabState extends State<_ChecksTab> {
+  late Map<String, dynamic> _v;
+  bool _dirty = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _v = Map<String, dynamic>.from(widget.p.checks);
+  }
+
+  int _done(List<(String, String, String)> items) =>
+      items.where((e) => _v[e.$1] == true).length;
+
+  @override
+  Widget build(BuildContext context) {
+    final spDone = _done(_sonpum), bpDone = _done(_balpum);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _section('손품 (책상)', spDone, _sonpum.length, AppColors.sky),
+          const Gap(6),
+          for (final it in _sonpum) _tile(it, AppColors.sky),
+          const Gap(18),
+          _section('발품 (현장)', bpDone, _balpum.length, _teal),
+          const Gap(6),
+          for (final it in _balpum) _tile(it, _teal),
+          const Gap(10),
+          const Text('※ 질문 스크립트·상세는 자료실 «부동산 질문 스크립트/손품·발품 실전»에서.',
+              style: TextStyle(
+                  fontSize: AppFont.caption, color: AppColors.textFaint)),
+          const Gap(16),
+          if (_dirty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    backgroundColor: _teal,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12)),
+                onPressed: () async {
+                  await widget.onSave({'checks': _v});
+                  setState(() => _dirty = false);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('체크 저장됨'), backgroundColor: _teal));
+                  }
+                },
+                icon: const Icon(Icons.save_rounded, size: 18),
+                label: const Text('저장'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, int done, int total, Color c) => Row(
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+          const Gap(8),
+          Pill('$done/$total', color: done == total ? AppColors.primary : c),
+        ],
+      );
+
+  Widget _tile((String, String, String) it, Color c) {
+    final on = _v[it.$1] == true;
+    return InkWell(
+      onTap: () => setState(() {
+        _v[it.$1] = !on;
+        _dirty = true;
+      }),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+                on
+                    ? Icons.check_box_rounded
+                    : Icons.check_box_outline_blank_rounded,
+                color: on ? c : AppColors.textFaint,
+                size: 22),
+            const Gap(10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(it.$2,
+                      style: TextStyle(
+                          fontSize: AppFont.body,
+                          fontWeight: FontWeight.w700,
+                          color: on ? AppColors.textFaint : null,
+                          decoration: on ? TextDecoration.lineThrough : null)),
+                  if (it.$3.isNotEmpty) ...[
+                    const Gap(1),
+                    Text(it.$3,
+                        style: const TextStyle(
+                            fontSize: AppFont.caption,
+                            color: AppColors.textFaint)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MemoTab extends StatefulWidget {
   final AuctionProperty p;
   final Future<void> Function(Map<String, dynamic>) onSave;
