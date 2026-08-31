@@ -119,12 +119,13 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
           indicatorColor: _teal,
           labelColor: _teal,
           unselectedLabelColor: AppColors.textSecondary,
+          // 프로세스: 모아판정(선별) → 손품·발품(조사) → 계산기(판단) → 조사표(최종) → 사진 → 메모
           tabs: const [
-            Tab(icon: Icon(Icons.search_rounded, size: 19), text: '조사표'),
-            Tab(icon: Icon(Icons.photo_library_rounded, size: 19), text: '사진'),
-            Tab(icon: Icon(Icons.calculate_rounded, size: 19), text: '계산기'),
             Tab(icon: Icon(Icons.rule_rounded, size: 19), text: '모아판정'),
             Tab(icon: Icon(Icons.checklist_rounded, size: 19), text: '손품·발품'),
+            Tab(icon: Icon(Icons.calculate_rounded, size: 19), text: '계산기'),
+            Tab(icon: Icon(Icons.search_rounded, size: 19), text: '조사표'),
+            Tab(icon: Icon(Icons.photo_library_rounded, size: 19), text: '사진'),
             Tab(icon: Icon(Icons.edit_note_rounded, size: 19), text: '메모'),
           ],
         ),
@@ -132,8 +133,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
       body: TabBarView(
         controller: _tab,
         children: [
-          _SurveyTab(p: p, formKey: _checklistKey, onSave: _update),
-          _PhotosTab(p: p, onSave: _update),
+          _MoaTab(p: p, price: effectivePrice(
+                  p,
+                  ref.watch(latestSurveysProvider).asData?.value ??
+                      const <String, PriceSurvey>{}),
+              onSave: _update),
+          _ChecksTab(p: p, onSave: _update),
           _CalcTab(
               p: p,
               zone: zone,
@@ -142,12 +147,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
                   ref.watch(latestSurveysProvider).asData?.value ??
                       const <String, PriceSurvey>{}),
               onSave: _update),
-          _MoaTab(p: p, price: effectivePrice(
-                  p,
-                  ref.watch(latestSurveysProvider).asData?.value ??
-                      const <String, PriceSurvey>{}),
-              onSave: _update),
-          _ChecksTab(p: p, onSave: _update),
+          _SurveyTab(p: p, formKey: _checklistKey, onSave: _update),
+          _PhotosTab(p: p, onSave: _update),
           _MemoTab(p: p, onSave: _update),
         ],
       ),
