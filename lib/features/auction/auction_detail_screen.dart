@@ -1160,6 +1160,8 @@ class _CalcTabState extends State<_CalcTab> {
 // ── 메모 탭 ───────────────────────────────────────────────
 // ── 손품·발품 체크리스트 ──────────────────────────────────
 const _sonpum = <(String, String, String)>[
+  ('sp_official1', '공시가 1억↓ → 법인 취득세 1.1%', '수도권 시가표준액 1억↓면 법인도 기본세율'),
+  ('sp_gap5', '갭(매매−전세) 5천↓', '실투자금 5천 이내로'),
   ('sp_profit', '예상수익 3,000만원↑', '빌라는 최소 3천만↑ 나는 것만. 안 되면 패스'),
   ('sp_bldg', '건축물대장 확인(현황=실제)', '대장과 실제 다른지(위반·용도·면적)'),
   ('sp_illegal', '위반건축물이면 패스', '대장에 위반 표기 시 거른다'),
@@ -1183,6 +1185,7 @@ const _balpum = <(String, String, String)>[
   ('bp_leak', '옥상 누수(탑층만)', '물 고인 흔적 = 누수 위험'),
   ('bp_epoxy', '옥상 에폭시·방수(5~6층 매수 시)', '코팅 없으면 누수 위험·옆길 시멘트 확인'),
   ('bp_semi', '반지하 습기(비추)', '계단 3개 OK·8개 매우 습함·언덕/옆길 확인'),
+  ('bp_jeonse_state', '집 상태 양호 → 전세 금방 빠질 물건', '수리 적고 바로 세입자 구해질 상태'),
   ('bp_park', '주차 세대당 1대', ''),
   ('bp_inter', '인테리어비 산정(입찰 전)', '리모델링 후 받을 값과 비교'),
   ('bp_price', '실매매가·급매가 확인', '호가 말고 성사가'),
@@ -1645,13 +1648,13 @@ class _MoaTabState extends State<_MoaTab> {
         widget.price.jeonse > 0 ? widget.price.jeonse : widget.p.jeonsePrice;
     final gap = sale - jeonse;
     final g = <(String, String, String)>[];
-    // G1 갭 ≤ 8천
+    // G1 갭 ≤ 5천
     if (sale <= 0 || jeonse <= 0) {
-      g.add(('G1 갭 ≤ 8천 (시드)', 'check', '현재시세·전세 입력 필요'));
-    } else if (gap > 0 && gap <= 80000000) {
-      g.add(('G1 갭 ≤ 8천 (시드)', 'ok', '갭 ${Won.compact(gap)}원'));
+      g.add(('G1 갭 ≤ 5천', 'check', '현재시세·전세 입력 필요'));
+    } else if (gap > 0 && gap <= 50000000) {
+      g.add(('G1 갭 ≤ 5천', 'ok', '갭 ${Won.compact(gap)}원'));
     } else {
-      g.add(('G1 갭 ≤ 8천 (시드)', 'no', '갭 ${Won.compact(gap)}원 > 8천'));
+      g.add(('G1 갭 ≤ 5천', 'no', '갭 ${Won.compact(gap)}원 > 5천'));
     }
     // G2 공시가 ≤ 1억
     if (_official <= 0) {
