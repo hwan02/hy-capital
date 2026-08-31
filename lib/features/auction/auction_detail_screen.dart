@@ -1200,12 +1200,25 @@ class _ChecksTab extends StatefulWidget {
 
 class _ChecksTabState extends State<_ChecksTab> {
   late Map<String, dynamic> _v;
+  final Map<String, TextEditingController> _notes = {};
   bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
     _v = Map<String, dynamic>.from(widget.p.checks);
+    for (final it in [..._sonpum, ..._balpum]) {
+      _notes[it.$1] =
+          TextEditingController(text: (_v['${it.$1}__note'] ?? '').toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _notes.values) {
+      c.dispose();
+    }
+    super.dispose();
   }
 
   int _done(List<(String, String, String)> items) =>
@@ -1268,46 +1281,76 @@ class _ChecksTabState extends State<_ChecksTab> {
 
   Widget _tile((String, String, String) it, Color c) {
     final on = _v[it.$1] == true;
-    return InkWell(
-      onTap: () => setState(() {
-        _v[it.$1] = !on;
-        _dirty = true;
-      }),
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-                on
-                    ? Icons.check_box_rounded
-                    : Icons.check_box_outline_blank_rounded,
-                color: on ? c : AppColors.textFaint,
-                size: 22),
-            const Gap(10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(it.$2,
-                      style: TextStyle(
-                          fontSize: AppFont.body,
-                          fontWeight: FontWeight.w700,
-                          color: on ? AppColors.textFaint : null,
-                          decoration: on ? TextDecoration.lineThrough : null)),
-                  if (it.$3.isNotEmpty) ...[
-                    const Gap(1),
-                    Text(it.$3,
-                        style: const TextStyle(
-                            fontSize: AppFont.caption,
-                            color: AppColors.textFaint)),
-                  ],
-                ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() {
+              _v[it.$1] = !on;
+              _dirty = true;
+            }),
+            borderRadius: BorderRadius.circular(10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                    on
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    color: on ? c : AppColors.textFaint,
+                    size: 22),
+                const Gap(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(it.$2,
+                          style: TextStyle(
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w700,
+                              color: on ? AppColors.textFaint : null,
+                              decoration:
+                                  on ? TextDecoration.lineThrough : null)),
+                      if (it.$3.isNotEmpty) ...[
+                        const Gap(1),
+                        Text(it.$3,
+                            style: const TextStyle(
+                                fontSize: AppFont.caption,
+                                color: AppColors.textFaint)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 32, top: 4),
+            child: TextField(
+              controller: _notes[it.$1],
+              minLines: 1,
+              maxLines: 4,
+              style: const TextStyle(fontSize: AppFont.label),
+              onChanged: (t) {
+                _v['${it.$1}__note'] = t;
+                if (!_dirty) setState(() => _dirty = true);
+              },
+              decoration: InputDecoration(
+                hintText: '메모…',
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                filled: true,
+                fillColor: AppColors.surfaceAlt,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
