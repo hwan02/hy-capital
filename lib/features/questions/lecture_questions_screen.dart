@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
 import '../../core/supabase/supabase_providers.dart';
@@ -17,6 +18,7 @@ import '../../models/models.dart';
 ///       청약을 유지할지, 청약은 놔두고 경매를 갈지.
 ///       특히 생애최초는 한 번 쓰면 끝인 카드 → 소유 이력만 생겨도 영구 결격일 수 있음.
 const _kQuestionColor = Color(0xFFF97316);
+final _urlRe = RegExp(r'https?://\S+');
 
 class _Q {
   final String text;
@@ -57,38 +59,20 @@ const _situation = [
 
 const _sections = <_QSection>[
   _QSection(
-    title: '1. 자금 — 1,000만원으로 실제 가능한가',
-    subtitle: '가장 먼저 확인할 현실성 체크',
+    title: '1. 자금 — 8,100만으로 가능한가',
+    subtitle: '현실성 체크',
     icon: Icons.payments_rounded,
     color: AppColors.gold,
     items: [
-      _Q(
-        '현금 1,000만원으로 빌라 경매 낙찰까지 실제로 가능합니까? '
-        '입찰보증금 + 잔금 + 취득세·등기비 + 명도비 + 수리비까지 합쳤을 때, '
-        '최소 몇 백만/천만원이 있어야 "시작 가능"이라고 보십니까?',
-        want: '총 필요자금 = 보증금 + 자기부담 잔금 + 부대비용. 항목별 실제 금액대.',
-        core: true,
-      ),
-      _Q(
-        '보증금이 최저매각가의 10%라면, 1,000만원이면 최저가 1억 내외 물건까지 '
-        '입찰이 가능하다는 계산인데 맞습니까? 그 가격대 빌라가 실제로 수익이 나는 구간입니까?',
-        want: '내 자금으로 접근 가능한 물건 가격대와, 그 구간의 현실적인 수익성.',
-      ),
-      _Q(
-        '경락잔금대출은 무주택자 기준으로 낙찰가의 몇 %까지 나오고 금리는 어느 정도입니까? '
-        '빌라(다세대)는 아파트보다 한도가 많이 깎인다고 들었는데 실제 차이가 어느 정도입니까?',
-        want: 'LTV 한도 · 금리 · 빌라 감액폭. 이게 자기자본 부담을 결정.',
-        core: true,
-      ),
-      _Q(
-        '명도비와 수리비는 보통 얼마를 예비비로 잡아야 합니까? '
-        '점유자가 버틸 때 인도명령·강제집행까지 가면 비용과 기간이 어떻게 됩니까?',
-        want: '예비비 기준 금액. 이걸 빼놓으면 1,000만원 계획이 무너짐.',
-      ),
-      _Q(
-        '자금이 부족할 때 공동입찰이나 지분 투자는 실무적으로 권하십니까? '
-        '초보가 하기에 리스크가 큰 방식입니까?',
-      ),
+      _Q('현금 8,100만으로 낙찰까지 실제 가능한가요? 보증금·잔금·취득세·명도·수리 다 합치면 최소 얼마가 필요한가요?',
+          want: '총 필요자금 항목별 금액', core: true),
+      _Q('제 자금으로 접근할 수 있는 물건 가격대는 어디까지고, 그 구간이 수익이 나나요?',
+          want: '접근 가격대·수익성'),
+      _Q('경락잔금대출은 무주택 기준 LTV·금리가 어떻게 되나요? 빌라는 아파트보다 얼마나 깎이나요?',
+          want: 'LTV·금리·빌라 감액', core: true),
+      _Q('명도비·수리비 예비비는 얼마나 잡아야 하나요? 강제집행까지 가면 비용·기간은요?',
+          want: '예비비 기준'),
+      _Q('공동입찰이나 지분투자, 초보한테 권하시나요?'),
     ],
   ),
   _QSection(
@@ -97,51 +81,19 @@ const _sections = <_QSection>[
     icon: Icons.confirmation_number_rounded,
     color: _kQuestionColor,
     items: [
-      _Q(
-        '빌라를 낙찰받으면 청약에서 유주택자가 되는 시점이 정확히 언제입니까? '
-        '잔금 납부일입니까, 소유권 이전 등기일입니까?',
-        want: '유주택 전환 시점. 청약 넣을 시기와 겹치는지 계산하려면 필요.',
-        core: true,
-      ),
-      _Q(
-        '소형·저가주택은 청약에서 무주택으로 인정된다고 들었습니다. '
-        '전용 60㎡ 이하 + 공시가격 일정액 이하 조건인데, 현재 기준 금액이 얼마입니까? '
-        '(수도권/지방 각각) 그리고 이 예외가 지금도 유효합니까?',
-        want: '현행 소형·저가주택 기준 금액. 이게 "청약 살리며 경매" 전략의 핵심.',
-        core: true,
-      ),
-      _Q(
-        '소형·저가주택 예외는 민영주택 일반공급 가점제에만 적용되고, '
-        '공공분양이나 특별공급(신혼부부 등)에서는 무주택으로 안 봐준다고 알고 있습니다. 맞습니까? '
-        '우리 부부가 노리는 청약 유형에 따라 결론이 달라지는 겁니까?',
-        want: '내가 노리는 청약 유형에서 예외가 통하는지. 여기서 전략이 갈림.',
-        core: true,
-      ),
-      _Q(
-        '그러면 청약을 살리면서 경매를 하려면 "전용 60㎡ 이하 + 공시가격 기준 이하 빌라"만 '
-        '골라야 하는 겁니까? 그 조건에 맞으면서 수익이 나는 물건이 실제로 시장에 있습니까?',
-        want: '제약을 걸고도 실행 가능한지. 안 된다면 둘 중 하나를 포기해야 함.',
-        core: true,
-      ),
-      _Q(
-        '부부 공동명의와 단독명의(한 사람 명의)로 낙찰받는 것이 '
-        '청약 무주택 판단에 차이가 있습니까? 세대 기준이니 결국 같은 겁니까?',
-        want: '명의 분리로 청약을 지킬 수 있는지 여부. 보통 세대 기준이라 안 될 것 같은데 확인.',
-      ),
-      _Q(
-        '유주택이 되어도 청약통장은 계속 유지·납입할 수 있습니까? '
-        '나중에 매도해서 다시 무주택이 되면 무주택 기간 가점은 어떻게 계산됩니까? '
-        '(처분 시점부터 다시 쌓는 건지, 그동안 쌓인 게 사라지는 건지)',
-        want: '경매를 하더라도 청약을 완전히 버리는 게 아닌지. 복구 가능성.',
-        core: true,
-      ),
-      _Q(
-        '냉정하게, 저희 부부 조건(무주택 · 청약통장 보유 · 가점 낮음)에서 '
-        '청약 당첨 기대값과 경매 실행 기대값을 어떤 기준으로 비교해야 합니까? '
-        '"청약은 사실상 포기하고 경매로 가라"는 판단은 어떤 조건일 때 내리십니까?',
-        want: '판단 기준 자체. 강사의 실제 의사결정 프레임을 받아오기.',
-        core: true,
-      ),
+      _Q('낙찰받으면 청약에서 유주택자가 되는 시점이 언제인가요? 잔금 납부일인가요, 소유권 이전 등기일인가요?',
+          core: true),
+      _Q('소형·저가주택은 청약에서 무주택으로 인정되죠? 전용 60㎡ 이하 + 공시가격 기준, 지금 금액이 얼마인가요? (수도권/지방)',
+          core: true),
+      _Q('그 예외가 특별공급(신혼·공공)에서도 무주택으로 인정되나요, 아니면 민영 가점제만인가요?',
+          core: true),
+      _Q('청약 살리면서 경매하려면 60㎡ 이하 + 공시가 이하 빌라만 골라야 하나요? 그런 물건이 수익이 나나요?',
+          core: true),
+      _Q('공동명의와 단독명의가 청약 무주택 판단에 차이가 있나요? 세대 기준이라 결국 같은가요?'),
+      _Q('유주택이 돼도 청약통장은 유지되나요? 나중에 팔아 무주택이 되면 무주택 기간 가점은 어떻게 계산되나요?',
+          core: true),
+      _Q('저희 조건(무주택·가점 낮음)에서 청약과 경매 중 어느 쪽이 유리한지 판단 기준이 뭔가요? 청약을 접고 경매로 가라는 건 어떤 경우인가요?',
+          core: true),
     ],
   ),
   _QSection(
@@ -150,51 +102,18 @@ const _sections = <_QSection>[
     icon: Icons.card_giftcard_rounded,
     color: AppColors.rose,
     items: [
-      _Q(
-        '생애최초 특별공급은 본인과 배우자 모두 "과거에 주택을 소유한 사실이 없어야" 하는 '
-        '요건으로 알고 있습니다. 그러면 빌라를 낙찰받는 순간 — 나중에 팔아서 다시 무주택이 되어도 — '
-        '생애최초 자격은 영구히 사라지는 겁니까?',
-        want: '소유 이력 자체가 결격이면 되돌릴 방법이 없다. 이게 사실이면 비용이 가장 큼.',
-        core: true,
-      ),
-      _Q(
-        '앞에서 말한 소형·저가주택 예외(60㎡ 이하 + 공시가격 이하)는 '
-        '생애최초 특별공급에는 적용되지 않는 게 맞습니까? '
-        '즉 "청약 가점은 살릴 수 있어도 생애최초는 못 살린다"가 결론입니까?',
-        want: '예외의 적용 범위. 여기가 ⓑ 전략(청약 살리며 경매)의 최대 구멍.',
-        core: true,
-      ),
-      _Q(
-        '신혼부부 특별공급도 같이 날아갑니까? '
-        '생애최초와 신혼부부 특공의 주택 소유 요건이 서로 다릅니까?',
-        want: '남는 특공 카드가 하나라도 있는지 확인.',
-        core: true,
-      ),
-      _Q(
-        '낙찰을 배우자 단독명의로 하면 나머지 한 사람의 생애최초 자격은 남습니까? '
-        '아니면 부부 합산·세대 기준이라 둘 다 같이 날아가는 겁니까?',
-        want: '명의 분리로 카드 한 장을 지킬 수 있는지. 부부 합산이면 불가.',
-        core: true,
-      ),
-      _Q(
-        '생애최초 취득세 감면(최대 200만원)도 경매 낙찰에 적용됩니까? '
-        '적용된다면 그 감면을 이번 빌라에 써버리면 나중에 아파트를 살 때는 못 쓰는 겁니까? '
-        '소득·주택가격 요건이 어떻게 됩니까?',
-        want: '취득세 감면을 여기 쓸지 아낄지. 부대비용 계산에도 영향.',
-      ),
-      _Q(
-        '냉정하게 여쭙습니다. 생애최초 특공 카드 한 장과 경매 빌라 한 채를 '
-        '맞바꾸는 게 맞는 거래입니까? 저희 조건에서 생애최초 특공 당첨 현실성을 '
-        '어느 정도로 보십니까? (지역·소득·경쟁률 기준으로)',
-        want: '포기하는 것의 실제 기대값. 이 답으로 ⓐ/ⓒ가 갈린다.',
-        core: true,
-      ),
-      _Q(
-        '만약 생애최초를 지키기로 한다면, 주택을 취득하지 않고 경매로 할 수 있는 게 있습니까? '
-        '(토지·상가·오피스텔 등 주택 수에 안 들어가는 물건으로 시작하는 방법)',
-        want: '생애최초를 지키면서 경매 경험을 쌓는 우회로. 실행 가능하면 이게 답일 수 있음.',
-        core: true,
-      ),
+      _Q('빌라를 낙찰받으면, 나중에 팔아 무주택이 돼도 생애최초 자격은 영구히 사라지나요?',
+          core: true),
+      _Q('소형·저가주택 예외는 생애최초 특공엔 적용 안 되나요? 가점은 살려도 생애최초는 못 살리는 게 결론인가요?',
+          core: true),
+      _Q('신혼부부 특공도 같이 날아가나요? 생애최초와 소유 요건이 다른가요?', core: true),
+      _Q('배우자 단독명의로 낙찰하면 나머지 한 명의 생애최초는 남나요, 세대 합산인가요?',
+          core: true),
+      _Q('생애최초 취득세 감면(200만)도 경매에 적용되나요? 여기 쓰면 나중 아파트엔 못 쓰나요?'),
+      _Q('생애최초 특공 한 장과 경매 빌라 한 채, 바꿀 만한가요? 저희 당첨 현실성은 어느 정도로 보시나요?',
+          core: true),
+      _Q('생애최초를 지키려면 주택 아닌 물건(토지·상가·오피스텔)으로 시작하는 방법이 있나요?',
+          core: true),
     ],
   ),
   _QSection(
@@ -203,30 +122,12 @@ const _sections = <_QSection>[
     icon: Icons.house_rounded,
     color: AppColors.sky,
     items: [
-      _Q(
-        '현재 에어비앤비 운영 주소에 전입신고가 되어 있습니다. '
-        '이 상태가 낙찰·대출·세금(취득세 중과, 1세대 판단)에서 문제가 됩니까?',
-        want: '지금 전입 상태를 그대로 둬도 되는지, 정리해야 하는지.',
-        core: true,
-      ),
-      _Q(
-        '무주택 세대라도 낙찰 시 취득세는 어떻게 계산됩니까? '
-        '빌라 1채 취득이면 기본세율인지, 중과 대상이 되는 경우가 있습니까?',
-        want: '취득세 실제 금액. 부대비용 계산에 직결.',
-      ),
-      _Q(
-        '낙찰받은 빌라에 실거주 전입을 하는 것이 대출·세금 면에서 유리한 게 있습니까? '
-        '아니면 전입 없이 바로 임대를 돌리는 게 낫습니까?',
-      ),
-      _Q(
-        '에어비앤비를 계속 운영하면서 낙찰받은 빌라를 임대(또는 숙박)로 돌릴 때 '
-        '주의할 점이 있습니까? 사업자 등록이나 신고 문제가 걸립니까?',
-      ),
-      _Q(
-        '낙찰 후 단기 매도 시 양도세 중과(보유 1년 미만 등)를 감안하면, '
-        '최소 보유 기간을 얼마로 잡고 출구 전략을 짜야 합니까?',
-        want: '보유 기간 설계. 단기 차익 계획이면 세금에 다 먹힘.',
-      ),
+      _Q('에어비앤비 주소에 전입신고가 돼 있는데, 이게 낙찰·대출·세금(취득세 중과·1세대 판단)에 문제가 되나요?',
+          core: true),
+      _Q('무주택 세대가 낙찰하면 취득세는 어떻게 되나요? 빌라 1채면 기본세율인가요, 중과되나요?'),
+      _Q('낙찰 빌라에 실거주 전입하는 게 대출·세금에 유리한가요, 아니면 바로 임대가 나은가요?'),
+      _Q('에어비앤비 운영하면서 낙찰 빌라를 임대·숙박으로 돌릴 때 사업자·신고 문제가 있나요?'),
+      _Q('단기 매도하면 양도세 중과(1년 미만 등)를 감안해 최소 보유기간을 얼마로 잡아야 하나요?'),
     ],
   ),
   _QSection(
@@ -236,67 +137,33 @@ const _sections = <_QSection>[
     color: AppColors.primary,
     items: [
       _Q(
-        '저희 상황(부부·무주택·현금 1,000만원·에어비앤비 운영)에서 다음 네 가지 중 어느 쪽입니까?\n'
-        'ⓐ 청약·생애최초 지키고, 경매는 자금 더 모을 때까지 보류\n'
-        'ⓑ 주택 아닌 물건(토지·상가 등)으로 경매 시작 — 생애최초 보존\n'
-        'ⓒ 소형·저가주택 빌라로 경매 (청약 가점만 살리고 생애최초는 포기)\n'
-        'ⓓ 청약·생애최초 다 포기하고 경매에 집중\n'
-        '그리고 그 판단의 근거는 무엇입니까?',
-        want: '이 강의에서 반드시 받아올 한 문장. 선택지 ⓐⓑⓒⓓ로 답을 유도.',
+        '저희 상황(무주택 신혼부부·자금 8,100·에어비앤비)에서 어느 쪽인가요?\n'
+        'ⓐ 청약·생애최초 지키고 경매는 보류\n'
+        'ⓑ 주택 아닌 물건으로 시작해 생애최초 보존\n'
+        'ⓒ 소형·저가 빌라로 (가점만 살리고 생애최초 포기)\n'
+        'ⓓ 다 포기하고 경매 집중\n'
+        '그리고 그 근거는요?',
         core: true,
       ),
-      _Q(
-        '첫 경매는 어떤 물건으로 시작하는 게 좋습니까? '
-        '권리관계가 깨끗한 물건만 보는 게 맞습니까, 아니면 처음부터 명도까지 경험하는 게 낫습니까?',
-      ),
-      _Q(
-        '1,000만원으로 지금 입찰을 시작하는 게 맞습니까, '
-        '아니면 얼마까지 모아서 시작하라고 조언하시겠습니까?',
-        core: true,
-      ),
-      _Q(
-        '빌라 중에서 절대 피해야 할 유형을 꼽아주신다면 무엇입니까? '
-        '(반지하, 근저당 과다, 대항력 있는 임차인, 미납관리비 큰 물건 등)',
-        want: '제외 기준 리스트 → 물건 검색 필터로 그대로 쓰기.',
-      ),
-      _Q(
-        '지금 시점에 제 자금대로 접근할 만한 지역이 있습니까? '
-        '수도권에서 가능한 구간이 있습니까, 지방으로 가야 합니까?',
-      ),
-      _Q(
-        '강의 이후에 혼자 연습할 때, 입찰 전 조사에서 초보가 가장 많이 놓치는 항목은 무엇입니까?',
-      ),
+      _Q('첫 경매는 권리 깨끗한 물건만 보는 게 맞나요, 아니면 명도까지 경험하는 게 나은가요?'),
+      _Q('지금 8,100으로 시작해도 되나요, 아니면 얼마까지 모으는 게 좋을까요?', core: true),
+      _Q('절대 피해야 할 빌라 유형은요? (반지하·근저당 과다·대항력 임차인·미납관리비 큰 물건 등)'),
+      _Q('지금 제 자금으로 접근할 만한 지역이 있나요? 수도권에서 가능한가요, 지방으로 가야 하나요?'),
+      _Q('혼자 연습할 때 입찰 전 조사에서 초보가 가장 많이 놓치는 게 뭔가요?'),
     ],
   ),
   // ── 2주차 ─────────────────────────────────────────────
   _QSection(
-    title: '6. 모아타운 조합원 승계 · 현금청산',
-    subtitle: '투기과열지구 조합설립 後 취득 리스크',
+    title: '모아타운 조합원 승계 · 현금청산',
+    subtitle: '조합설립된 물건 경매로 사도 되나',
     icon: Icons.groups_rounded,
     color: Color(0xFFEF4444),
     week: 2,
     items: [
       _Q(
-        '조합설립된 모아타운 물건을 «경매»로 낙찰받으면 조합원 승계가 됩니까, 아니면 현금청산 대상입니까?',
-        want: '경매 취득 시 조합원 자격/현금청산 여부',
+        '조합설립된 모아타운 물건을 경매로 낙찰받으면 조합원 승계가 되나요, 아니면 현금청산 대상인가요? 현금청산이면 차라리 매매가 나은지, 결국 조합설립 전후로 갈리는 건지 확인.\n'
+        'https://www.hauction.co.kr/search/auction/1517376',
         core: true,
-      ),
-      _Q(
-        '현금청산 대상이면 차라리 «매매»가 낫습니까? 결국 조합설립 前/後로 갈리는 것 아닙니까?',
-        want: '경매 vs 매매, 조합설립 前後 기준',
-        core: true,
-      ),
-      _Q(
-        '도정법 시행령의 «금융기관 채무 경매 예외»로 경매 매수인이 조합원 자격을 얻을 수 있습니까? HUG(주택도시보증공사) 채권 경매도 해당됩니까?',
-        want: '경매 예외 적용 여부·판례',
-      ),
-      _Q(
-        '한 모아타운 관리구역 안에서 소구역별로 단계가 다른데, 특정 빌라가 조합설립 前인지 어떻게 확인합니까?',
-        want: '소구역 단계 확인 방법',
-      ),
-      _Q(
-        '공시가 1억↓(법인 취득세 1.1%) + 갭 5천↓ 조건이 실제로 맞는, 조합설립 前 구역은 지금 어디입니까?',
-        want: '실전 진입適期 구역 추천',
       ),
     ],
   ),
@@ -645,7 +512,6 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
               ),
               const Gap(Insets.gap),
             ],
-            const _ClosingCard(),
           ],
         );
       },
@@ -935,49 +801,52 @@ class _QuestionRow extends StatelessWidget {
                       ),
                     ),
                 ]),
-                // 질문을 누르면 답 적기.
-                InkWell(
-                  onTap: onEditAnswer,
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: AppFont.body,
-                      height: 1.5,
-                      color: done ? AppColors.textFaint : AppColors.textPrimary,
-                      decoration: done ? TextDecoration.lineThrough : null,
-                      decorationColor: AppColors.textFaint,
-                    ),
-                  ),
-                ),
-                if (want != null) ...[
-                  const Gap(6),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.flag_rounded,
-                            size: 13, color: AppColors.textFaint),
-                        const Gap(7),
-                        Expanded(
-                          child: Text(
-                            want!,
-                            style: const TextStyle(
-                              fontSize: AppFont.caption,
-                              color: AppColors.textSecondary,
-                              height: 1.4,
-                            ),
+                // 질문을 누르면 답 적기. URL이 있으면 새 창으로 여는 버튼.
+                Builder(builder: (_) {
+                  final m = _urlRe.firstMatch(text);
+                  final url = m?.group(0);
+                  final qText =
+                      url == null ? text : text.replaceFirst(url, '').trim();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: onEditAnswer,
+                        child: Text(
+                          qText,
+                          style: TextStyle(
+                            fontSize: AppFont.body,
+                            height: 1.5,
+                            color: done
+                                ? AppColors.textFaint
+                                : AppColors.textPrimary,
+                            decoration:
+                                done ? TextDecoration.lineThrough : null,
+                            decorationColor: AppColors.textFaint,
                           ),
                         ),
+                      ),
+                      if (url != null) ...[
+                        const Gap(7),
+                        InkWell(
+                          onTap: () => launchUrl(Uri.parse(url),
+                              mode: LaunchMode.externalApplication),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.open_in_new_rounded,
+                                size: 14, color: color),
+                            const Gap(5),
+                            Text('링크 열기',
+                                style: TextStyle(
+                                    fontSize: AppFont.caption,
+                                    color: color,
+                                    fontWeight: FontWeight.w700)),
+                          ]),
+                        ),
                       ],
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                }),
                 // 받은 답 — 있으면 보여주고, 없으면 적으라고 안내한다.
                 const Gap(7),
                 InkWell(
@@ -1029,46 +898,6 @@ class _QuestionRow extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClosingCard extends StatelessWidget {
-  const _ClosingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      accent: AppColors.rose,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(
-            '질문할 때 요령',
-            subtitle: '시간이 짧으면 이 순서로',
-          ),
-          const Gap(12),
-          for (final t in const [
-            '① 「2번 청약」과 「3번 생애최초」부터 묻기. 여기 답이 나머지 전부를 결정한다.',
-            '①-b 특히 3번. 가점은 다시 쌓을 수 있어도 생애최초는 한 번 쓰면 끝일 수 있다.',
-            '② 내 상황을 15초 안에 요약해서 먼저 말하기 (무주택 부부 / 현금 1,000만 / 에어비앤비 전입).',
-            '③ 「ⓐⓑⓒⓓ 중 어느 쪽입니까」처럼 선택지를 주고 물으면 두루뭉술한 답이 안 나온다.',
-            '④ 질문에 적힌 숫자·기준(60㎡, 공시가격 한도 등)은 내 기억이므로 "이 기준이 맞습니까"로 확인받기.',
-            '⑤ 답을 들으면 바로 이 화면 번호를 눌러 체크하고, 숫자는 메모에 남기기.',
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                t,
-                style: const TextStyle(
-                  fontSize: AppFont.body,
-                  color: AppColors.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-            ),
         ],
       ),
     );

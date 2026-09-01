@@ -42,7 +42,7 @@ class MoaTownView extends ConsumerStatefulWidget {
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
-  int _stageF = -1; // 단계 필터: -1 전체 / 1 진입適期 / 2 관리계획 / 3 조합설립↑
+  int _stageF = -1; // 단계 필터: -1 전체 / 1 진입 적기 / 2 관리계획 / 3 조합설립↑
 
   bool _stageMatch(Zone z) => _stageF < 0
       ? true
@@ -73,7 +73,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _teal),
-      chip(1, '① 진입適期(수립중)', AppColors.primary),
+      chip(1, '① 진입 적기(수립중)', AppColors.primary),
       chip(2, '② 관리계획 고시', AppColors.gold),
       chip(3, '③ 조합설립↑', AppColors.rose),
     ]);
@@ -140,7 +140,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         _stageChips(),
         if (_stageF == 1) ...[
           const Gap(8),
-          const Text('★ 진입適期 = 대상지 선정~관리계획 수립 중(고시 전) = 저점. 은천처럼 여기서 매수.',
+          const Text('★ 진입 적기 = 대상지 선정~관리계획 수립 중(고시 전) = 저점. 은천처럼 여기서 매수.',
               style: TextStyle(
                   fontSize: AppFont.caption,
                   color: AppColors.primary,
