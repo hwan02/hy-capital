@@ -719,6 +719,34 @@ class _BookDialogState extends State<_BookDialog> {
   late int _level = widget.book?.level ?? 1;
   late int _rating = widget.book?.rating ?? 0;
 
+  // 예전에 읽은 책은 날짜를 «직접» 넣어야 한다.
+  // 목록의 순환 버튼은 오늘 날짜만 박으므로 여기서 고친다.
+  late String _status = widget.book?.status ?? 'todo';
+  late DateTime? _startedOn = widget.book?.startedOn;
+  late DateTime? _readOn = widget.book?.readOn;
+
+  Future<void> _pick(bool start) async {
+    final now = DateTime.now();
+    final cur = start ? _startedOn : _readOn;
+    final d = await showDatePicker(
+      context: context,
+      initialDate: cur ?? now,
+      firstDate: DateTime(now.year - 30),
+      lastDate: now,
+      helpText: start ? '읽기 시작한 날' : '다 읽은 날',
+    );
+    if (d == null) return;
+    setState(() {
+      if (start) {
+        _startedOn = d;
+      } else {
+        _readOn = d;
+        // 다 읽은 날을 넣으면 상태도 따라간다 — 따로 누르게 하지 않는다.
+        if (_status != 'done') _status = 'done';
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final editing = widget.book != null;
@@ -780,6 +808,54 @@ class _BookDialogState extends State<_BookDialog> {
                 ),
             ]),
             if (editing) ...[
+              const Gap(6),
+              const Divider(height: 1, color: AppColors.border),
+              const Gap(12),
+              Row(children: [
+                const Text('상태',
+                    style: TextStyle(
+                        fontSize: AppFont.label,
+                        color: AppColors.textSecondary)),
+                const Gap(12),
+                for (final (k, label) in const [
+                  ('todo', '안 읽음'),
+                  ('reading', '읽는 중'),
+                  ('done', '읽음'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(label,
+                          style: const TextStyle(fontSize: AppFont.caption)),
+                      selected: _status == k,
+                      onSelected: (_) => setState(() => _status = k),
+                      selectedColor: _bookColor.withValues(alpha: 0.25),
+                      backgroundColor: AppColors.surfaceAlt,
+                      side: BorderSide(
+                          color: _status == k ? _bookColor : AppColors.border),
+                    ),
+                  ),
+              ]),
+              const Gap(10),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _DateChip(
+                  label: '시작',
+                  value: _startedOn,
+                  onTap: () => _pick(true),
+                  onClear: () => setState(() => _startedOn = null),
+                ),
+                _DateChip(
+                  label: '읽은 날',
+                  value: _readOn,
+                  onTap: () => _pick(false),
+                  onClear: () => setState(() => _readOn = null),
+                ),
+              ]),
+              const Gap(4),
+              const Text('예전에 읽은 책은 여기서 날짜를 직접 넣는다',
+                  style: TextStyle(
+                      fontSize: AppFont.micro, color: AppColors.textFaint)),
+              const Gap(12),
               Row(children: [
                 const Text('내 평가',
                     style: TextStyle(
@@ -871,12 +947,76 @@ class _BookDialogState extends State<_BookDialog> {
               'why': _why.text.trim(),
               'memo': _memo.text.trim(),
               'link': _link.text.trim(),
-              if (widget.book != null) 'rating': _rating == 0 ? null : _rating,
+              if (widget.book != null) ...{
+                'rating': _rating == 0 ? null : _rating,
+                'status': _status,
+                'started_on': _startedOn?.toIso8601String().substring(0, 10),
+                'read_on': _readOn?.toIso8601String().substring(0, 10),
+              },
             });
           },
           child: const Text('저장'),
         ),
       ],
+    );
+  }
+}
+
+/// 날짜 하나 — 누르면 고르고, ×로 지운다.
+class _DateChip extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+  const _DateChip({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = value == null;
+    return Material(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(11, 8, 6, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: empty ? AppColors.border : _bookColor.withValues(alpha: 0.6)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.event_rounded,
+                size: 14,
+                color: empty ? AppColors.textFaint : _bookColor),
+            const Gap(7),
+            Text(empty ? '$label 없음' : '$label ${Dates.ymd(value!)}',
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w700,
+                    color:
+                        empty ? AppColors.textFaint : AppColors.textPrimary)),
+            if (!empty)
+              IconButton(
+                tooltip: '지우기',
+                onPressed: onClear,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                icon: const Icon(Icons.close_rounded,
+                    size: 14, color: AppColors.textFaint),
+              )
+            else
+              const Gap(4),
+          ]),
+        ),
+      ),
     );
   }
 }
