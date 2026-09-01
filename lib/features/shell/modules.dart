@@ -20,5 +20,6 @@ const kModules = <ModuleDef>[
   ModuleDef('/auction', '부동산', Icons.location_city_rounded, Color(0xFF14B8A6)),
   ModuleDef('/dividend', '배당금', Icons.savings_rounded, AppColors.primary),
   ModuleDef('/ipo', '공모주', Icons.confirmation_number_rounded, Color(0xFF6366F1)),
+  ModuleDef('/books', '책', Icons.menu_book_rounded, Color(0xFFB4844E)),
   ModuleDef('/goals', 'Goals', Icons.flag_rounded, AppColors.violet),
 ];

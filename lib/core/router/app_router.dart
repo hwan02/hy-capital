@@ -20,6 +20,7 @@ import '../../features/property/visit_screen.dart';
 import '../../features/questions/lecture_questions_screen.dart';
 import '../../features/dividend/dividend_screen.dart';
 import '../../features/goals/goals_screen.dart';
+import '../../features/books/books_screen.dart';
 import '../../features/custom/custom_module_screen.dart';
 import '../supabase/supabase_providers.dart';
 
@@ -77,6 +78,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   VisitScreen(visitId: st.pathParameters['id']!))),
           GoRoute(path: '/questions', pageBuilder: (_, __) => _noTransition(const LectureQuestionsScreen())),
           GoRoute(path: '/dividend', pageBuilder: (_, __) => _noTransition(const DividendScreen())),
+          GoRoute(path: '/books', pageBuilder: (_, __) => _noTransition(const BooksScreen())),
           GoRoute(path: '/goals', pageBuilder: (_, __) => _noTransition(const GoalsScreen())),
           GoRoute(
             path: '/m/:id',

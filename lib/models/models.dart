@@ -1579,3 +1579,66 @@ class ShortsSlotRow {
         memo: m['memo'],
       );
 }
+
+/// 읽는 «순서»를 가진 책. 목록이 아니라 나무다 —
+/// 뿌리(입문) → 줄기(분야) → 가지(개별 책).
+class Book {
+  final String id;
+  final String category; // 부동산 …
+  final String branch; // 입문 · 경매 · 아파트 · 수익형 · 토지 · 법인
+  final int sortOrder; // 줄기 안에서 읽는 순서
+  final String title;
+  final String? author;
+  final int level; // 난이도 1~5
+  final List<String> tags;
+  final String? cover; // 표지 base64 data URL
+  final String? link;
+  final String status; // todo | reading | done
+  final DateTime? startedOn;
+  final DateTime? readOn;
+  final int? rating;
+  final String? memo;
+  final String? why; // 이 자리에 왜 있나
+
+  Book({
+    required this.id,
+    required this.category,
+    required this.branch,
+    required this.sortOrder,
+    required this.title,
+    this.author,
+    this.level = 1,
+    this.tags = const [],
+    this.cover,
+    this.link,
+    this.status = 'todo',
+    this.startedOn,
+    this.readOn,
+    this.rating,
+    this.memo,
+    this.why,
+  });
+
+  bool get isDone => status == 'done';
+  bool get isReading => status == 'reading';
+
+  factory Book.fromMap(Map<String, dynamic> m) => Book(
+        id: m['id'],
+        category: m['category'] ?? '부동산',
+        branch: m['branch'] ?? '입문',
+        sortOrder: _i(m['sort_order']),
+        title: m['title'] ?? '',
+        author: m['author'],
+        level: m['level'] == null ? 1 : _i(m['level']),
+        tags: (m['tags'] as List?)?.map((e) => e.toString()).toList() ??
+            const [],
+        cover: m['cover'],
+        link: m['link'],
+        status: m['status'] ?? 'todo',
+        startedOn: _date(m['started_on']),
+        readOn: _date(m['read_on']),
+        rating: m['rating'] == null ? null : _i(m['rating']),
+        memo: m['memo'],
+        why: m['why'],
+      );
+}

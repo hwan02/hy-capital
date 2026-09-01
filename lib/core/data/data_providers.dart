@@ -578,6 +578,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(nonSalaryCashflowThisMonthProvider);
   ref.invalidate(planPhasesProvider);
   ref.invalidate(planAllocationsProvider);
+  ref.invalidate(booksProvider);
   ref.invalidate(planConditionsProvider);
   ref.invalidate(currentPhaseProvider);
 }
@@ -666,4 +667,20 @@ final shortsSlotsProvider = FutureProvider<List<ShortsSlotRow>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb.from('shorts_slots').select().order('slot_date');
   return rows.map<ShortsSlotRow>(ShortsSlotRow.fromMap).toList();
+});
+
+/// 책 트리. 테이블(0042) 미생성이면 빈 목록.
+final booksProvider = FutureProvider<List<Book>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return [];
+  try {
+    final rows = await sb
+        .from('books')
+        .select()
+        .order('branch')
+        .order('sort_order');
+    return rows.map<Book>(Book.fromMap).toList();
+  } catch (_) {
+    return const <Book>[];
+  }
 });
