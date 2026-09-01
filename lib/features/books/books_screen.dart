@@ -7,7 +7,9 @@
 //
 // 표지는 직접 올린다(base64). 올리기 전엔 제목으로 만든 표지를 그린다 —
 // 빈 칸을 두면 나무가 앙상해 보인다.
+import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -602,6 +604,18 @@ class _BookCard extends StatelessWidget {
   }
 }
 
+/// base64 data URL → 바이트. 아니면 null.
+Uint8List? _bytes(String? dataUrl) {
+  if (dataUrl == null) return null;
+  final i = dataUrl.indexOf(',');
+  if (i < 0 || !dataUrl.startsWith('data:')) return null;
+  try {
+    return base64Decode(dataUrl.substring(i + 1));
+  } catch (_) {
+    return null;
+  }
+}
+
 /// 표지 — 없으면 제목으로 그린다. 누르면 올린다.
 class _Cover extends StatelessWidget {
   final Book book;
@@ -632,8 +646,10 @@ class _Cover extends StatelessWidget {
                   offset: const Offset(1, 2)),
             ],
           ),
-          child: book.cover != null
-              ? Image.network(book.cover!, fit: BoxFit.cover)
+          // data: URL 은 Image.network 로 안 그려진다. 바이트로 풀어서 그린다.
+          child: _bytes(book.cover) != null
+              ? Image.memory(_bytes(book.cover)!,
+                  fit: BoxFit.cover, gaplessPlayback: true)
               : Stack(children: [
                   // 책등
                   Positioned(
