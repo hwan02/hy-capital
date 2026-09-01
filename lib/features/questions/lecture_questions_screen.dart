@@ -36,22 +36,23 @@ class _QSection {
   final IconData icon;
   final Color color;
   final List<_Q> items;
+  final int week; // 1주차 / 2주차
   const _QSection({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
     required this.items,
+    this.week = 1,
   });
 }
 
 const _situation = [
-  '부부 · 현재 세대 전원 무주택',
+  '무주택 신혼부부 · 세대 전원 무주택',
+  '가용 자금 약 8,100만원',
+  '생애최초 특별공급 «가능» (부부 모두 소유 이력 없음, 미사용)',
   '에어비앤비 운영 주소에 전입신고 되어 있음',
-  '가용 현금 약 1,000만원',
-  '생애최초 특별공급 카드 미사용 (부부 모두 주택 소유 이력 없음)',
-  '관심 물건: 빌라(다세대) 경매',
-  '걱정: 낙찰 = 1주택 → 청약·생애최초 자격 소멸?',
+  '전략: 모아·신통 빌라 경매/매매 (법인 공시가1억↓ 단타·플피)',
 ];
 
 const _sections = <_QSection>[
@@ -267,6 +268,38 @@ const _sections = <_QSection>[
       ),
     ],
   ),
+  // ── 2주차 ─────────────────────────────────────────────
+  _QSection(
+    title: '6. 모아타운 조합원 승계 · 현금청산',
+    subtitle: '투기과열지구 조합설립 後 취득 리스크',
+    icon: Icons.groups_rounded,
+    color: Color(0xFFEF4444),
+    week: 2,
+    items: [
+      _Q(
+        '조합설립된 모아타운 물건을 «경매»로 낙찰받으면 조합원 승계가 됩니까, 아니면 현금청산 대상입니까?',
+        want: '경매 취득 시 조합원 자격/현금청산 여부',
+        core: true,
+      ),
+      _Q(
+        '현금청산 대상이면 차라리 «매매»가 낫습니까? 결국 조합설립 前/後로 갈리는 것 아닙니까?',
+        want: '경매 vs 매매, 조합설립 前後 기준',
+        core: true,
+      ),
+      _Q(
+        '도정법 시행령의 «금융기관 채무 경매 예외»로 경매 매수인이 조합원 자격을 얻을 수 있습니까? HUG(주택도시보증공사) 채권 경매도 해당됩니까?',
+        want: '경매 예외 적용 여부·판례',
+      ),
+      _Q(
+        '한 모아타운 관리구역 안에서 소구역별로 단계가 다른데, 특정 빌라가 조합설립 前인지 어떻게 확인합니까?',
+        want: '소구역 단계 확인 방법',
+      ),
+      _Q(
+        '공시가 1억↓(법인 취득세 1.1%) + 갭 5천↓ 조건이 실제로 맞는, 조합설립 前 구역은 지금 어디입니까?',
+        want: '실전 진입適期 구역 추천',
+      ),
+    ],
+  ),
 ];
 
 int get _totalCount =>
@@ -314,6 +347,9 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
 
   /// 답 적은 것만 보기.
   bool _answeredOnly = false;
+
+  /// 주차 필터. 0 = 전체, 1 = 1주차, 2 = 2주차.
+  int _week = 0;
 
   /// 물어봤는지 토글 — 바로 저장한다(강의장에서 잃어버리면 안 됨).
   Future<void> _toggleAsked(String qkey, String question, bool now) =>
@@ -482,6 +518,39 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
     }
   }
 
+  Widget _weekChips() {
+    Widget chip(int v, String label) {
+      final on = _week == v;
+      return InkWell(
+        onTap: () => setState(() => _week = v),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: on
+                ? _kQuestionColor.withValues(alpha: 0.18)
+                : Colors.transparent,
+            border: Border.all(
+                color: on ? _kQuestionColor : AppColors.border,
+                width: on ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: on ? _kQuestionColor : AppColors.textSecondary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700)),
+        ),
+      );
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: [
+      chip(0, '전체'),
+      chip(1, '1주차'),
+      chip(2, '2주차'),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(lectureAnswersProvider);
@@ -552,27 +621,32 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
             const Gap(Insets.gap),
             const _SituationCard(),
             const Gap(Insets.gap),
-            for (var si = 0; si < _sections.length; si++) ...[
-              _SectionCard(
-                section: _sections[si],
-                sectionIndex: si,
-                coreOnly: _coreOnly,
-                answeredOnly: _answeredOnly,
+            _weekChips(),
+            const Gap(Insets.gap),
+            for (var si = 0; si < _sections.length; si++)
+              if (_week == 0 || _sections[si].week == _week) ...[
+                _SectionCard(
+                  section: _sections[si],
+                  sectionIndex: si,
+                  coreOnly: _coreOnly,
+                  answeredOnly: _answeredOnly,
+                  recs: recs,
+                  onToggle: _toggleAsked,
+                  onEditAnswer: _editAnswer,
+                ),
+                const Gap(Insets.gap),
+              ],
+            if (_week != 1) ...[
+              _CustomSection(
                 recs: recs,
+                answeredOnly: _answeredOnly,
+                onAdd: _addCustom,
                 onToggle: _toggleAsked,
                 onEditAnswer: _editAnswer,
+                onDelete: _deleteCustom,
               ),
               const Gap(Insets.gap),
             ],
-            _CustomSection(
-              recs: recs,
-              answeredOnly: _answeredOnly,
-              onAdd: _addCustom,
-              onToggle: _toggleAsked,
-              onEditAnswer: _editAnswer,
-              onDelete: _deleteCustom,
-            ),
-            const Gap(Insets.gap),
             const _ClosingCard(),
           ],
         );
