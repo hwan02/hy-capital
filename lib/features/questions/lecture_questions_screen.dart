@@ -400,9 +400,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
               maxLines: 8,
               minLines: 4,
               style: const TextStyle(fontSize: AppFont.body, height: 1.5),
-              decoration: const InputDecoration(
-                hintText: '강사가 뭐라고 했는지 그대로 적어두세요.\n수치·조건은 들은 대로.',
-              ),
+              decoration: const InputDecoration(),
             ),
             const Gap(12),
             Row(children: [
@@ -689,7 +687,7 @@ class _ProgressCard extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  '번호를 눌러 체크 · 질문을 눌러 답 적기',
+                  '질문 진행',
                   style: TextStyle(
                     fontSize: AppFont.section,
                     fontWeight: FontWeight.w700,
@@ -708,16 +706,6 @@ class _ProgressCard extends StatelessWidget {
           ),
           const Gap(12),
           ProgressBar(value: ratio, color: _kQuestionColor),
-          const Gap(8),
-          Text(
-            answered > 0
-                ? '답 적은 질문 $answered개 · ★ 는 꼭 답을 받아와야 하는 핵심 질문'
-                : '★ 표시는 이 강의에서 답을 꼭 받아와야 하는 핵심 질문',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: AppFont.caption,
-            ),
-          ),
         ],
       ),
     );
@@ -733,10 +721,7 @@ class _SituationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(
-            '내 상황 (질문 전에 먼저 말할 것)',
-            subtitle: '강사가 조건을 알아야 답이 구체적으로 나온다',
-          ),
+          const SectionHeader('내 상황 (질문 전에 먼저 말할 것)'),
           const Gap(14),
           for (final s in _situation)
             Padding(
