@@ -550,6 +550,13 @@ class _StageLadder extends StatelessWidget {
           ]),
           const Gap(8),
           const Text(
+              '가격은 «수립 → 고시», «징구 → 인가» 두 번 뛴다. 그 직전 칸에서 산다.',
+              style: TextStyle(
+                  fontSize: AppFont.micro,
+                  color: AppColors.textSecondary,
+                  height: 1.5)),
+          const Gap(3),
+          const Text(
               '조합설립인가(3)부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
               style: TextStyle(
                   fontSize: AppFont.micro,
@@ -583,7 +590,7 @@ class _StageLadder extends StatelessWidget {
       ),
       const Gap(5),
       SizedBox(
-        height: 26,
+        height: 24,
         child: Text(
           Zone.stageLabels[stage] ?? '',
           textAlign: TextAlign.center,
@@ -594,6 +601,25 @@ class _StageLadder extends StatelessWidget {
               height: 1.25,
               fontWeight: has ? FontWeight.w700 : FontWeight.w500,
               color: has ? AppColors.textSecondary : AppColors.textFaint),
+        ),
+      ),
+      // 단계 이름은 «끝난 일»이다. 지금 뭐가 돌아가는지를 한 줄 더 준다 —
+      // 매수 자리가 여기서 갈린다.
+      const Gap(3),
+      SizedBox(
+        height: 24,
+        child: Text(
+          '↳ ${kStageDoing[stage] ?? ''}',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 8,
+              height: 1.25,
+              fontWeight: band.canBuy ? FontWeight.w800 : FontWeight.w500,
+              color: band.canBuy
+                  ? c
+                  : AppColors.textFaint.withValues(alpha: 0.7)),
         ),
       ),
     ]);
