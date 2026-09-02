@@ -45,6 +45,9 @@ class MoaTownView extends ConsumerStatefulWidget {
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
+  /// 자치구 안에서 보는 사업 종류. 모아와 신통은 «절차가 달라»
+  /// 사다리를 같이 그릴 수 없다 — 골라서 본다.
+  String _kind = '모아타운';
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
   int _stageF = -1;
 
@@ -255,6 +258,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       onTap: () => setState(() {
         _district = d;
         _openZoneId = null;
+        // 그 구에 더 많은 쪽을 기본으로 열어준다
+        _kind = sin > moa ? '신통기획' : '모아타운';
       }),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -293,6 +298,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       for (final z in zones)
         if ((z.district ?? '기타') == d || (z.district == null && d == '기타')) z
     ]..sort((a, b) => b.stage.compareTo(a.stage));
+    // 섞여 있으면 고른 종류만 — 절차가 달라 같이 보면 헷갈린다.
+    final mixed = zs.any((z) => z.isSin) && zs.any((z) => !z.isSin);
+    final list = mixed ? zs.where((z) => z.kind == _kind).toList() : zs;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -317,12 +325,52 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             style: const TextStyle(
                 fontSize: AppFont.title, fontWeight: FontWeight.w800)),
         const Gap(12),
-        // 단계 사다리 — 이 자치구 구역들이 어디쯤 있는지 한눈에.
-        _StageLadder(zones: zs),
+        // 사업 종류 — 절차가 다르므로 섞어 보지 않는다.
+        Builder(builder: (context) {
+          final moaN = zs.where((z) => !z.isSin).length;
+          final sinN = zs.where((z) => z.isSin).length;
+          if (moaN == 0 || sinN == 0) return const SizedBox.shrink();
+          Widget chip(String k, int n, Color c) {
+            final on = _kind == k;
+            return InkWell(
+              onTap: () => setState(() {
+                _kind = k;
+                _openZoneId = null;
+              }),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: on ? c.withValues(alpha: 0.18) : AppColors.surfaceAlt,
+                  border: Border.all(
+                      color: on ? c : AppColors.border, width: on ? 1.5 : 1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('$k $n곳',
+                    style: TextStyle(
+                        color: on ? c : AppColors.textSecondary,
+                        fontSize: AppFont.body,
+                        fontWeight: FontWeight.w800)),
+              ),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(children: [
+              chip('모아타운', moaN, _teal),
+              const Gap(8),
+              chip('신통기획', sinN, AppColors.violet),
+            ]),
+          );
+        }),
+        // 단계 사다리 — 고른 종류의 절차만 그린다.
+        _StageLadder(zones: zs.where((z) => z.kind == _kind).toList(),
+            sin: _kind == '신통기획'),
         const Gap(14),
         _stageChips(),
         const Gap(14),
-        for (final z in zs) ...[
+        for (final z in list) ...[
           _zoneCard(z, props, zones),
           const Gap(10),
         ],
@@ -404,7 +452,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    fontSize: AppFont.micro,
+                                    fontSize: AppFont.caption,
                                     color: AppColors.textFaint)),
                           ),
                         ]),
@@ -442,7 +490,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                        fontSize: AppFont.micro,
+                                        fontSize: AppFont.caption,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.rose)),
                               )
@@ -452,7 +500,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                        fontSize: AppFont.micro,
+                                        fontSize: AppFont.caption,
                                         color: AppColors.textFaint)),
                               ),
                           ]),
@@ -477,9 +525,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 const Expanded(
                                   child: Text(kDropRiskNote,
                                       style: TextStyle(
-                                          fontSize: AppFont.micro,
+                                          fontSize: AppFont.caption,
                                           color: AppColors.gold,
-                                          height: 1.55)),
+                                          height: 1.6)),
                                 ),
                               ]),
                         ),
@@ -642,7 +690,11 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 /// 어느 칸에 있는지 표시한다. 매수 A/B/금지 구간도 색으로 가른다.
 class _StageLadder extends StatelessWidget {
   final List<Zone> zones;
-  const _StageLadder({required this.zones});
+  /// 어느 절차로 그릴지. 추측하지 않는다 — 위에서 골라 내려준다.
+  final bool sin;
+  const _StageLadder({required this.zones, required this.sin});
+
+  bool get _sin => sin;
 
   @override
   Widget build(BuildContext context) {
@@ -655,18 +707,19 @@ class _StageLadder extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.stairs_rounded, size: 15, color: AppColors.textSecondary),
-            Gap(8),
-            Text('사업 진행 순서',
-                style: TextStyle(
+          Row(children: [
+            const Icon(Icons.stairs_rounded,
+                size: 15, color: AppColors.textSecondary),
+            const Gap(8),
+            Text(_sin ? '사업 진행 순서 (신통)' : '사업 진행 순서 (모아)',
+                style: const TextStyle(
                     fontSize: AppFont.label,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textSecondary)),
-            Spacer(),
-            Text('숫자 = 이 구에 있는 구역 수',
+            const Spacer(),
+            const Text('숫자 = 구역 수',
                 style: TextStyle(
-                    fontSize: AppFont.micro, color: AppColors.textFaint)),
+                    fontSize: AppFont.caption, color: AppColors.textFaint)),
           ]),
           const Gap(12),
           // 1~7 칸
@@ -698,37 +751,40 @@ class _StageLadder extends StatelessWidget {
                 const Gap(6),
                 Text('${b.label} · ${b.short}',
                     style: TextStyle(
-                        fontSize: AppFont.micro,
+                        fontSize: AppFont.caption,
                         color: b.color,
                         fontWeight: FontWeight.w700)),
               ]),
           ]),
           const Gap(8),
-          const Text(
-              '가격은 «수립 → 고시», «징구 → 인가» 두 번 뛴다. 그 직전 칸에서 산다.',
-              style: TextStyle(
-                  fontSize: AppFont.micro,
+          Text(
+              _sin
+                  ? '가격은 «선정 → 토허가», «지정고시», «조합설립» 에서 뛴다. '
+                      '골짜기는 «기획 완료»와 «동의서 징구» — 그 칸에서 산다.'
+                  : '가격은 «수립 → 고시», «징구 → 인가» 두 번 뛴다. 그 직전 칸에서 산다.',
+              style: const TextStyle(
+                  fontSize: AppFont.caption,
                   color: AppColors.textSecondary,
-                  height: 1.5)),
-          const Gap(3),
+                  height: 1.55)),
+          const Gap(4),
           const Text(
-              '조합설립인가(3)부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
+              '조합설립인가부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
               style: TextStyle(
-                  fontSize: AppFont.micro,
+                  fontSize: AppFont.caption,
                   color: AppColors.rose,
-                  height: 1.5)),
+                  height: 1.55)),
         ],
       ),
     );
   }
 
   Widget _rung(int stage, int n) {
-    final band = bandOfStage(stage);
+    final band = _sin ? bandOfSinStage(stage) : bandOfStage(stage);
     final has = n > 0;
     final c = band.color;
     return Column(children: [
       Container(
-        height: 26,
+        height: 32,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: c.withValues(alpha: has ? 0.22 : 0.07),
@@ -739,21 +795,21 @@ class _StageLadder extends StatelessWidget {
         ),
         child: Text(has ? '$stage · $n' : '$stage',
             style: TextStyle(
-                fontSize: AppFont.micro,
+                fontSize: AppFont.label,
                 fontWeight: FontWeight.w900,
                 color: has ? c : c.withValues(alpha: 0.45))),
       ),
       const Gap(5),
       SizedBox(
-        height: 24,
+        height: 32,
         child: Text(
-          Zone.stageLabels[stage] ?? '',
+          (_sin ? Zone.sinStageLabels[stage] : Zone.stageLabels[stage]) ?? '',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: 8.5,
-              height: 1.25,
+              fontSize: AppFont.caption,
+              height: 1.3,
               fontWeight: has ? FontWeight.w700 : FontWeight.w500,
               color: has ? AppColors.textSecondary : AppColors.textFaint),
         ),
@@ -762,15 +818,15 @@ class _StageLadder extends StatelessWidget {
       // 매수 자리가 여기서 갈린다.
       const Gap(3),
       SizedBox(
-        height: 24,
+        height: 32,
         child: Text(
-          '↳ ${kStageDoing[stage] ?? ''}',
+          '↳ ${(_sin ? kSinStageDoing[stage] : kStageDoing[stage]) ?? ''}',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: 8,
-              height: 1.25,
+              fontSize: AppFont.micro,
+              height: 1.3,
               fontWeight: band.canBuy ? FontWeight.w800 : FontWeight.w500,
               color: band.canBuy
                   ? c

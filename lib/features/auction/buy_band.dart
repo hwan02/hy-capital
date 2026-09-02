@@ -22,7 +22,11 @@ import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
 enum BuyBand {
-  /// 단계 1 — 수립 중. 저점. 상승 2번 남음.
+  /// 아직 «오르는 중». 발표로 튄 값이 안 빠졌다 — 기다린다.
+  /// 신통의 「후보지 선정」이 여기다 (토허가 발효까지 더 오른다).
+  rising,
+
+  /// 저점. 상승 2번 남음. 모아=수립 중 · 신통=기획 완료.
   early,
 
   /// 단계 2 — 고시 완료, 동의서 징구 구간. 상승 1번 남음.
@@ -37,6 +41,7 @@ enum BuyBand {
 
 extension BuyBandInfo on BuyBand {
   String get label => switch (this) {
+        BuyBand.rising => '오르는 중',
         BuyBand.early => '매수 A',
         BuyBand.late_ => '매수 B',
         BuyBand.blocked => '진입 불가',
@@ -45,7 +50,8 @@ extension BuyBandInfo on BuyBand {
 
   /// 칩에 쓰는 짧은 설명 — «지금 뭐가 진행 중인가».
   String get short => switch (this) {
-        BuyBand.early => '관리계획 수립 중 · 저점',
+        BuyBand.rising => '발표로 튄 값 · 아직 안 빠졌다',
+        BuyBand.early => '저점 — 다음 상승 직전',
         BuyBand.late_ => '조합 동의서 징구 중',
         BuyBand.blocked => '조합설립인가 지남',
         BuyBand.unknown => '구역을 못 찾음',
@@ -53,6 +59,9 @@ extension BuyBandInfo on BuyBand {
 
   /// 왜 이 판정인가 — 카드에서 한 줄로 보여준다.
   String get why => switch (this) {
+        BuyBand.rising =>
+          '선정 «발표»로 값이 튄 구간이다. 신통은 여기서 토지거래허가 발효까지 '
+              '더 오르고, «기획 완료»에서 빠진다 — 그때가 매수 자리다.',
         BuyBand.early =>
           '«관리계획 수립» 중 — 다음 상승은 통합심의(고시). 그 뒤 조합설립인가까지 '
               '상승이 «두 번» 남았다. 은천 사례의 진입 자리.',
@@ -65,6 +74,7 @@ extension BuyBandInfo on BuyBand {
       };
 
   Color get color => switch (this) {
+        BuyBand.rising => AppColors.sky,
         BuyBand.early => AppColors.primary,
         BuyBand.late_ => AppColors.gold,
         BuyBand.blocked => AppColors.rose,
@@ -72,6 +82,7 @@ extension BuyBandInfo on BuyBand {
       };
 
   IconData get icon => switch (this) {
+        BuyBand.rising => Icons.hourglass_top_rounded,
         BuyBand.early => Icons.trending_up_rounded,
         BuyBand.late_ => Icons.timelapse_rounded,
         BuyBand.blocked => Icons.block_rounded,
@@ -82,7 +93,10 @@ extension BuyBandInfo on BuyBand {
   bool get canBuy => this == BuyBand.early || this == BuyBand.late_;
 }
 
-/// 구역 단계 → 매수 구간.
+/// 모아타운 단계 → 매수 구간.
+///   1 수립 중       → 매수 A (첫 골짜기)
+///   2 고시 후 징구   → 매수 B (두 번째 골짜기)
+///   3+ 조합설립      → 진입 불가
 BuyBand bandOfStage(int stage) {
   if (stage >= 3) return BuyBand.blocked;
   if (stage == 2) return BuyBand.late_;
@@ -90,16 +104,44 @@ BuyBand bandOfStage(int stage) {
   return BuyBand.unknown; // 0 = 미정
 }
 
-/// 구역 → 매수 구간.
-BuyBand bandOfZone(Zone? z) =>
-    z == null ? BuyBand.unknown : bandOfStage(z.stage);
+/// 신속통합기획 단계 → 매수 구간. 골짜기 위치가 모아와 «다르다».
+///   1 후보지 선정        → 오르는 중 (토허가까지 더 오른다)
+///   2 기획 완료          → 매수 A  ← 첫 골짜기
+///   3 열람공고·지정 임박   → 오르는 중 (지정고시로 뛴다)
+///   4 정비구역 지정고시    → 봉우리
+///   5 조합 동의서 징구     → 매수 B  ← 두 번째 골짜기
+///   6+ 조합설립인가       → 진입 불가
+BuyBand bandOfSinStage(int stage) => switch (stage) {
+      1 || 3 || 4 => BuyBand.rising,
+      2 => BuyBand.early,
+      5 => BuyBand.late_,
+      >= 6 => BuyBand.blocked,
+      _ => BuyBand.unknown,
+    };
+
+/// 구역 → 매수 구간. 종류에 따라 축이 다르다.
+BuyBand bandOfZone(Zone? z) => z == null
+    ? BuyBand.unknown
+    : (z.isSin ? bandOfSinStage(z.stage) : bandOfStage(z.stage));
 
 /// 이 구간에서 «다음에 팔 자리»는 어디인가.
 String sellLineOf(BuyBand b) => switch (b) {
-      BuyBand.early => '통합심의(고시) 직후, 또는 조합설립인가 직전',
+      BuyBand.early => '첫 상승(고시·지정) 직후, 또는 조합설립인가 직전',
       BuyBand.late_ => '조합설립인가 «직전» — 이 창을 놓치면 못 판다',
+      BuyBand.rising => '지금은 살 자리가 아니다 — 다음 골짜기를 기다린다',
       _ => '—',
     };
+
+/// 신통 단계에서 «지금 진행 중인 일».
+const kSinStageDoing = <int, String>{
+  1: '기획 «수립» 중',
+  2: '정비구역 지정 준비',
+  3: '열람공고 · 지정 임박',
+  4: '조합 «동의서 징구» 준비',
+  5: '조합 동의서 «징구» 중',
+  6: '조합 운영',
+  7: '사업시행 이후',
+};
 
 /// 그 단계에서 «지금 진행 중인 일». 단계 이름은 «끝난 일»만 말해줘서
 /// 정작 지금 뭐가 돌아가는지가 안 보인다 — 매수 자리는 여기서 갈린다.
@@ -198,7 +240,8 @@ RightsCheck rightsCheck(AuctionProperty p, Zone? z) {
 ///   2026.03.15 「모아타운 통과 (727세대)」
 ///   2026.07.16 「하루 아침에 수포로 — 대상지 해제」
 /// 통과 «4개월» 만이다. 초기일수록 수익이 큰 대신 사업이 엎어질 수 있다.
-bool hasDropRisk(Zone? z) => z != null && z.stage <= 1;
+bool hasDropRisk(Zone? z) =>
+    z != null && (z.isSin ? z.stage <= 2 : z.stage <= 1);
 
 const kDropRiskNote =
     '초기 단계는 «해제»될 수 있다 — 자양2동 681은 통과 4개월 만에 대상지에서 '

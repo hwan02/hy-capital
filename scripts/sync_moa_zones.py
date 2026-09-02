@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
-"""서울도시공간포털에서 모아타운 구역 현황을 받아 zones 에 동기화한다.
+"""서울도시공간포털에서 «모아타운 + 신속통합기획» 구역 현황을 zones 에 동기화한다.
 
 앱에 손으로 넣은 구역은 서울 전체의 «일부»뿐이었다. 공식 목록은 107곳이다.
 매수 자리(관리계획 수립 중)를 찾으려면 목록이 통째로 있어야 한다.
 
-출처: 서울도시공간포털 > 서울플랜+ > 소규모정비사업 > 모아타운
-      POST /bsns/getPageListbsnsIntegrated2.json  {"bsnsCdList":["BZ201"]}
+출처: 서울도시공간포털 > 서울플랜+
+      POST /bsns/getPageListbsnsIntegrated2.json
+        모아타운  {"bsnsCdList":["BZ201"]}   107곳
+        신통기획  {"bsnsCdList":["BZ101"]}   231곳
 
 【추진단계 → 앱 stage 매핑】 「후계공통승」 순서 그대로.
   수립범위 자문 · 대상지선정 · 사전자문 · 위원회심의  → 1 (관리계획 «수립» 중 = 매수 A)
   관리지역고시                                      → 2 (동의서 «징구» 중 = 매수 B)
-조합설립(3) 이상은 이 API 에 «안 나온다». 그래서 이미 3 이상인 구역은
-건드리지 않는다 — 안 그러면 조합설립인가 난 구역이 「매수 B」로 되돌아가
-진입 불가 경고가 사라진다 (2026-09-02 실제로 한 번 겪었다).
+【신통은 축이 «다르다»】 교안 시세 그래프에서 골짜기 위치가 다르다.
+  대상지선정 → 1 (오르는 중 — 토허가까지 더 오른다)
+  기획완료   → 2 (매수 A ← «첫 골짜기»)
+  열람공고   → 3 (지정 임박 — 곧 뛴다)
+  구역지정   → 4 (봉우리)
+모아의 1·2단계와 뜻이 다르므로 Zone.kind 로 갈라서 판정한다(buy_band.dart).
+
+조합설립 이상은 이 API 에 «안 나온다». 그래서 이미 그 단계인 구역은
+건드리지 않는다 — 안 그러면 조합설립인가 난 구역이 되돌아가 진입 불가
+경고가 사라진다 (2026-09-02 실제로 한 번 겪었다).
 
     python3 scripts/sync_moa_zones.py --dry   # 화면에만
     HY_PASSWORD='...' python3 scripts/sync_moa_zones.py
@@ -30,8 +39,8 @@ ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "ImV4cCI6MjEwMTMwODM1M30.v7a-ZkdHr0neEwRuZBveCROrs6J80bVeBFd2jN4LGUI")
 API = "https://urban.seoul.go.kr/bsns/getPageListbsnsIntegrated2.json"
 
-# 추진단계 → stage. 「후계공통승」의 어디쯤인지도 같이 적는다.
-STAGE = {
+# 모아타운 추진단계 → stage. 「후계공통승」의 어디쯤인지도 같이 적는다.
+MOA_STAGE = {
     '수립범위 자문': (1, '계획 수립 — 수립범위 자문'),
     '대상지선정': (1, '후보지 선정 (계획 수립 전)'),
     '사전자문': (1, '계획 수립 — 전문가 사전자문'),
@@ -39,13 +48,26 @@ STAGE = {
     '관리지역고시': (2, '관리계획 승인 고시 완료 — 조합 동의서 징구 구간'),
 }
 
+# 신통 추진단계 → stage. 골짜기가 「기획완료」라 축이 다르다.
+SIN_STAGE = {
+    '대상지선정': (1, '기획 수립 중 — 선정 발표로 오른 구간'),
+    '기획완료': (2, '기획 완료 — 지정고시 대기 (첫 골짜기)'),
+    '열람공고': (3, '열람공고 — 정비구역 지정 임박'),
+    '구역지정': (4, '정비구역 지정고시 완료 — 동의서 징구 준비'),
+}
 
-def fetch():
+KINDS = [
+    ('모아타운', 'BZ201', MOA_STAGE),
+    ('신통기획', 'BZ101', SIN_STAGE),
+]
+
+
+def fetch(code):
     req = urllib.request.Request(
         API, method="POST",
-        data=json.dumps({"bsnsCdList": ["BZ201"], "pageSize": 500}).encode(),
+        data=json.dumps({"bsnsCdList": [code], "pageSize": 1000}).encode(),
         headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())["content"]
 
 
@@ -73,38 +95,45 @@ def key(name):
 
 def main():
     dry = '--dry' in sys.argv
-    rows = fetch()
-    print(f'서울도시공간포털 — 모아타운 {len(rows)}곳')
+    from collections import Counter
 
     want = []
-    skipped = []
-    for c in rows:
-        st = STAGE.get(c.get('propelCdNm'))
-        if not st:
-            skipped.append(c.get('propelCdNm'))
-            continue
-        stage, doing = st
-        want.append({
-            'name': c['bsnsName'].strip(),
-            'district': c.get('siteName'),
-            'stage': stage,
-            'addr': (c.get('bsnsAddr') or '').strip(),
-            'area': int(c.get('bsnsArea') or 0),
-            'doing': doing,
-            'raw': c.get('propelCdNm'),
-            'dt': (c.get('propelDt') or '')[:10],
-            'rfenc': (c.get('rfencDt') or '')[:10],
-        })
-
-    from collections import Counter
-    print('  단계별:', dict(Counter(f"{w['stage']} {w['raw']}" for w in want)))
-    if skipped:
-        print('  건너뜀(모르는 단계):', dict(Counter(skipped)))
+    for kind, code, table in KINDS:
+        rows = fetch(code)
+        skipped = []
+        mine = []
+        for c in rows:
+            st = table.get(c.get('propelCdNm'))
+            if not st:
+                skipped.append(c.get('propelCdNm'))
+                continue
+            stage, doing = st
+            mine.append({
+                'kind': kind,
+                'name': c['bsnsName'].strip(),
+                'district': c.get('siteName'),
+                'stage': stage,
+                'addr': (c.get('bsnsAddr') or '').strip(),
+                'area': int(c.get('bsnsArea') or 0),
+                'doing': doing,
+                'raw': c.get('propelCdNm'),
+                'dt': (c.get('propelDt') or '')[:10],
+                'rfenc': (c.get('rfencDt') or '')[:10],
+            })
+        print(f'{kind} {len(rows)}곳 → 매핑 {len(mine)}곳')
+        print('  단계별:', dict(Counter(f"{w['stage']} {w['raw']}" for w in mine)))
+        if skipped:
+            print('  건너뜀(모르는 단계):', dict(Counter(skipped)))
+        want += mine
 
     if dry:
+        # 매수 A — 모아는 stage 1, 신통은 stage 2(기획완료)
+        print('\n★ 매수 A (저점) 후보')
         for w in want:
-            if w['stage'] == 1:
-                print(f"  [매수A] {w['district']:6} {w['name'][:28]:30} {w['raw']}")
+            a = (w['stage'] == 1) if w['kind'] == '모아타운' else (w['stage'] == 2)
+            if a:
+                print(f"  {w['kind']:6} {w['district'] or '?':6} "
+                      f"{w['name'][:30]:32} {w['raw']}")
         return
 
     pw = os.environ.get("HY_PASSWORD", "")
@@ -120,14 +149,14 @@ def main():
 
     added = updated = same = 0
     for w in want:
-        src = (f"서울도시공간포털 «{w['raw']}» · {w['name']} · {w['addr']} · "
+        src = (f"서울도시공간포털 «{w['kind']} · {w['raw']}» · {w['name']} · {w['addr']} · "
                f"{w['area']:,}㎡ · 추진일 {w['dt']} · 권리산정기준일 «{w['rfenc']}» "
                f"(동기화 2026-09-02)")
         k = key(w['name'])
         z = by.get(k)
         if z is None:
             sb("/rest/v1/zones", "POST", [{
-                'user_id': uid, 'name': w['name'], 'kind': '모아타운',
+                'user_id': uid, 'name': w['name'], 'kind': w['kind'],
                 'district': w['district'], 'stage': w['stage'],
                 'stage_source': src, 'stage_checked_at': '2026-09-02T00:00:00Z',
                 'rights_date': w['rfenc'] or None,
@@ -135,7 +164,7 @@ def main():
             }], token=tok)
             added += 1
             print(f"  ＋ [{w['stage']}] {w['district']:6} {w['name'][:30]}")
-        elif z['stage'] >= 3:
+        elif z['stage'] >= (6 if w['kind'] == '신통기획' else 3):
             # 단계·출처는 안 건드리되 «권리산정기준일»은 채운다 — 그 날짜는
             # 지정 절차에서 확정되므로 조합설립 뒤에도 그대로다.
             if w['rfenc'] and not z.get('rights_date'):

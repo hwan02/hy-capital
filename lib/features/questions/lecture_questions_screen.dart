@@ -169,9 +169,6 @@ const _sections = <_QSection>[
   ),
 ];
 
-int get _totalCount =>
-    _sections.fold<int>(0, (sum, s) => sum + s.items.length);
-
 String _asPlainText([Map<String, LectureAnswer> recs = const {}]) {
   final b = StringBuffer();
   b.writeln('[경매 강의 질문]');
@@ -423,25 +420,12 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
       loading: AsyncStatus.loading,
       error: AsyncStatus.error,
       data: (recs) {
-        final custom = recs.entries
-            .where((e) => e.key.startsWith('custom-'))
-            .toList()
-          ..sort((a, b) => a.key.compareTo(b.key));
-        final askedCount = recs.values.where((a) => a.asked).length;
-        final answeredCount = recs.values.where((a) => a.hasAnswer).length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                      '물어본 것 $askedCount/${_totalCount + custom.length}'
-                      ' · 답 적은 것 $answeredCount',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: AppFont.label)),
-                ),
+                const Spacer(),
                 IconButton(
                   tooltip: '질문+답 전체 복사',
                   icon: const Icon(Icons.copy_all_rounded, size: 20),
@@ -479,11 +463,6 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
               ],
             ),
             const Gap(6),
-            _ProgressCard(
-                asked: askedCount,
-                total: _totalCount + custom.length,
-                answered: answeredCount),
-            const Gap(Insets.gap),
             const _SituationCard(),
             const Gap(Insets.gap),
             _weekChips(),
@@ -532,50 +511,6 @@ class LectureQuestionsScreen extends StatelessWidget {
         color: _kQuestionColor,
         children: [LectureQuestionsView()],
       );
-}
-
-class _ProgressCard extends StatelessWidget {
-  final int asked;
-  final int total;
-  final int answered;
-  const _ProgressCard(
-      {required this.asked, required this.total, this.answered = 0});
-
-  @override
-  Widget build(BuildContext context) {
-    final ratio = total == 0 ? 0.0 : asked / total;
-    return GlassCard(
-      accent: _kQuestionColor,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  '질문 진행',
-                  style: TextStyle(
-                    fontSize: AppFont.section,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                '$asked / $total',
-                style: const TextStyle(
-                  fontSize: AppFont.display,
-                  fontWeight: FontWeight.w800,
-                  color: _kQuestionColor,
-                ),
-              ),
-            ],
-          ),
-          const Gap(12),
-          ProgressBar(value: ratio, color: _kQuestionColor),
-        ],
-      ),
-    );
-  }
 }
 
 class _SituationCard extends StatelessWidget {

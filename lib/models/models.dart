@@ -1324,7 +1324,26 @@ class Zone {
     6: '이주·착공',
     7: '준공',
   };
-  String get stageLabel => stageLabels[stage] ?? '미정';
+
+  /// 신속통합기획 단계 라벨. 모아와 «절차가 달라» 축을 따로 쓴다.
+  /// 교안 시세 그래프에서 골짜기(매수 자리)가 「기획 완료」와
+  /// 「동의서 징구」인데, 모아의 1·2단계와 위치가 다르다.
+  static const sinStageLabels = <int, String>{
+    0: '미정',
+    1: '후보지 선정',
+    2: '기획 완료',
+    3: '열람공고·지정 임박',
+    4: '정비구역 지정고시',
+    5: '조합 동의서 징구',
+    6: '조합설립인가',
+    7: '사업시행인가↑',
+  };
+
+  bool get isSin => kind == '신통기획';
+
+  /// 이 구역 종류에 맞는 단계 라벨.
+  String get stageLabel =>
+      (isSin ? sinStageLabels[stage] : stageLabels[stage]) ?? '미정';
 
   factory Zone.fromMap(Map<String, dynamic> m) => Zone(
         id: m['id'],
