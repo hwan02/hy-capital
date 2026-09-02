@@ -309,8 +309,10 @@ class AuctionScreen extends ConsumerStatefulWidget {
 class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
   String _zone = 'all'; // all | <zoneId> | __none__ (구역 필터)
-  // 0=매물·단지 · 1=진행 · 3=기준 · 4=자료실 · 5=강의 질문 · 6=계산기 · 7=세제 · 8=재개발절차
-  int _tab = 0;
+  // 0=매물·단지 · 1=진행 · 3=기준 · 4=자료실 · 5=강의 질문 · 6=계산기 · 7=세제
+  // · 8=재개발절차 · 9=모아타운
+  // «구역부터 고르고» 물건을 본다 — 그래서 모아타운이 기본이다.
+  int _tab = 9;
 
   /// 물건이 속한 구역 — 소속 단지(complex.zoneId) 우선, 없으면 주소로 매칭.
   Zone? _zoneOfProp(

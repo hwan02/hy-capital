@@ -259,11 +259,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         Text(d,
             style: const TextStyle(
                 fontSize: AppFont.title, fontWeight: FontWeight.w800)),
-        const Gap(2),
-        const Text('구역을 누르면 경매물건이 펼쳐집니다. ＋로 물건 추가, 물건을 누르면 상세(임장 입력)로.',
-            style:
-                TextStyle(fontSize: AppFont.caption, color: AppColors.textFaint)),
-        const Gap(10),
+        const Gap(12),
+        // 단계 사다리 — 이 자치구 구역들이 어디쯤 있는지 한눈에.
+        _StageLadder(zones: zs),
+        const Gap(14),
         _stageChips(),
         const Gap(14),
         for (final z in zs) ...[
@@ -477,5 +476,126 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ),
       ),
     );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// 단계 사다리 — 순서와 «내 자리»를 같이 본다
+// ══════════════════════════════════════════════════════════
+
+/// 모아타운 7단계를 순서대로 늘어놓고, 이 자치구 구역이 몇 곳씩
+/// 어느 칸에 있는지 표시한다. 매수 A/B/금지 구간도 색으로 가른다.
+class _StageLadder extends StatelessWidget {
+  final List<Zone> zones;
+  const _StageLadder({required this.zones});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = <int, int>{};
+    for (final z in zones) {
+      count[z.stage] = (count[z.stage] ?? 0) + 1;
+    }
+    return GlassCard(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.stairs_rounded, size: 15, color: AppColors.textSecondary),
+            Gap(8),
+            Text('사업 진행 순서',
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary)),
+            Spacer(),
+            Text('숫자 = 이 구에 있는 구역 수',
+                style: TextStyle(
+                    fontSize: AppFont.micro, color: AppColors.textFaint)),
+          ]),
+          const Gap(12),
+          // 1~7 칸
+          Row(children: [
+            for (var i = 1; i <= 7; i++) ...[
+              if (i > 1)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 13,
+                      color: i == 3
+                          ? AppColors.rose // 여기서 문이 닫힌다
+                          : AppColors.textFaint),
+                ),
+              Expanded(child: _rung(i, count[i] ?? 0)),
+            ],
+          ]),
+          const Gap(12),
+          // 구간 뜻
+          Wrap(spacing: 12, runSpacing: 6, children: [
+            for (final b in [BuyBand.early, BuyBand.late_, BuyBand.blocked])
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                      color: b.color, borderRadius: BorderRadius.circular(2)),
+                ),
+                const Gap(6),
+                Text('${b.label} · ${b.short}',
+                    style: TextStyle(
+                        fontSize: AppFont.micro,
+                        color: b.color,
+                        fontWeight: FontWeight.w700)),
+              ]),
+          ]),
+          const Gap(8),
+          const Text(
+              '조합설립인가(3)부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
+              style: TextStyle(
+                  fontSize: AppFont.micro,
+                  color: AppColors.rose,
+                  height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _rung(int stage, int n) {
+    final band = bandOfStage(stage);
+    final has = n > 0;
+    final c = band.color;
+    return Column(children: [
+      Container(
+        height: 26,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: c.withValues(alpha: has ? 0.22 : 0.07),
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+              color: has ? c : c.withValues(alpha: 0.25),
+              width: has ? 1.3 : 1),
+        ),
+        child: Text(has ? '$stage · $n' : '$stage',
+            style: TextStyle(
+                fontSize: AppFont.micro,
+                fontWeight: FontWeight.w900,
+                color: has ? c : c.withValues(alpha: 0.45))),
+      ),
+      const Gap(5),
+      SizedBox(
+        height: 26,
+        child: Text(
+          Zone.stageLabels[stage] ?? '',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 8.5,
+              height: 1.25,
+              fontWeight: has ? FontWeight.w700 : FontWeight.w500,
+              color: has ? AppColors.textSecondary : AppColors.textFaint),
+        ),
+      ),
+    ]);
   }
 }
