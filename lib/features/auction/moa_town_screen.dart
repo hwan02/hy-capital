@@ -722,21 +722,23 @@ class _StageLadder extends StatelessWidget {
                     fontSize: AppFont.caption, color: AppColors.textFaint)),
           ]),
           const Gap(12),
-          // 1~7 칸
-          Row(children: [
-            for (var i = 1; i <= 7; i++) ...[
-              if (i > 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: Icon(Icons.chevron_right_rounded,
-                      size: 13,
-                      color: i == 3
-                          ? AppColors.rose // 여기서 문이 닫힌다
-                          : AppColors.textFaint),
-                ),
-              Expanded(child: _rung(i, count[i] ?? 0)),
-            ],
-          ]),
+          // 축이 모아 12칸 · 신통 11칸이라 한 줄에 안 들어간다.
+          // 가로 스크롤은 브라우저 뒤로가기와 충돌하므로 «줄바꿈»으로 간다.
+          LayoutBuilder(builder: (context, c) {
+            final last = sin ? 11 : 12;
+            const gap = 6.0;
+            // 한 줄에 6칸씩 — 라벨이 두 줄까지 들어가는 너비.
+            final per = c.maxWidth < 520 ? 3 : (c.maxWidth < 760 ? 4 : 6);
+            final w = (c.maxWidth - gap * (per - 1)) / per;
+            return Wrap(
+              spacing: gap,
+              runSpacing: 12,
+              children: [
+                for (var i = 1; i <= last; i++)
+                  SizedBox(width: w, child: _rung(i, count[i] ?? 0, i == last)),
+              ],
+            );
+          }),
           const Gap(12),
           // 구간 뜻
           Wrap(spacing: 12, runSpacing: 6, children: [
@@ -778,11 +780,24 @@ class _StageLadder extends StatelessWidget {
     );
   }
 
-  Widget _rung(int stage, int n) {
+  Widget _rung(int stage, int n, bool isLast) {
     final band = _sin ? bandOfSinStage(stage) : bandOfStage(stage);
     final has = n > 0;
     final c = band.color;
+    // 조합설립인가로 넘어가는 칸에서 «문이 닫힌다» — 그 경계를 붉게 표시.
+    final gate = band == BuyBand.blocked &&
+        (_sin ? bandOfSinStage(stage - 1) : bandOfStage(stage - 1)) !=
+            BuyBand.blocked;
     return Column(children: [
+      if (gate)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 3),
+          child: Text('↓ 여기서 닫힌다',
+              style: TextStyle(
+                  fontSize: AppFont.micro,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.rose)),
+        ),
       Container(
         height: 32,
         alignment: Alignment.center,
