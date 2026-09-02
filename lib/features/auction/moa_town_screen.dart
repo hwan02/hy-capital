@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
 import '../../core/format/formatters.dart';
+import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
@@ -84,6 +85,61 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       chip(2, '매수 B · 동의서 징구', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
+  }
+
+  /// 동의율을 구역 카드에서 바로 입력한다.
+  /// 편집 다이얼로그 깊숙이 있어서 119곳 중 «0곳»이 채워져 있었다.
+  /// 매수 B 에서 「인가 임박」을 가리는 유일한 값이다.
+  Future<void> _editConsent(Zone z) async {
+    final c = TextEditingController(
+        text: z.consentRate > 0 ? z.consentRate.toStringAsFixed(0) : '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('조합설립 동의율',
+            style: TextStyle(fontSize: AppFont.section)),
+        content: SizedBox(
+          width: 340,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text(
+                '«70% 이상»이면 조합설립인가가 임박했다는 뜻이다. 그때부터는 '
+                '탈출 창이 좁아진다 — 인가가 나면 양도가 막힌다.\n'
+                '추진위·구청·현장 부동산에서 듣는 값이다.',
+                style: TextStyle(
+                    fontSize: AppFont.caption,
+                    color: AppColors.textSecondary,
+                    height: 1.55)),
+            const Gap(14),
+            TextField(
+              controller: c,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: '동의율 (%)', hintText: '예: 75'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: _teal,
+                  foregroundColor: const Color(0xFF04211D)),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('저장')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final v = double.tryParse(c.text.trim()) ?? 0;
+    await ref
+        .read(supabaseProvider)
+        .from('zones')
+        .update({'consent_rate': v}).eq('id', z.id);
+    ref.invalidate(zonesProvider);
   }
 
   /// 구역의 네이버 검색어 / 물건 추가 시 주소 seed (동+번지 포함).
@@ -353,6 +409,55 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           ),
                         ]),
                       ],
+                      // 동의율 — 매수 B 에서 「인가 임박」을 가리는 값.
+                      const Gap(7),
+                      InkWell(
+                        onTap: () => _editConsent(z),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(children: [
+                            Icon(Icons.how_to_vote_rounded,
+                                size: 13,
+                                color: z.imminent
+                                    ? AppColors.rose
+                                    : AppColors.textFaint),
+                            const Gap(6),
+                            Text(
+                                z.consentRate > 0
+                                    ? '동의율 ${z.consentRate.toStringAsFixed(0)}%'
+                                    : '동의율 입력',
+                                style: TextStyle(
+                                    fontSize: AppFont.caption,
+                                    fontWeight: FontWeight.w700,
+                                    color: z.consentRate > 0
+                                        ? (z.imminent
+                                            ? AppColors.rose
+                                            : AppColors.textSecondary)
+                                        : _teal)),
+                            const Gap(8),
+                            if (z.imminent && z.stage == 2)
+                              const Expanded(
+                                child: Text('⚠️ 인가 임박 — 탈출 창이 좁다',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: AppFont.micro,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.rose)),
+                              )
+                            else
+                              const Expanded(
+                                child: Text('70%↑ 면 조합설립 임박',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: AppFont.micro,
+                                        color: AppColors.textFaint)),
+                              ),
+                          ]),
+                        ),
+                      ),
                       // 초기 단계 해제 위험 — 자양2동 681은 4개월 만에 빠졌다.
                       if (hasDropRisk(z)) ...[
                         const Gap(8),

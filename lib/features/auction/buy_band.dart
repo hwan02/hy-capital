@@ -203,3 +203,72 @@ bool hasDropRisk(Zone? z) => z != null && z.stage <= 1;
 const kDropRiskNote =
     '초기 단계는 «해제»될 수 있다 — 자양2동 681은 통과 4개월 만에 대상지에서 '
     '빠졌다. (예비)추진위·구청에 해제·취소 가능성을 «전화로» 확인한다.';
+
+// ══════════════════════════════════════════════════════════
+// 다음에 채울 것 하나 — 판정기가 「입력 필요」만 뱉지 않게
+// ══════════════════════════════════════════════════════════
+//
+// 물건 9건의 입력 상태를 세어보니 공시가 1/9 · 거래량 0/9 · 전세 1/9 였다.
+// 게이트 6개를 한꺼번에 늘어놓으면 아무것도 안 채운다.
+// 그래서 «비어 있는 것 중 첫 번째 하나»만 카드에 띄운다.
+// 진행 탭의 pendingTasks().first 와 같은 생각이다.
+
+enum FieldKind { money, count, date, zone }
+
+/// 채워야 할 값 하나.
+class MissingField {
+  final String column; // DB 컬럼
+  final String label;
+  final String why; // 왜 필요한가 — 어느 게이트를 막고 있나
+  final FieldKind kind;
+  const MissingField(this.column, this.label, this.why, this.kind);
+}
+
+/// 판정 순서대로. 게이트 G1~G6 순서를 그대로 따른다.
+const _order = <MissingField>[
+  MissingField('current_price', '현재시세', 'G1 갭 판정 — 시세 없이는 갭이 안 나온다',
+      FieldKind.money),
+  MissingField('jeonse_price', '전세가', 'G1 갭 판정 — 플피의 생명줄. 임장에서 들은 값',
+      FieldKind.money),
+  MissingField('official_price', '공시가', 'G2 — 1억 이하면 법인 취득세 기본세율(1%)',
+      FieldKind.money),
+  MissingField('project_zone', '사업시행구역 해당 여부', 'G3 — 해당되면 이미 늦었다',
+      FieldKind.zone),
+  MissingField('approved_on', '사용승인일', 'G4 — 권리산정기준일과 대조해 입주권 판정',
+      FieldKind.date),
+  MissingField('recent_deals', '최근 실거래 건수', 'G5 환금성 — 안 팔리면 단타가 아니다',
+      FieldKind.count),
+  MissingField('expected_sale_price', '예상 매도가', 'G6 — 얼마에 팔 건지가 없으면 수익이 없다',
+      FieldKind.money),
+];
+
+/// 이 물건에서 «다음에 채울 것» 하나. 다 채웠으면 null.
+MissingField? nextMissing(AuctionProperty p) {
+  bool empty(String col) => switch (col) {
+        'current_price' => p.currentPrice <= 0,
+        'jeonse_price' => p.jeonsePrice <= 0,
+        'official_price' => p.officialPrice <= 0,
+        'project_zone' => (p.projectZone ?? '').isEmpty ||
+            p.projectZone == 'unknown',
+        'approved_on' => p.approvedOn == null,
+        'recent_deals' => p.recentDeals <= 0,
+        'expected_sale_price' => p.expectedSalePrice <= 0,
+        _ => false,
+      };
+  for (final f in _order) {
+    if (empty(f.column)) return f;
+  }
+  return null;
+}
+
+/// 몇 개 중 몇 개를 채웠나.
+(int, int) filledCount(AuctionProperty p) {
+  var done = 0;
+  for (final f in _order) {
+    final was = nextMissing(p);
+    if (was == null) return (_order.length, _order.length);
+    if (f.column == was.column) break;
+    done++;
+  }
+  return (done, _order.length);
+}

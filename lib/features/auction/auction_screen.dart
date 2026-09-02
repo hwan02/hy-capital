@@ -9,6 +9,7 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/supabase/supabase_providers.dart';
+import '../../core/widgets/money_field.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'package:go_router/go_router.dart';
@@ -615,6 +616,13 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                     band: bandOf(p),
                     rights: rightsCheck(p, zoneOf(p)),
                     zoneRightsDate: zoneOf(p)?.rightsDate,
+                    onFill: (col, val) async {
+                      await ref
+                          .read(supabaseProvider)
+                          .from('auction_properties')
+                          .update({col: val}).eq('id', p.id);
+                      invalidateAll(ref);
+                    },
                     price: effectivePrice(p, surveys),
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
@@ -745,6 +753,8 @@ class _AuctionCard extends StatefulWidget {
   final BuyBand band; // 구역 단계로 판정한 매수 구간
   final RightsCheck rights; // 사용승인일 vs 권리산정기준일
   final DateTime? zoneRightsDate; // 구역의 권리산정기준일
+  /// 「다음에 채울 것」을 카드에서 바로 저장한다.
+  final Future<void> Function(String col, Object? val) onFill;
   final EffectivePrice price; // 단지에서 상속받은 시세
   final VoidCallback onOpen;
   final VoidCallback onDelete;
@@ -757,6 +767,7 @@ class _AuctionCard extends StatefulWidget {
       required this.band,
       required this.rights,
       required this.zoneRightsDate,
+      required this.onFill,
       required this.price,
       required this.onOpen,
       required this.onDelete,
@@ -770,6 +781,102 @@ class _AuctionCard extends StatefulWidget {
 }
 
 class _AuctionCardState extends State<_AuctionCard> {
+  /// 「다음에 채울 것」 하나만 묻는 작은 창. 상세로 안 들어가게 한다.
+  Future<void> _fill(BuildContext context, MissingField f) async {
+    Object? val;
+    if (f.kind == FieldKind.date) {
+      final now = DateTime.now();
+      final d = await showDatePicker(
+        context: context,
+        initialDate: DateTime(1995),
+        firstDate: DateTime(1960),
+        lastDate: now,
+        helpText: '건축물대장 ${f.label}',
+      );
+      if (d == null) return;
+      val = d.toIso8601String().substring(0, 10);
+    } else if (f.kind == FieldKind.zone) {
+      val = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('사업시행구역에 해당하나',
+              style: TextStyle(fontSize: AppFont.section)),
+          content: const Text(
+              '이미 사업시행구역에 들어간 물건이면 늦었다. 구역도·고시문에서 확인한다.',
+              style: TextStyle(
+                  fontSize: AppFont.label, color: AppColors.textSecondary)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, 'in'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.rose),
+                child: const Text('해당됨 (늦었다)')),
+            FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: const Color(0xFF06210F)),
+                onPressed: () => Navigator.pop(context, 'out'),
+                child: const Text('미해당 (OK)')),
+          ],
+        ),
+      );
+      if (val == null) return;
+    } else {
+      final c = TextEditingController();
+      var money = 0.0; // MoneyField 는 콜백으로 값을 준다
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(f.label, style: const TextStyle(fontSize: AppFont.section)),
+          content: SizedBox(
+            width: 340,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(f.why,
+                  style: const TextStyle(
+                      fontSize: AppFont.caption,
+                      color: AppColors.textSecondary,
+                      height: 1.5)),
+              const Gap(14),
+              if (f.kind == FieldKind.money)
+                MoneyField(
+                    label: f.label,
+                    initial: 0,
+                    autofocus: true,
+                    accent: _teal,
+                    onChanged: (v) => money = v)
+              else
+                TextField(
+                  controller: c,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: f.label),
+                ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('취소')),
+            FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: _teal,
+                    foregroundColor: const Color(0xFF04211D)),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('저장')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      final n = f.kind == FieldKind.money
+          ? money
+          : double.tryParse(c.text.replaceAll(',', '').trim()) ?? 0;
+      if (n <= 0) return;
+      val = f.kind == FieldKind.count ? n.toInt() : n;
+    }
+    await widget.onFill(f.column, val);
+  }
+
   bool _open = false;
 
   @override
@@ -869,6 +976,72 @@ class _AuctionCardState extends State<_AuctionCard> {
                         color: AppColors.rose,
                         height: 1.5)),
               ],
+            ],
+            // 판정에 «다음에 필요한 값» 하나만. 여러 개 늘어놓으면 안 채운다.
+            if (!widget.rights.isBlocking &&
+                widget.band != BuyBand.blocked) ...[
+              Builder(builder: (context) {
+                final need = nextMissing(p);
+                final (done, total) = filledCount(p);
+                if (need == null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 7),
+                    child: Row(children: [
+                      const Icon(Icons.task_alt_rounded,
+                          size: 14, color: AppColors.primary),
+                      const Gap(8),
+                      Text('판정값 $total/$total 다 채웠다',
+                          style: const TextStyle(
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary)),
+                    ]),
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: InkWell(
+                    onTap: () => _fill(context, need),
+                    borderRadius: BorderRadius.circular(9),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 11, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _teal.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                            color: _teal.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.edit_note_rounded,
+                            size: 15, color: _teal),
+                        const Gap(8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('다음에 채울 것 — ${need.label}',
+                                style: const TextStyle(
+                                    fontSize: AppFont.label,
+                                    fontWeight: FontWeight.w800,
+                                    color: _teal)),
+                            const Gap(2),
+                            Text(need.why,
+                                style: const TextStyle(
+                                    fontSize: AppFont.micro,
+                                    color: AppColors.textSecondary)),
+                          ],
+                        ),
+                        const Spacer(),
+                        Text('$done/$total',
+                            style: const TextStyle(
+                                fontSize: AppFont.caption,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.textFaint)),
+                      ]),
+                    ),
+                  ),
+                );
+              }),
             ],
             const Gap(12),
           ],
