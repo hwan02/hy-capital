@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
+import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
@@ -328,6 +329,55 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                     fontWeight: FontWeight.w700)),
                           ),
                         ]),
+                      ],
+                      // 권리산정기준일 — 이 날 다음날부터 분할·신축은 현금청산.
+                      if (z.rightsDate != null) ...[
+                        const Gap(7),
+                        Row(children: [
+                          const Icon(Icons.event_available_rounded,
+                              size: 13, color: AppColors.textFaint),
+                          const Gap(6),
+                          Text('권리산정기준일 ${Dates.ymd(z.rightsDate!)}',
+                              style: const TextStyle(
+                                  fontSize: AppFont.caption,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary)),
+                          const Gap(8),
+                          const Expanded(
+                            child: Text('이 날 다음날부터 분할·신축 → 현금청산',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: AppFont.micro,
+                                    color: AppColors.textFaint)),
+                          ),
+                        ]),
+                      ],
+                      // 초기 단계 해제 위험 — 자양2동 681은 4개월 만에 빠졌다.
+                      if (hasDropRisk(z)) ...[
+                        const Gap(8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 14, color: AppColors.gold),
+                                const Gap(8),
+                                const Expanded(
+                                  child: Text(kDropRiskNote,
+                                      style: TextStyle(
+                                          fontSize: AppFont.micro,
+                                          color: AppColors.gold,
+                                          height: 1.55)),
+                                ),
+                              ]),
+                        ),
                       ],
                       if (z.aliases.isNotEmpty) ...[
                         const Gap(4),

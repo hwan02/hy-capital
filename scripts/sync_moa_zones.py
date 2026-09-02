@@ -115,7 +115,7 @@ def main():
              {"email": email, "password": pw})["access_token"]
     uid = sb("/auth/v1/user", token=tok)["id"]
 
-    have = sb("/rest/v1/zones?select=id,name,stage,memo", token=tok)
+    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date", token=tok)
     by = {key(z['name']): z for z in have}
 
     added = updated = same = 0
@@ -130,11 +130,17 @@ def main():
                 'user_id': uid, 'name': w['name'], 'kind': '모아타운',
                 'district': w['district'], 'stage': w['stage'],
                 'stage_source': src, 'stage_checked_at': '2026-09-02T00:00:00Z',
+                'rights_date': w['rfenc'] or None,
                 'memo': f"지금 진행 중 — {w['doing']}",
             }], token=tok)
             added += 1
             print(f"  ＋ [{w['stage']}] {w['district']:6} {w['name'][:30]}")
         elif z['stage'] >= 3:
+            # 단계·출처는 안 건드리되 «권리산정기준일»은 채운다 — 그 날짜는
+            # 지정 절차에서 확정되므로 조합설립 뒤에도 그대로다.
+            if w['rfenc'] and not z.get('rights_date'):
+                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+                   {'rights_date': w['rfenc']}, token=tok)
             # 이 API 는 모아타운 «지정» 절차까지만 안다. 조합설립(3) 이후는
             # 정비몽땅·조합에서 따로 확인한 값이므로 «아무것도 건드리지 않는다».
             # stage 만 지키고 stage_source 를 덮으면, 카드에는 「관리지역고시」가
@@ -144,10 +150,14 @@ def main():
             sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", {
                 'stage': w['stage'], 'stage_source': src,
                 'stage_checked_at': '2026-09-02T00:00:00Z',
+                'rights_date': w['rfenc'] or None,
             }, token=tok)
             updated += 1
             print(f"  ↻ [{z['stage']}→{w['stage']}] {w['name'][:30]}")
         else:
+            if w['rfenc'] and not z.get('rights_date'):
+                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+                   {'rights_date': w['rfenc']}, token=tok)
             same += 1
 
     print(f"\n추가 {added} · 단계갱신 {updated} · 그대로 {same}")

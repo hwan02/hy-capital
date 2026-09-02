@@ -121,3 +121,85 @@ const kNextRise = <int, String>{
   1: '통합심의(관리계획 고시)',
   2: '조합설립인가',
 };
+
+// ══════════════════════════════════════════════════════════
+// 권리산정기준일 대조 — 「사면 안 되는 물건」을 가른다
+// ══════════════════════════════════════════════════════════
+
+/// 권리산정기준일 판정 결과.
+enum RightsCheck {
+  /// 사용승인일이 기준일보다 «빠르다» — 입주권 나온다.
+  ok,
+
+  /// 사용승인일이 기준일보다 «늦다» — 현금청산 대상.
+  cashOut,
+
+  /// 사용승인일을 안 적었다. 건축물대장에서 보고 넣어야 한다.
+  needBuildDate,
+
+  /// 구역에 기준일이 없다(포털 미제공·구역 미매칭).
+  unknown,
+}
+
+extension RightsCheckInfo on RightsCheck {
+  String get label => switch (this) {
+        RightsCheck.ok => '입주권 OK',
+        RightsCheck.cashOut => '입주권 없음',
+        RightsCheck.needBuildDate => '사용승인일 확인',
+        RightsCheck.unknown => '기준일 미확인',
+      };
+
+  String get why => switch (this) {
+        RightsCheck.ok =>
+          '사용승인일이 권리산정기준일보다 «앞선다» — 입주권 대상이다.',
+        RightsCheck.cashOut =>
+          '사용승인일이 권리산정기준일보다 «늦다». 이 날 다음날부터 분할·신축된 '
+              '물건은 입주권이 안 나오고 «현금청산»된다. 사면 안 된다.',
+        RightsCheck.needBuildDate =>
+          '«건축물대장»의 사용승인일을 넣어야 판정된다. 찾기 단계에서 어차피 보는 서류다.',
+        RightsCheck.unknown => '구역의 권리산정기준일을 못 찾았다.',
+      };
+
+  Color get color => switch (this) {
+        RightsCheck.ok => AppColors.primary,
+        RightsCheck.cashOut => AppColors.rose,
+        RightsCheck.needBuildDate => AppColors.gold,
+        RightsCheck.unknown => AppColors.textFaint,
+      };
+
+  IconData get icon => switch (this) {
+        RightsCheck.ok => Icons.verified_rounded,
+        RightsCheck.cashOut => Icons.dangerous_rounded,
+        RightsCheck.needBuildDate => Icons.help_outline_rounded,
+        RightsCheck.unknown => Icons.help_outline_rounded,
+      };
+
+  /// 사면 안 되는 판정인가.
+  bool get isBlocking => this == RightsCheck.cashOut;
+}
+
+/// 물건의 사용승인일과 구역의 권리산정기준일을 대조한다.
+RightsCheck rightsCheck(AuctionProperty p, Zone? z) {
+  final base = z?.rightsDate;
+  if (base == null) return RightsCheck.unknown;
+  final built = p.approvedOn;
+  if (built == null) return RightsCheck.needBuildDate;
+  // 기준일 «다음날»부터가 청산 대상이므로, 같은 날은 통과.
+  return built.isAfter(base) ? RightsCheck.cashOut : RightsCheck.ok;
+}
+
+// ══════════════════════════════════════════════════════════
+// 구역 해제 위험
+// ══════════════════════════════════════════════════════════
+
+/// 초기 단계 구역은 «해제»될 수 있다.
+///
+/// 교안 사례 — 자양2동 681번지:
+///   2026.03.15 「모아타운 통과 (727세대)」
+///   2026.07.16 「하루 아침에 수포로 — 대상지 해제」
+/// 통과 «4개월» 만이다. 초기일수록 수익이 큰 대신 사업이 엎어질 수 있다.
+bool hasDropRisk(Zone? z) => z != null && z.stage <= 1;
+
+const kDropRiskNote =
+    '초기 단계는 «해제»될 수 있다 — 자양2동 681은 통과 4개월 만에 대상지에서 '
+    '빠졌다. (예비)추진위·구청에 해제·취소 가능성을 «전화로» 확인한다.';

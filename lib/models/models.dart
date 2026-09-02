@@ -284,6 +284,8 @@ class AuctionProperty {
   final DateTime? wonDate; // 낙찰일
   final DateTime? balanceDue; // 잔금 납부 기한 — 넘기면 보증금 몰수
   final DateTime? evictDue; // 명도 목표일 / 합의 이사일
+  /// 건축물대장 사용승인일. 구역 권리산정기준일보다 늦으면 입주권이 없다.
+  final DateTime? approvedOn;
   final DateTime? repairDue; // 수리 완료 목표일
   final DateTime? exitDue; // 매도·전세 세팅 목표일
   final DateTime? soldDate; // 매도·전세 세팅 완료일
@@ -338,6 +340,7 @@ class AuctionProperty {
     this.wonDate,
     this.balanceDue,
     this.evictDue,
+    this.approvedOn,
     this.repairDue,
     this.exitDue,
     this.soldDate,
@@ -480,6 +483,7 @@ class AuctionProperty {
         wonDate: _date(m['won_date']),
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),
+        approvedOn: _date(m['approved_on']),
         repairDue: _date(m['repair_due']),
         exitDue: _date(m['exit_due']),
         soldDate: _date(m['sold_date']),
@@ -1278,6 +1282,10 @@ class Zone {
   final String? district;
   final double consentRate; // 조합설립 동의율 %
   final DateTime? unionExpected;
+
+  /// 권리산정기준일. 이 날 다음날부터 분할·신축된 물건은 «현금청산» 대상.
+  /// 서울도시공간포털이 구역마다 준다.
+  final DateTime? rightsDate;
   final String? memo;
   final bool starred;
   final int stage; // 0=미정, 1~7
@@ -1292,6 +1300,7 @@ class Zone {
     this.district,
     this.consentRate = 0,
     this.unionExpected,
+    this.rightsDate,
     this.memo,
     this.starred = false,
     this.stage = 0,
@@ -1323,6 +1332,7 @@ class Zone {
         kind: m['kind'] ?? '모아타운',
         district: m['district'],
         consentRate: _d(m['consent_rate']),
+        rightsDate: _date(m['rights_date']),
         unionExpected: _date(m['union_expected']),
         memo: m['memo'],
         starred: m['starred'] == true,

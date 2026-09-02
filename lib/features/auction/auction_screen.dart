@@ -360,8 +360,9 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
     final zonesList =
         ref.watch(zonesProvider).asData?.value ?? const <Zone>[];
     // 물건 주소 → 구역 → «매수 구간». 자료실 「가격이 뛰는 구간」 기준.
-    BuyBand bandOf(AuctionProperty p) =>
-        bandOfZone(matchZoneForAddress(p.address, zonesList));
+    Zone? zoneOf(AuctionProperty p) =>
+        matchZoneForAddress(p.address, zonesList);
+    BuyBand bandOf(AuctionProperty p) => bandOfZone(zoneOf(p));
     final complexById = {for (final c in complexesList) c.id: c};
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
@@ -612,6 +613,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   _AuctionCard(
                     p: p,
                     band: bandOf(p),
+                    rights: rightsCheck(p, zoneOf(p)),
+                    zoneRightsDate: zoneOf(p)?.rightsDate,
                     price: effectivePrice(p, surveys),
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
@@ -740,6 +743,8 @@ class _Chip extends StatelessWidget {
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
   final BuyBand band; // 구역 단계로 판정한 매수 구간
+  final RightsCheck rights; // 사용승인일 vs 권리산정기준일
+  final DateTime? zoneRightsDate; // 구역의 권리산정기준일
   final EffectivePrice price; // 단지에서 상속받은 시세
   final VoidCallback onOpen;
   final VoidCallback onDelete;
@@ -750,6 +755,8 @@ class _AuctionCard extends StatefulWidget {
   const _AuctionCard(
       {required this.p,
       required this.band,
+      required this.rights,
+      required this.zoneRightsDate,
       required this.price,
       required this.onOpen,
       required this.onDelete,
@@ -777,12 +784,16 @@ class _AuctionCardState extends State<_AuctionCard> {
       borderRadius: BorderRadius.circular(16),
       child: GlassCard(
       // 진입 불가 구역이면 카드 테두리부터 빨갛게 — 목록에서 바로 걸러진다.
-      accent: widget.band == BuyBand.blocked ? AppColors.rose : vColor,
+      accent: (widget.band == BuyBand.blocked || widget.rights.isBlocking)
+          ? AppColors.rose
+          : vColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 매수 구간 — 조합설립을 넘긴 구역은 낙찰받아도 승계가 안 된다.
-          if (widget.band != BuyBand.unknown) ...[
+          if (widget.band != BuyBand.unknown ||
+              widget.rights != RightsCheck.unknown) ...[
+            if (widget.band != BuyBand.unknown)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
               decoration: BoxDecoration(
@@ -815,6 +826,49 @@ class _AuctionCardState extends State<_AuctionCard> {
                       fontSize: AppFont.caption,
                       color: AppColors.rose,
                       height: 1.5)),
+            ],
+            // 권리산정기준일 — 「사면 안 되는 물건」을 여기서 거른다.
+            if (widget.rights != RightsCheck.unknown) ...[
+              const Gap(7),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: widget.rights.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Row(children: [
+                  Icon(widget.rights.icon,
+                      size: 14, color: widget.rights.color),
+                  const Gap(8),
+                  Text(widget.rights.label,
+                      style: TextStyle(
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w900,
+                          color: widget.rights.color)),
+                  const Gap(8),
+                  Expanded(
+                    child: Text(
+                        widget.zoneRightsDate == null
+                            ? ''
+                            : '권리산정 ${Dates.ymd(widget.zoneRightsDate!)}'
+                                '${widget.p.approvedOn == null ? '' : ' · 사용승인 ${Dates.ymd(widget.p.approvedOn!)}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: AppFont.caption,
+                            color: AppColors.textSecondary)),
+                  ),
+                ]),
+              ),
+              if (widget.rights.isBlocking) ...[
+                const Gap(6),
+                Text(widget.rights.why,
+                    style: const TextStyle(
+                        fontSize: AppFont.caption,
+                        color: AppColors.rose,
+                        height: 1.5)),
+              ],
             ],
             const Gap(12),
           ],
