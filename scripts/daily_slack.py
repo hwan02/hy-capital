@@ -4,7 +4,8 @@
 보낼 게 «있을 때만» 보낸다 — 빈 알림은 보내지 않는다.
   · Shorts  오늘 편성 + 밀린 것
   · 공모주   오늘 청약 마감/시작 · 상장 · 환불 (마감이 제일 급하다)
-  · 부동산   입찰일 D-7 이내
+  · 부동산   입찰일 D-7 이내 · 잔금·명도 기한
+  · 모아타운 주민공람 공고 — 공람이 뜨면 통합심의 임박 = «마지막 매수 기회»
 
 webhook 은 env.local.json 의 SLACK_WEBHOOK 에서 읽는다.
 저장소는 공개이므로 코드에 넣지 않는다.
@@ -16,10 +17,12 @@ webhook 은 env.local.json 의 SLACK_WEBHOOK 에서 읽는다.
 import datetime
 import json
 import os
+import re
 import sys
 import urllib.request as u
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 URL = 'https://rbksmjnfaqglnzypgxqa.supabase.co'
 ANON = ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6'
         'InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs'
@@ -164,6 +167,23 @@ def build(token, today):
 
     if p_lines:
         lines.append(('🏠 부동산', p_lines))
+
+    # ── 모아타운 공람 공고 ──────────────────────────────────
+    # 공람이 뜨면 통합심의가 임박했다는 신호다 = 마지막 매수 기회.
+    # 외부 포털을 보므로 실패해도 나머지는 보낸다.
+    try:
+        import moa_notice
+        zones = get('/rest/v1/zones?select=name,stage', token)
+        by = {}
+        for z in zones:
+            m = re.search(r'([가-힣]+)\d*동\s*([0-9]+(?:-[0-9]+)?)', z['name'])
+            if m:
+                by[f'{m.group(1)}동 {m.group(2)}'] = z
+        m_lines = moa_notice.slack_lines(today, by)
+        if m_lines:
+            lines.append(('🏘️ 모아타운 공람', m_lines))
+    except Exception as ex:  # noqa: BLE001
+        print(f'  공람 조회 실패: {ex}', file=sys.stderr)
 
     return lines
 
