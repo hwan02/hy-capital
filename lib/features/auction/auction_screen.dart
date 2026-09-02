@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
+import 'buy_band.dart';
 import 'auction_calculator.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
@@ -356,6 +357,9 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         ref.watch(complexesProvider).asData?.value ?? const <Complex>[];
     final zonesList =
         ref.watch(zonesProvider).asData?.value ?? const <Zone>[];
+    // 물건 주소 → 구역 → «매수 구간». 자료실 「가격이 뛰는 구간」 기준.
+    BuyBand bandOf(AuctionProperty p) =>
+        bandOfZone(matchZoneForAddress(p.address, zonesList));
     final complexById = {for (final c in complexesList) c.id: c};
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
@@ -494,6 +498,16 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                         'real' => items.where((p) => !p.isSim).toList(),
                         'corp' =>
                           items.where((p) => p.corpStatus == 'ok').toList(),
+                        // 매수 구간 — 「가격이 뛰는 구간」 기준(자료실 2026-08-31)
+                        'buy' => items
+                            .where((p) => bandOf(p).canBuy)
+                            .toList(),
+                        'buyA' => items
+                            .where((p) => bandOf(p) == BuyBand.early)
+                            .toList(),
+                        'blocked' => items
+                            .where((p) => bandOf(p) == BuyBand.blocked)
+                            .toList(),
                         final s => items.where((p) => p.status == s).toList(),
                       })
                         // 제외한 물건은 기본 목록에서 숨긴다(제외 필터에서만 보임).
@@ -595,6 +609,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                 for (final p in filtered) ...[
                   _AuctionCard(
                     p: p,
+                    band: bandOf(p),
                     price: effectivePrice(p, surveys),
                     onOpen: () => context.go('/auction/${p.id}'),
                     onDelete: () => deleteBuiltinRecord(
@@ -668,6 +683,9 @@ class _FilterChips extends StatelessWidget {
       ('real', '실제'),
       ('GO', 'GO만'),
       ('corp', '법인가능'),
+      ('buy', '🟢 살 수 있는 것'),
+      ('buyA', '🟢 매수 A (저점)'),
+      ('blocked', '🚫 진입 불가'),
       for (final (k, label, _) in kStatusOptions) (k, label),
       ('excluded', '제외됨'),
     ];
@@ -719,6 +737,7 @@ class _Chip extends StatelessWidget {
 
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
+  final BuyBand band; // 구역 단계로 판정한 매수 구간
   final EffectivePrice price; // 단지에서 상속받은 시세
   final VoidCallback onOpen;
   final VoidCallback onDelete;
@@ -728,6 +747,7 @@ class _AuctionCard extends StatefulWidget {
   final ValueChanged<String?> onSetCorp; // 법인 취득세 태그(ok/heavy/check/null)
   const _AuctionCard(
       {required this.p,
+      required this.band,
       required this.price,
       required this.onOpen,
       required this.onDelete,
@@ -754,10 +774,48 @@ class _AuctionCardState extends State<_AuctionCard> {
       onTap: onOpen,
       borderRadius: BorderRadius.circular(16),
       child: GlassCard(
-      accent: vColor,
+      // 진입 불가 구역이면 카드 테두리부터 빨갛게 — 목록에서 바로 걸러진다.
+      accent: widget.band == BuyBand.blocked ? AppColors.rose : vColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 매수 구간 — 조합설립을 넘긴 구역은 낙찰받아도 승계가 안 된다.
+          if (widget.band != BuyBand.unknown) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: widget.band.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Row(children: [
+                Icon(widget.band.icon, size: 15, color: widget.band.color),
+                const Gap(8),
+                Text(widget.band.label,
+                    style: TextStyle(
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w900,
+                        color: widget.band.color)),
+                const Gap(8),
+                Expanded(
+                  child: Text(widget.band.short,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: AppFont.caption,
+                          color: AppColors.textSecondary)),
+                ),
+              ]),
+            ),
+            if (widget.band == BuyBand.blocked) ...[
+              const Gap(6),
+              Text(widget.band.why,
+                  style: const TextStyle(
+                      fontSize: AppFont.caption,
+                      color: AppColors.rose,
+                      height: 1.5)),
+            ],
+            const Gap(12),
+          ],
           Row(
             children: [
               Expanded(

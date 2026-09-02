@@ -11,6 +11,7 @@ import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'auction_screen.dart' show quickAddAuction;
 import 'auction_detail_screen.dart' show matchZoneForAddress;
+import 'buy_band.dart';
 
 /// 모아타운/신통기획 신청지 — 서울 자치구 개요 → 자치구별 구역 리스트 →
 /// 구역 안에서 경매물건 추가·상세(임장)·네이버 지도.
@@ -42,11 +43,15 @@ class MoaTownView extends ConsumerStatefulWidget {
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
-  int _stageF = -1; // 단계 필터: -1 전체 / 1 진입 적기 / 2 관리계획 / 3 조합설립↑
+  // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
+  int _stageF = -1;
 
-  bool _stageMatch(Zone z) => _stageF < 0
-      ? true
-      : (_stageF == 3 ? z.stage >= 3 : z.stage == _stageF);
+  bool _stageMatch(Zone z) => switch (_stageF) {
+        < 0 => true,
+        0 => bandOfZone(z).canBuy, // 매수 A + B
+        3 => z.stage >= 3,
+        final v => z.stage == v,
+      };
 
   Widget _stageChips() {
     Widget chip(int v, String label, Color c) {
@@ -73,9 +78,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _teal),
-      chip(1, '① 진입 적기(수립중)', AppColors.primary),
-      chip(2, '② 관리계획 고시', AppColors.gold),
-      chip(3, '③ 조합설립↑', AppColors.rose),
+      chip(0, '🟢 살 수 있는 것', AppColors.primary),
+      chip(1, '매수 A · 수립 중(저점)', AppColors.primary),
+      chip(2, '매수 B · 동의서 징구', AppColors.gold),
+      chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
   }
 
@@ -138,13 +144,27 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                 fontSize: AppFont.caption, color: AppColors.textFaint)),
         const Gap(10),
         _stageChips(),
-        if (_stageF == 1) ...[
+        // 왜 이 구간인지 — 「가격이 뛰는 구간」(자료실 2026-08-31) 기준.
+        if (_stageF >= 0) ...[
           const Gap(8),
-          const Text('★ 진입 적기 = 대상지 선정~관리계획 수립 중(고시 전) = 저점. 은천처럼 여기서 매수.',
-              style: TextStyle(
-                  fontSize: AppFont.caption,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600)),
+          Builder(builder: (_) {
+            final b = switch (_stageF) {
+              0 => null,
+              1 => BuyBand.early,
+              2 => BuyBand.late_,
+              _ => BuyBand.blocked,
+            };
+            final txt = b == null
+                ? '★ 조합설립인가 «전»만 산다. 인가가 나면 조합원 지위 양도가 막혀 낙찰받아도 승계가 안 된다.'
+                : '★ ${b.why}\n   매도 라인 — ${sellLineOf(b)}';
+            final c = b?.color ?? AppColors.primary;
+            return Text(txt,
+                style: TextStyle(
+                    fontSize: AppFont.caption,
+                    color: c,
+                    height: 1.55,
+                    fontWeight: FontWeight.w600));
+          }),
         ],
         const Gap(16),
         if (dists.isEmpty)
