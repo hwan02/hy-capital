@@ -22,12 +22,9 @@ const _teal = Color(0xFF14B8A6);
 Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 
 /// 다음 가격 상승 이벤트 — 이 «직전»이 매도 라인.
-String? _nextJump(Zone z) {
-  final moa = z.kind != '신통기획';
-  if (z.stage <= 1) return moa ? '통합심의(관리계획 고시)' : '정비구역 지정고시';
-  if (z.stage == 2) return '조합설립인가';
-  return null; // 3단계↑ 이미 상승 반영
-}
+/// 표는 buy_band.dart 에 있다(종류마다 축이 다르다).
+String? _nextJump(Zone z) =>
+    z.isSin ? kSinNextRise[z.stage] : kNextRise[z.stage];
 
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
@@ -51,12 +48,19 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
   int _stageF = -1;
 
-  bool _stageMatch(Zone z) => switch (_stageF) {
-        < 0 => true,
-        0 => bandOfZone(z).canBuy, // 매수 A + B
-        3 => z.stage >= 3,
-        final v => z.stage == v,
-      };
+  /// 필터는 «단계 번호»가 아니라 «밴드»로 건다.
+  /// 모아 4 와 신통 5 가 둘 다 매수 A 이므로 번호로는 못 거른다.
+  bool _stageMatch(Zone z) {
+    final b = bandOfZone(z);
+    return switch (_stageF) {
+      < 0 => true,
+      0 => b.canBuy, // 매수 A + B
+      1 => b == BuyBand.early,
+      2 => b == BuyBand.late_,
+      3 => b == BuyBand.blocked,
+      _ => true,
+    };
+  }
 
   Widget _stageChips() {
     Widget chip(int v, String label, Color c) {
@@ -84,7 +88,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _teal),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
-      chip(1, '매수 A · 수립 중(저점)', AppColors.primary),
+      chip(1, '매수 A · 첫 골짜기', AppColors.primary),
       chip(2, '매수 B · 동의서 징구', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
@@ -434,6 +438,43 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           ),
                         ]),
                       ],
+                      // 이 단계에 «얼마나» 머물렀나. 단계만 보면 멈춘 구역과
+                      // 굴러가는 구역이 똑같아 보인다 — 성수전략정비지구는
+                      // 기획완료가 2021년이다(66개월).
+                      if (z.stalledMonths != null) ...[
+                        const Gap(7),
+                        Row(children: [
+                          Icon(
+                              z.isStalled
+                                  ? Icons.hourglass_disabled_rounded
+                                  : Icons.schedule_rounded,
+                              size: 13,
+                              color: z.isStalled
+                                  ? AppColors.rose
+                                  : AppColors.textFaint),
+                          const Gap(6),
+                          Text(
+                              '이 단계 ${z.stalledMonths}개월째'
+                              '${z.propelDt == null ? '' : ' (${Dates.ymd(z.propelDt!)}~)'}',
+                              style: TextStyle(
+                                  fontSize: AppFont.label,
+                                  fontWeight: FontWeight.w700,
+                                  color: z.isStalled
+                                      ? AppColors.rose
+                                      : AppColors.textSecondary)),
+                          const Gap(8),
+                          if (z.isStalled)
+                            const Expanded(
+                              child: Text('⚠️ 1년 넘게 안 움직인다 — 정체 확인',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: AppFont.label,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.rose)),
+                            ),
+                        ]),
+                      ],
                       // 권리산정기준일 — 이 날 다음날부터 분할·신축은 현금청산.
                       if (z.rightsDate != null) ...[
                         const Gap(7),
@@ -443,7 +484,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           const Gap(6),
                           Text('권리산정기준일 ${Dates.ymd(z.rightsDate!)}',
                               style: const TextStyle(
-                                  fontSize: AppFont.caption,
+                                  fontSize: AppFont.label,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textSecondary)),
                           const Gap(8),
@@ -452,7 +493,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    fontSize: AppFont.caption,
+                                    fontSize: AppFont.label,
                                     color: AppColors.textFaint)),
                           ),
                         ]),
@@ -476,7 +517,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                     ? '동의율 ${z.consentRate.toStringAsFixed(0)}%'
                                     : '동의율 입력',
                                 style: TextStyle(
-                                    fontSize: AppFont.caption,
+                                    fontSize: AppFont.label,
                                     fontWeight: FontWeight.w700,
                                     color: z.consentRate > 0
                                         ? (z.imminent
@@ -525,7 +566,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 const Expanded(
                                   child: Text(kDropRiskNote,
                                       style: TextStyle(
-                                          fontSize: AppFont.caption,
+                                          fontSize: AppFont.label,
                                           color: AppColors.gold,
                                           height: 1.6)),
                                 ),
@@ -713,13 +754,13 @@ class _StageLadder extends StatelessWidget {
             const Gap(8),
             Text(_sin ? '사업 진행 순서 (신통)' : '사업 진행 순서 (모아)',
                 style: const TextStyle(
-                    fontSize: AppFont.label,
+                    fontSize: AppFont.section,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textSecondary)),
             const Spacer(),
             const Text('숫자 = 구역 수',
                 style: TextStyle(
-                    fontSize: AppFont.caption, color: AppColors.textFaint)),
+                    fontSize: AppFont.label, color: AppColors.textFaint)),
           ]),
           const Gap(12),
           // 축이 모아 12칸 · 신통 11칸이라 한 줄에 안 들어간다.
@@ -728,7 +769,8 @@ class _StageLadder extends StatelessWidget {
             final last = sin ? 11 : 12;
             const gap = 6.0;
             // 한 줄에 6칸씩 — 라벨이 두 줄까지 들어가는 너비.
-            final per = c.maxWidth < 520 ? 3 : (c.maxWidth < 760 ? 4 : 6);
+            // 칸이 넓어야 글씨를 키울 수 있다. 넓은 화면도 4칸까지만.
+            final per = c.maxWidth < 480 ? 2 : (c.maxWidth < 720 ? 3 : 4);
             final w = (c.maxWidth - gap * (per - 1)) / per;
             return Wrap(
               spacing: gap,
@@ -753,7 +795,7 @@ class _StageLadder extends StatelessWidget {
                 const Gap(6),
                 Text('${b.label} · ${b.short}',
                     style: TextStyle(
-                        fontSize: AppFont.caption,
+                        fontSize: AppFont.label,
                         color: b.color,
                         fontWeight: FontWeight.w700)),
               ]),
@@ -765,14 +807,14 @@ class _StageLadder extends StatelessWidget {
                       '골짜기는 «기획 완료»와 «동의서 징구» — 그 칸에서 산다.'
                   : '가격은 «수립 → 고시», «징구 → 인가» 두 번 뛴다. 그 직전 칸에서 산다.',
               style: const TextStyle(
-                  fontSize: AppFont.caption,
+                  fontSize: AppFont.label,
                   color: AppColors.textSecondary,
-                  height: 1.55)),
-          const Gap(4),
+                  height: 1.6)),
+          const Gap(5),
           const Text(
               '조합설립인가부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
               style: TextStyle(
-                  fontSize: AppFont.caption,
+                  fontSize: AppFont.label,
                   color: AppColors.rose,
                   height: 1.55)),
         ],
@@ -794,12 +836,12 @@ class _StageLadder extends StatelessWidget {
           padding: EdgeInsets.only(bottom: 3),
           child: Text('↓ 여기서 닫힌다',
               style: TextStyle(
-                  fontSize: AppFont.micro,
+                  fontSize: AppFont.label,
                   fontWeight: FontWeight.w800,
                   color: AppColors.rose)),
         ),
       Container(
-        height: 32,
+        height: 38,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: c.withValues(alpha: has ? 0.22 : 0.07),
@@ -808,23 +850,23 @@ class _StageLadder extends StatelessWidget {
               color: has ? c : c.withValues(alpha: 0.25),
               width: has ? 1.3 : 1),
         ),
-        child: Text(has ? '$stage · $n' : '$stage',
+        child: Text(has ? '$stage · $n곳' : '$stage',
             style: TextStyle(
-                fontSize: AppFont.label,
+                fontSize: AppFont.body,
                 fontWeight: FontWeight.w900,
                 color: has ? c : c.withValues(alpha: 0.45))),
       ),
       const Gap(5),
       SizedBox(
-        height: 32,
+        height: 40,
         child: Text(
           (_sin ? Zone.sinStageLabels[stage] : Zone.stageLabels[stage]) ?? '',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: AppFont.caption,
-              height: 1.3,
+              fontSize: AppFont.body,
+              height: 1.35,
               fontWeight: has ? FontWeight.w700 : FontWeight.w500,
               color: has ? AppColors.textSecondary : AppColors.textFaint),
         ),
@@ -833,15 +875,15 @@ class _StageLadder extends StatelessWidget {
       // 매수 자리가 여기서 갈린다.
       const Gap(3),
       SizedBox(
-        height: 32,
+        height: 38,
         child: Text(
           '↳ ${(_sin ? kSinStageDoing[stage] : kStageDoing[stage]) ?? ''}',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: AppFont.micro,
-              height: 1.3,
+              fontSize: AppFont.label,
+              height: 1.35,
               fontWeight: band.canBuy ? FontWeight.w800 : FontWeight.w500,
               color: band.canBuy
                   ? c

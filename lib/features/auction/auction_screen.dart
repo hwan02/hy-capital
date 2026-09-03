@@ -368,6 +368,9 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
     const amber = Color(0xFFF59E0B);
     const orange = Color(0xFFF97316); // 강의 질문
     return ModulePage(
+      // 이 화면이 제일 빽빽하다 — 사다리 11~12칸에 구역 카드까지 들어간다.
+      // 기본 1100 이면 칸이 좁아 글씨를 못 키운다.
+      maxWidth: 1500,
       title: '부동산',
       icon: Icons.location_city_rounded,
       color: switch (_tab) {

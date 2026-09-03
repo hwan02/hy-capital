@@ -149,7 +149,8 @@ def main():
              {"email": email, "password": pw})["access_token"]
     uid = sb("/auth/v1/user", token=tok)["id"]
 
-    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date", token=tok)
+    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date,propel_dt",
+                  token=tok)
     by = {key(z['name']): z for z in have}
 
     added = updated = same = 0
@@ -165,6 +166,7 @@ def main():
                 'district': w['district'], 'stage': w['stage'],
                 'stage_source': src, 'stage_checked_at': '2026-09-02T00:00:00Z',
                 'rights_date': w['rfenc'] or None,
+                'propel_dt': w['dt'] or None,
                 'memo': f"지금 진행 중 — {w['doing']}",
             }], token=tok)
             added += 1
@@ -185,13 +187,18 @@ def main():
                 'stage': w['stage'], 'stage_source': src,
                 'stage_checked_at': '2026-09-02T00:00:00Z',
                 'rights_date': w['rfenc'] or None,
+                'propel_dt': w['dt'] or None,
             }, token=tok)
             updated += 1
             print(f"  ↻ [{z['stage']}→{w['stage']}] {w['name'][:30]}")
         else:
+            patch = {}
             if w['rfenc'] and not z.get('rights_date'):
-                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
-                   {'rights_date': w['rfenc']}, token=tok)
+                patch['rights_date'] = w['rfenc']
+            if w['dt'] and z.get('propel_dt') != w['dt']:
+                patch['propel_dt'] = w['dt']
+            if patch:
+                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", patch, token=tok)
             same += 1
 
     print(f"\n추가 {added} · 단계갱신 {updated} · 그대로 {same}")

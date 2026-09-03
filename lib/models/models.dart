@@ -1286,6 +1286,9 @@ class Zone {
   /// 권리산정기준일. 이 날 다음날부터 분할·신축된 물건은 «현금청산» 대상.
   /// 서울도시공간포털이 구역마다 준다.
   final DateTime? rightsDate;
+
+  /// 지금 단계에 «들어간 날». 오래됐으면 사업이 멈춰 있다는 뜻.
+  final DateTime? propelDt;
   final String? memo;
   final bool starred;
   final int stage; // 0=미정, 1~7
@@ -1301,6 +1304,7 @@ class Zone {
     this.consentRate = 0,
     this.unionExpected,
     this.rightsDate,
+    this.propelDt,
     this.memo,
     this.starred = false,
     this.stage = 0,
@@ -1357,6 +1361,14 @@ class Zone {
   /// 이 구역 종류의 마지막 단계 번호.
   int get lastStage => isSin ? 11 : 12;
 
+  /// 이 단계에 머문 «개월». 추진일이 없으면 null.
+  int? get stalledMonths => propelDt == null
+      ? null
+      : DateTime.now().difference(propelDt!).inDays ~/ 30;
+
+  /// 1년 넘게 같은 단계면 «멈춘» 것으로 본다.
+  bool get isStalled => (stalledMonths ?? 0) >= 12;
+
   /// 이 구역 종류에 맞는 단계 라벨.
   String get stageLabel =>
       (isSin ? sinStageLabels[stage] : stageLabels[stage]) ?? '미정';
@@ -1368,6 +1380,7 @@ class Zone {
         district: m['district'],
         consentRate: _d(m['consent_rate']),
         rightsDate: _date(m['rights_date']),
+        propelDt: _date(m['propel_dt']),
         unionExpected: _date(m['union_expected']),
         memo: m['memo'],
         starred: m['starred'] == true,
