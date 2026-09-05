@@ -525,7 +525,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                     isDense: true,
                     hintText: '질문',
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 2),
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),
                   ),
                 ),
                 if (url != null)
@@ -561,7 +561,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                     hintText: '답 적기',
                     isDense: true,
                     contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     filled: true,
                     fillColor: hasAnswer
                         ? AppColors.primary.withValues(alpha: 0.08)
