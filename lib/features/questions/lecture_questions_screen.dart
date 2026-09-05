@@ -408,6 +408,7 @@ class _QuestionRowState extends State<_QuestionRow> {
   late final TextEditingController _a;
   late final FocusNode _qf;
   late final FocusNode _af;
+  bool _qEdit = false; // 질문 편집 중?
 
   @override
   void initState() {
@@ -424,6 +425,7 @@ class _QuestionRowState extends State<_QuestionRow> {
       if (v.isNotEmpty && v != widget.rec.question.trim()) {
         widget.onEditQuestion(v);
       }
+      if (mounted) setState(() => _qEdit = false);
     }
   }
 
@@ -473,7 +475,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                 child: Container(
                   height: 24,
                   width: 24,
-                  margin: const EdgeInsets.only(top: 5),
+                  margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     color: done
                         ? AppColors.primary.withValues(alpha: 0.22)
@@ -495,31 +497,46 @@ class _QuestionRowState extends State<_QuestionRow> {
               ),
               const Gap(10),
               Expanded(
-                child: TextField(
-                  controller: _q,
-                  focusNode: _qf,
-                  minLines: 1,
-                  maxLines: 5,
-                  style: const TextStyle(
-                      fontSize: AppFont.body,
-                      height: 1.5,
-                      fontWeight: FontWeight.w700),
-                  onChanged: (_) => setState(() {}),
-                  onTapOutside: (_) => _qf.unfocus(),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    hintText: '질문',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 6),
-                  ),
-                ),
+                child: _qEdit
+                    ? TextField(
+                        controller: _q,
+                        focusNode: _qf,
+                        autofocus: true,
+                        minLines: 1,
+                        maxLines: 5,
+                        style: const TextStyle(
+                            fontSize: AppFont.body,
+                            height: 1.4,
+                            fontWeight: FontWeight.w700),
+                        onChanged: (_) => setState(() {}),
+                        onTapOutside: (_) => _qf.unfocus(),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: '질문',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      )
+                    : InkWell(
+                        onTap: () => setState(() => _qEdit = true),
+                        child: Text(
+                          _q.text.trim().isEmpty ? '질문 (탭해서 입력)' : _q.text,
+                          style: TextStyle(
+                              fontSize: AppFont.body,
+                              height: 1.4,
+                              fontWeight: FontWeight.w700,
+                              color: _q.text.trim().isEmpty
+                                  ? AppColors.textFaint
+                                  : AppColors.textPrimary),
+                        ),
+                      ),
               ),
               const Gap(4),
               InkWell(
                 onTap: widget.onDelete,
                 borderRadius: BorderRadius.circular(14),
                 child: const Padding(
-                  padding: EdgeInsets.only(top: 6, left: 2, bottom: 2),
+                  padding: EdgeInsets.only(top: 3, left: 2, bottom: 2),
                   child: Icon(Icons.close_rounded,
                       size: 16, color: AppColors.textFaint),
                 ),
