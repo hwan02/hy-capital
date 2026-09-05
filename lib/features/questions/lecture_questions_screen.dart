@@ -174,8 +174,11 @@ String _asPlainText([Map<String, LectureAnswer> recs = const {}]) {
   b.writeln('[경매 강의 질문]');
   b.writeln();
   b.writeln('내 상황');
-  for (final s in _situation) {
-    b.writeln('- $s');
+  final sit = (recs['__situation__']?.answer.trim().isNotEmpty ?? false)
+      ? recs['__situation__']!.answer.trim().split('\n')
+      : _situation;
+  for (final s in sit) {
+    if (s.trim().isNotEmpty) b.writeln('- ${s.trim()}');
   }
   for (var si = 0; si < _sections.length; si++) {
     final s = _sections[si];
@@ -239,9 +242,13 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
     }
   }
 
-  /// 답 적기 시트 — 강의장에서 폰으로 쓰므로 큰 입력창 + 저장 버튼.
-  Future<void> _editAnswer(
-      String qkey, String question, String current) async {
+  /// 답을 인라인으로 바로 저장. 답을 적으면 '물어봤음'도 자동으로 켠다.
+  Future<void> _saveAnswer(String qkey, String question, String value) =>
+      _save(qkey, question,
+          {'answer': value, if (value.trim().isNotEmpty) 'asked': true});
+
+  /// 내 상황 편집 — 한 줄에 하나씩. lecture_answers 의 특수 키에 저장.
+  Future<void> _editSituation(String current) async {
     final c = TextEditingController(text: current);
     final saved = await showModalBottomSheet<String>(
       context: context,
@@ -254,26 +261,20 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(question,
-                style: const TextStyle(
-                    fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+            const Text('내 상황 (한 줄에 하나씩)',
+                style: TextStyle(
+                    fontSize: AppFont.section, fontWeight: FontWeight.w800)),
             const Gap(12),
             TextField(
               controller: c,
               autofocus: true,
-              maxLines: 8,
-              minLines: 4,
+              maxLines: 10,
+              minLines: 5,
               style: const TextStyle(fontSize: AppFont.body, height: 1.5),
               decoration: const InputDecoration(),
             ),
             const Gap(12),
             Row(children: [
-              if (current.trim().isNotEmpty)
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, ''),
-                  child: const Text('답 지우기',
-                      style: TextStyle(color: AppColors.rose)),
-                ),
               const Spacer(),
               TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -292,9 +293,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
       ),
     );
     if (saved == null) return;
-    // 답을 적으면 '물어봤음'도 자동으로 켠다.
-    await _save(qkey, question,
-        {'answer': saved, if (saved.trim().isNotEmpty) 'asked': true});
+    await _save('__situation__', '내 상황', {'answer': saved});
   }
 
   /// 내 질문 추가 — 새 테이블 없이 lecture_answers.question 을 쓴다.
@@ -420,11 +419,39 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
       loading: AsyncStatus.loading,
       error: AsyncStatus.error,
       data: (recs) {
+        final sitText = (recs['__situation__']?.answer.trim().isNotEmpty ?? false)
+            ? recs['__situation__']!.answer.trim()
+            : _situation.join('\n');
+        final sitLines = sitText
+            .split('\n')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        final custom = recs.entries
+            .where((e) => e.key.startsWith('custom-'))
+            .where((e) => !_answeredOnly || e.value.hasAnswer)
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.violet,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                        fontSize: AppFont.label, fontWeight: FontWeight.w800),
+                  ),
+                  onPressed: _addCustom,
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('질문 추가'),
+                ),
                 const Spacer(),
                 IconButton(
                   tooltip: '질문+답 전체 복사',
@@ -463,7 +490,8 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
               ],
             ),
             const Gap(6),
-            const _SituationCard(),
+            _SituationCard(
+                lines: sitLines, onEdit: () => _editSituation(sitText)),
             const Gap(Insets.gap),
             _weekChips(),
             const Gap(Insets.gap),
@@ -476,18 +504,33 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
                   answeredOnly: _answeredOnly,
                   recs: recs,
                   onToggle: _toggleAsked,
-                  onEditAnswer: _editAnswer,
+                  onEditAnswer: _saveAnswer,
                 ),
                 const Gap(Insets.gap),
               ],
-            if (_week != 1) ...[
-              _CustomSection(
-                recs: recs,
-                answeredOnly: _answeredOnly,
-                onAdd: _addCustom,
-                onToggle: _toggleAsked,
-                onEditAnswer: _editAnswer,
-                onDelete: _deleteCustom,
+            // 내가 추가한 질문 — 따로 카드 만들지 않고 질문 행만 이어서.
+            if (_week != 1 && custom.isNotEmpty) ...[
+              GlassCard(
+                accent: AppColors.violet,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < custom.length; i++)
+                      _QuestionRow(
+                        key: ValueKey(custom[i].key),
+                        number: i + 1,
+                        text: custom[i].value.question,
+                        color: AppColors.violet,
+                        rec: custom[i].value,
+                        onToggle: () => _toggleAsked(custom[i].key,
+                            custom[i].value.question, custom[i].value.asked),
+                        onEditAnswer: (v) => _saveAnswer(
+                            custom[i].key, custom[i].value.question, v),
+                        onDelete: () =>
+                            _deleteCustom(custom[i].key, custom[i].value.question),
+                      ),
+                  ],
+                ),
               ),
               const Gap(Insets.gap),
             ],
@@ -514,7 +557,9 @@ class LectureQuestionsScreen extends StatelessWidget {
 }
 
 class _SituationCard extends StatelessWidget {
-  const _SituationCard();
+  final List<String> lines;
+  final VoidCallback onEdit;
+  const _SituationCard({required this.lines, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -522,9 +567,24 @@ class _SituationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader('내 상황 (질문 전에 먼저 말할 것)'),
-          const Gap(14),
-          for (final s in _situation)
+          Row(children: [
+            const Expanded(
+              child: Text('내 상황 (질문 전에 먼저 말할 것)',
+                  style: TextStyle(
+                      fontSize: AppFont.title, fontWeight: FontWeight.w700)),
+            ),
+            InkWell(
+              onTap: onEdit,
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.edit_rounded,
+                    size: 18, color: AppColors.textFaint),
+              ),
+            ),
+          ]),
+          const Gap(12),
+          for (final s in lines)
             Padding(
               padding: const EdgeInsets.only(bottom: 7),
               child: Row(
@@ -562,8 +622,7 @@ class _SectionCard extends StatelessWidget {
   final bool answeredOnly;
   final Map<String, LectureAnswer> recs;
   final Future<void> Function(String qkey, String question, bool now) onToggle;
-  final Future<void> Function(String qkey, String question, String current)
-      onEditAnswer;
+  final void Function(String qkey, String question, String value) onEditAnswer;
 
   const _SectionCard({
     required this.section,
@@ -629,16 +688,15 @@ class _SectionCard extends StatelessWidget {
           const Gap(6),
           for (final (i, q) in items)
             _QuestionRow(
+              key: ValueKey('$sectionIndex-$i'),
               number: i + 1,
               text: q.text,
-              want: q.want,
               core: q.core,
               color: section.color,
               rec: recs['$sectionIndex-$i'],
               onToggle: () => onToggle('$sectionIndex-$i', q.text,
                   recs['$sectionIndex-$i']?.asked ?? false),
-              onEditAnswer: () => onEditAnswer('$sectionIndex-$i', q.text,
-                  recs['$sectionIndex-$i']?.answer ?? ''),
+              onEditAnswer: (v) => onEditAnswer('$sectionIndex-$i', q.text, v),
             ),
         ],
       ),
@@ -646,23 +704,21 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _QuestionRow extends StatelessWidget {
+class _QuestionRow extends StatefulWidget {
   final int number;
   final String text;
-  final String? want;
   final bool core;
   final Color color;
   final LectureAnswer? rec;
   final VoidCallback onToggle;
-  final VoidCallback onEditAnswer;
-
-  /// 사용자가 추가한 질문이면 삭제를 허용한다.
+  final ValueChanged<String> onEditAnswer; // 답을 값으로 저장(인라인)
+  /// 사용자가 추가한 질문이면 삭제 허용.
   final VoidCallback? onDelete;
 
   const _QuestionRow({
+    super.key,
     required this.number,
     required this.text,
-    this.want,
     this.core = false,
     required this.color,
     required this.rec,
@@ -672,10 +728,49 @@ class _QuestionRow extends StatelessWidget {
   });
 
   @override
+  State<_QuestionRow> createState() => _QuestionRowState();
+}
+
+class _QuestionRowState extends State<_QuestionRow> {
+  late final TextEditingController _ac;
+  late final FocusNode _fn;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = TextEditingController(text: widget.rec?.answer ?? '');
+    _fn = FocusNode()..addListener(_onFocus);
+  }
+
+  void _onFocus() {
+    if (!_fn.hasFocus) {
+      final v = _ac.text.trim();
+      if (v != (widget.rec?.answer.trim() ?? '')) widget.onEditAnswer(v);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuestionRow old) {
+    super.didUpdateWidget(old);
+    final ext = widget.rec?.answer ?? '';
+    if (!_fn.hasFocus && ext != _ac.text) _ac.text = ext;
+  }
+
+  @override
+  void dispose() {
+    _fn.dispose();
+    _ac.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final done = rec?.asked ?? false;
-    final answer = rec?.answer.trim() ?? '';
-    final hasAnswer = answer.isNotEmpty;
+    final done = widget.rec?.asked ?? false;
+    final color = widget.color;
+    final hasAnswer = _ac.text.trim().isNotEmpty;
+    final m = _urlRe.firstMatch(widget.text);
+    final url = m?.group(0);
+    final qText = url == null ? widget.text : widget.text.replaceFirst(url, '').trim();
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Row(
@@ -683,29 +778,24 @@ class _QuestionRow extends StatelessWidget {
         children: [
           // 번호 배지 = 물어봤는지 체크 토글.
           GestureDetector(
-            onTap: onToggle,
+            onTap: widget.onToggle,
             child: Container(
               height: 24,
               width: 24,
               margin: const EdgeInsets.only(top: 1),
               decoration: BoxDecoration(
-                color:
-                    done ? color.withValues(alpha: 0.22) : AppColors.surfaceAlt,
+                color: done ? color.withValues(alpha: 0.22) : AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(7),
                 border: Border.all(color: done ? color : AppColors.border),
               ),
               child: done
                   ? Icon(Icons.check_rounded, size: 15, color: color)
                   : Center(
-                      child: Text(
-                        '$number',
-                        style: const TextStyle(
-                          fontSize: AppFont.micro,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
+                      child: Text('${widget.number}',
+                          style: const TextStyle(
+                              fontSize: AppFont.micro,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textSecondary))),
             ),
           ),
           const Gap(10),
@@ -714,7 +804,7 @@ class _QuestionRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  if (core)
+                  if (widget.core)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 5, right: 6),
                       child: Pill('핵심', color: _kQuestionColor),
@@ -725,9 +815,9 @@ class _QuestionRow extends StatelessWidget {
                       child: Pill('답 있음', color: AppColors.primary),
                     ),
                   const Spacer(),
-                  if (onDelete != null)
+                  if (widget.onDelete != null)
                     InkWell(
-                      onTap: onDelete,
+                      onTap: widget.onDelete,
                       borderRadius: BorderRadius.circular(14),
                       child: const Padding(
                         padding: EdgeInsets.all(2),
@@ -736,207 +826,64 @@ class _QuestionRow extends StatelessWidget {
                       ),
                     ),
                 ]),
-                // 질문을 누르면 답 적기. URL이 있으면 새 창으로 여는 버튼.
-                Builder(builder: (_) {
-                  final m = _urlRe.firstMatch(text);
-                  final url = m?.group(0);
-                  final qText =
-                      url == null ? text : text.replaceFirst(url, '').trim();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      InkWell(
-                        onTap: onEditAnswer,
-                        child: Text(
-                          qText,
+                Text(qText,
+                    style: TextStyle(
+                      fontSize: AppFont.body,
+                      height: 1.5,
+                      color: done ? AppColors.textFaint : AppColors.textPrimary,
+                      decoration: done ? TextDecoration.lineThrough : null,
+                      decorationColor: AppColors.textFaint,
+                    )),
+                if (url != null) ...[
+                  const Gap(7),
+                  InkWell(
+                    onTap: () => launchUrl(Uri.parse(url),
+                        mode: LaunchMode.externalApplication),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.open_in_new_rounded, size: 14, color: color),
+                      const Gap(5),
+                      Text('링크 열기',
                           style: TextStyle(
-                            fontSize: AppFont.body,
-                            height: 1.5,
-                            color: done
-                                ? AppColors.textFaint
-                                : AppColors.textPrimary,
-                            decoration:
-                                done ? TextDecoration.lineThrough : null,
-                            decorationColor: AppColors.textFaint,
-                          ),
-                        ),
-                      ),
-                      if (url != null) ...[
-                        const Gap(7),
-                        InkWell(
-                          onTap: () => launchUrl(Uri.parse(url),
-                              mode: LaunchMode.externalApplication),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.open_in_new_rounded,
-                                size: 14, color: color),
-                            const Gap(5),
-                            Text('링크 열기',
-                                style: TextStyle(
-                                    fontSize: AppFont.caption,
-                                    color: color,
-                                    fontWeight: FontWeight.w700)),
-                          ]),
-                        ),
-                      ],
-                    ],
-                  );
-                }),
-                // 받은 답 — 있으면 보여주고, 없으면 적으라고 안내한다.
+                              fontSize: AppFont.caption,
+                              color: color,
+                              fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ],
                 const Gap(7),
-                InkWell(
-                  onTap: onEditAnswer,
-                  borderRadius: BorderRadius.circular(9),
-                  child: Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: hasAnswer
-                          ? AppColors.primary.withValues(alpha: 0.10)
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: hasAnswer
-                            ? AppColors.primary.withValues(alpha: 0.45)
-                            : AppColors.border,
-                      ),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                            hasAnswer
-                                ? Icons.chat_bubble_rounded
-                                : Icons.edit_note_rounded,
-                            size: 14,
+                // 답 — 바로 눌러서 적는다(인라인). 포커스 빠질 때 저장.
+                TextField(
+                  controller: _ac,
+                  focusNode: _fn,
+                  minLines: 1,
+                  maxLines: 6,
+                  style: const TextStyle(fontSize: AppFont.label, height: 1.45),
+                  onChanged: (_) => setState(() {}),
+                  onTapOutside: (_) => _fn.unfocus(),
+                  decoration: InputDecoration(
+                    hintText: '답 적기',
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    filled: true,
+                    fillColor: hasAnswer
+                        ? AppColors.primary.withValues(alpha: 0.08)
+                        : AppColors.surfaceAlt,
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(9),
+                        borderSide: BorderSide(
                             color: hasAnswer
-                                ? AppColors.primary
-                                : AppColors.textFaint),
-                        const Gap(7),
-                        Expanded(
-                          child: Text(
-                            hasAnswer ? answer : '답 적기',
-                            style: TextStyle(
-                              fontSize: AppFont.label,
-                              height: 1.45,
-                              color: hasAnswer
-                                  ? AppColors.textPrimary
-                                  : AppColors.textFaint,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                                ? AppColors.primary.withValues(alpha: 0.45)
+                                : AppColors.border)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(9),
+                        borderSide: BorderSide(color: AppColors.primary)),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 내가 추가한 질문 — lecture_answers 에서 qkey 가 'custom-' 인 행들.
-class _CustomSection extends StatelessWidget {
-  final Map<String, LectureAnswer> recs;
-  final bool answeredOnly;
-  final VoidCallback onAdd;
-  final Future<void> Function(String qkey, String question, bool now) onToggle;
-  final Future<void> Function(String qkey, String question, String current)
-      onEditAnswer;
-  final Future<void> Function(String qkey, String question) onDelete;
-
-  const _CustomSection({
-    required this.recs,
-    required this.answeredOnly,
-    required this.onAdd,
-    required this.onToggle,
-    required this.onEditAnswer,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final items = recs.entries
-        .where((e) => e.key.startsWith('custom-'))
-        .where((e) => !answeredOnly || e.value.hasAnswer)
-        .toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-
-    return GlassCard(
-      accent: AppColors.violet,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                height: 34,
-                width: 34,
-                decoration: BoxDecoration(
-                  color: AppColors.violet.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.add_comment_rounded,
-                    size: 18, color: AppColors.violet),
-              ),
-              const Gap(12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('내가 추가한 질문',
-                        style: TextStyle(
-                            fontSize: AppFont.section,
-                            fontWeight: FontWeight.w800)),
-                    Gap(2),
-                    Text('강의 중 생각난 것을 바로 적어두기',
-                        style: TextStyle(
-                            fontSize: AppFont.caption,
-                            color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.violet,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: const TextStyle(
-                      fontSize: AppFont.label, fontWeight: FontWeight.w800),
-                ),
-                onPressed: onAdd,
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('질문 추가'),
-              ),
-            ],
-          ),
-          if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 14),
-              child: Text('아직 없어요. 「질문 추가」로 내 질문을 넣으세요.',
-                  style: TextStyle(
-                      color: AppColors.textFaint, fontSize: AppFont.label)),
-            ),
-          for (var i = 0; i < items.length; i++)
-            _QuestionRow(
-              number: i + 1,
-              text: items[i].value.question,
-              color: AppColors.violet,
-              rec: items[i].value,
-              onToggle: () => onToggle(items[i].key, items[i].value.question,
-                  items[i].value.asked),
-              onEditAnswer: () => onEditAnswer(
-                  items[i].key, items[i].value.question, items[i].value.answer),
-              onDelete: () =>
-                  onDelete(items[i].key, items[i].value.question),
-            ),
         ],
       ),
     );
