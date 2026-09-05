@@ -505,35 +505,12 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
                   recs: recs,
                   onToggle: _toggleAsked,
                   onEditAnswer: _saveAnswer,
+                  // 내가 추가한 질문은 2주차 카드에 함께 넣는다(별도 카드 X).
+                  extraCustom: _sections[si].week == 2 ? custom : const [],
+                  onDeleteCustom: _deleteCustom,
                 ),
                 const Gap(Insets.gap),
               ],
-            // 내가 추가한 질문 — 따로 카드 만들지 않고 질문 행만 이어서.
-            if (_week != 1 && custom.isNotEmpty) ...[
-              GlassCard(
-                accent: AppColors.violet,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < custom.length; i++)
-                      _QuestionRow(
-                        key: ValueKey(custom[i].key),
-                        number: i + 1,
-                        text: custom[i].value.question,
-                        color: AppColors.violet,
-                        rec: custom[i].value,
-                        onToggle: () => _toggleAsked(custom[i].key,
-                            custom[i].value.question, custom[i].value.asked),
-                        onEditAnswer: (v) => _saveAnswer(
-                            custom[i].key, custom[i].value.question, v),
-                        onDelete: () =>
-                            _deleteCustom(custom[i].key, custom[i].value.question),
-                      ),
-                  ],
-                ),
-              ),
-              const Gap(Insets.gap),
-            ],
           ],
         );
       },
@@ -624,6 +601,10 @@ class _SectionCard extends StatelessWidget {
   final Future<void> Function(String qkey, String question, bool now) onToggle;
   final void Function(String qkey, String question, String value) onEditAnswer;
 
+  /// 이 카드에 함께 넣을 «내가 추가한 질문»들(따로 카드 만들지 않는다).
+  final List<MapEntry<String, LectureAnswer>> extraCustom;
+  final Future<void> Function(String qkey, String question)? onDeleteCustom;
+
   const _SectionCard({
     required this.section,
     required this.sectionIndex,
@@ -632,6 +613,8 @@ class _SectionCard extends StatelessWidget {
     required this.recs,
     required this.onToggle,
     required this.onEditAnswer,
+    this.extraCustom = const [],
+    this.onDeleteCustom,
   });
 
   @override
@@ -642,7 +625,7 @@ class _SectionCard extends StatelessWidget {
             (!answeredOnly || (recs['$sectionIndex-$i']?.hasAnswer ?? false)))
           (i, section.items[i]),
     ];
-    if (items.isEmpty) return const SizedBox.shrink();
+    if (items.isEmpty && extraCustom.isEmpty) return const SizedBox.shrink();
 
     return GlassCard(
       accent: section.color,
@@ -697,6 +680,21 @@ class _SectionCard extends StatelessWidget {
               onToggle: () => onToggle('$sectionIndex-$i', q.text,
                   recs['$sectionIndex-$i']?.asked ?? false),
               onEditAnswer: (v) => onEditAnswer('$sectionIndex-$i', q.text, v),
+            ),
+          // 내가 추가한 질문 — 같은 카드에 이어서.
+          for (var k = 0; k < extraCustom.length; k++)
+            _QuestionRow(
+              key: ValueKey(extraCustom[k].key),
+              number: section.items.length + k + 1,
+              text: extraCustom[k].value.question,
+              color: section.color,
+              rec: extraCustom[k].value,
+              onToggle: () => onToggle(extraCustom[k].key,
+                  extraCustom[k].value.question, extraCustom[k].value.asked),
+              onEditAnswer: (v) =>
+                  onEditAnswer(extraCustom[k].key, extraCustom[k].value.question, v),
+              onDelete: () => onDeleteCustom?.call(
+                  extraCustom[k].key, extraCustom[k].value.question),
             ),
         ],
       ),
