@@ -62,12 +62,51 @@ class LectureQuestionsView extends ConsumerStatefulWidget {
 class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
   bool _answeredOnly = false;
   bool _adding = false;
+  int _week = 0; // 0=전체, 1=1주차, 2=2주차
   final _addCtl = TextEditingController();
 
   @override
   void dispose() {
     _addCtl.dispose();
     super.dispose();
+  }
+
+  /// 질문의 주차 — qkey 에 'custom-w{N}-' 로 박아둔다. 없으면 1주차.
+  int _weekOf(String qkey) {
+    final m = RegExp(r'^custom-w(\d+)-').firstMatch(qkey);
+    return m != null ? int.parse(m.group(1)!) : 1;
+  }
+
+  Widget _weekChips() {
+    Widget chip(int v, String label) {
+      final on = _week == v;
+      return InkWell(
+        onTap: () => setState(() => _week = v),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
+            color:
+                on ? _kQuestionColor.withValues(alpha: 0.18) : Colors.transparent,
+            border: Border.all(
+                color: on ? _kQuestionColor : AppColors.border,
+                width: on ? 1.4 : 1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: on ? _kQuestionColor : AppColors.textSecondary,
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700)),
+        ),
+      );
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: [
+      chip(0, '전체'),
+      chip(1, '1주차'),
+      chip(2, '2주차'),
+    ]);
   }
 
   Future<void> _save(
@@ -105,7 +144,8 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
       setState(() => _adding = false);
       return;
     }
-    await _save('custom-${DateTime.now().microsecondsSinceEpoch}', t, {});
+    final w = _week == 0 ? 1 : _week; // 전체에서 추가하면 1주차로
+    await _save('custom-w$w-${DateTime.now().microsecondsSinceEpoch}', t, {});
     _addCtl.clear();
     if (mounted) setState(() => _adding = false);
   }
@@ -139,6 +179,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
             .toList();
         final qs = recs.entries
             .where((e) => e.key.startsWith('custom-'))
+            .where((e) => _week == 0 || _weekOf(e.key) == _week)
             .where((e) => !_answeredOnly || e.value.hasAnswer)
             .toList()
           ..sort((a, b) => a.key.compareTo(b.key));
@@ -146,25 +187,11 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(children: [
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _kQuestionColor,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: const TextStyle(
-                      fontSize: AppFont.label, fontWeight: FontWeight.w800),
-                ),
-                onPressed: () => setState(() => _adding = true),
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('질문 추가'),
-              ),
-              const Spacer(),
+              Expanded(child: _weekChips()),
               IconButton(
                 tooltip: '질문+답 전체 복사',
-                icon: const Icon(Icons.copy_all_rounded, size: 20),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy_all_rounded, size: 19),
                 onPressed: () async {
                   final m = ScaffoldMessenger.of(context);
                   await Clipboard.setData(
@@ -175,20 +202,48 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
               ),
               IconButton(
                 tooltip: _answeredOnly ? '전체 보기' : '답 적은 것만',
+                visualDensity: VisualDensity.compact,
                 icon: Icon(
                     _answeredOnly
                         ? Icons.chat_bubble_rounded
                         : Icons.chat_bubble_outline_rounded,
-                    size: 19,
+                    size: 18,
                     color:
                         _answeredOnly ? AppColors.primary : AppColors.textFaint),
                 onPressed: () => setState(() => _answeredOnly = !_answeredOnly),
               ),
             ]),
-            const Gap(6),
+            const Gap(10),
             _SituationCard(
                 lines: sitLines, currentText: sitText, onSave: _saveSituation),
             const Gap(Insets.gap),
+            // 작은 질문 추가 버튼.
+            if (!_adding)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  onTap: () => setState(() => _adding = true),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _kQuestionColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_rounded, size: 15, color: Colors.white),
+                      Gap(4),
+                      Text('질문 추가',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: AppFont.label,
+                              fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ),
+            if (!_adding) const Gap(Insets.gap),
             if (_adding) ...[
               GlassCard(
                 accent: _kQuestionColor,
@@ -466,16 +521,15 @@ class _QuestionRowState extends State<_QuestionRow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 번호 + 질문 + 삭제 — 한 줄.
+          // 번호 + 질문 + 삭제 — 한 줄. 세로 중앙정렬로 배지와 글자를 맞춘다.
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: widget.onToggle,
                 child: Container(
                   height: 24,
                   width: 24,
-                  margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     color: done
                         ? AppColors.primary.withValues(alpha: 0.22)
@@ -536,7 +590,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                 onTap: widget.onDelete,
                 borderRadius: BorderRadius.circular(14),
                 child: const Padding(
-                  padding: EdgeInsets.only(top: 3, left: 2, bottom: 2),
+                  padding: EdgeInsets.all(2),
                   child: Icon(Icons.close_rounded,
                       size: 16, color: AppColors.textFaint),
                 ),
