@@ -218,16 +218,60 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
               2 => BuyBand.late_,
               _ => BuyBand.blocked,
             };
-            final txt = b == null
-                ? '★ 조합설립인가 «전»만 산다. 인가가 나면 조합원 지위 양도가 막혀 낙찰받아도 승계가 안 된다.'
-                : '★ ${b.why}\n   매도 라인 — ${sellLineOf(b)}';
-            final c = b?.color ?? AppColors.primary;
-            return Text(txt,
-                style: TextStyle(
-                    fontSize: AppFont.caption,
-                    color: c,
-                    height: 1.55,
-                    fontWeight: FontWeight.w600));
+            if (b == null) {
+              return const Text(
+                  '★ 조합설립인가 «전»만 산다. 인가가 나면 조합원 지위 양도가 막혀 낙찰받아도 승계가 안 된다.',
+                  style: TextStyle(
+                      fontSize: AppFont.caption,
+                      color: AppColors.primary,
+                      height: 1.55,
+                      fontWeight: FontWeight.w600));
+            }
+            if (b == BuyBand.blocked) {
+              return Text('★ ${b.why}',
+                  style: TextStyle(
+                      fontSize: AppFont.caption,
+                      color: b.color,
+                      height: 1.55,
+                      fontWeight: FontWeight.w600));
+            }
+            Widget row(String tag, String plan) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 34,
+                        margin: const EdgeInsets.only(top: 1),
+                        child: Text(tag,
+                            style: TextStyle(
+                                fontSize: AppFont.caption,
+                                color: b.color,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                      Expanded(
+                        child: Text(plan,
+                            style: const TextStyle(
+                                fontSize: AppFont.caption,
+                                color: AppColors.textSecondary,
+                                height: 1.5,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('★ ${b.label} — ${b.short}',
+                    style: TextStyle(
+                        fontSize: AppFont.caption,
+                        color: b.color,
+                        fontWeight: FontWeight.w800)),
+                row('모아', moaPlan(b)),
+                row('신통', sinPlan(b)),
+              ],
+            );
           }),
         ],
         const Gap(16),

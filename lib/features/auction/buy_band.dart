@@ -141,6 +141,22 @@ String sellLineOf(BuyBand b) => switch (b) {
       _ => '—',
     };
 
+/// 모아타운 기준 — 이 구간의 «사서 → 판다» 한 줄.
+String moaPlan(BuyBand b) => switch (b) {
+      BuyBand.early => '관리계획 수립·주민공람 때 사서 → 통합심의 직후 판다',
+      BuyBand.late_ => '조합 동의서 징구 중 사서 → 조합설립인가 직전 판다',
+      BuyBand.rising => '발표로 튄 구간 — 통합심의 전 골짜기까지 기다린다',
+      _ => '조합설립인가 지남 — 양도 제한·승계 불가',
+    };
+
+/// 신통기획 기준 — 이 구간의 «사서 → 판다» 한 줄.
+String sinPlan(BuyBand b) => switch (b) {
+      BuyBand.early => '대상지 선정 후 6개월~1년 트래킹, 값 빠지면 사서 → 지정고시(확정) 직후 판다',
+      BuyBand.late_ => '조합 동의서 징구 중 사서 → 조합설립인가 직전 판다',
+      BuyBand.rising => '발표로 튄 구간 — 지정고시 전 골짜기까지 기다린다',
+      _ => '조합설립인가 지남 — 양도 제한·승계 불가',
+    };
+
 /// 그 단계에서 «지금 진행 중인 일». 단계 이름은 «지나온 일»을 가리키므로
 /// 정작 지금 뭐가 돌아가는지를 한 줄 더 준다 — 매수 자리가 여기서 갈린다.
 const kStageDoing = <int, String>{
