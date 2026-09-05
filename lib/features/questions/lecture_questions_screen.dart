@@ -461,127 +461,124 @@ class _QuestionRowState extends State<_QuestionRow> {
     final url = _urlRe.firstMatch(_q.text)?.group(0);
     return GlassCard(
       accent: done ? AppColors.primary : null,
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 번호 배지 = 물어봤는지 체크 토글.
-          GestureDetector(
-            onTap: widget.onToggle,
-            child: Container(
-              height: 24,
-              width: 24,
-              margin: const EdgeInsets.only(top: 6),
-              decoration: BoxDecoration(
-                color: done
-                    ? AppColors.primary.withValues(alpha: 0.22)
-                    : AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(
-                    color: done ? AppColors.primary : AppColors.border),
-              ),
-              child: done
-                  ? const Icon(Icons.check_rounded,
-                      size: 15, color: AppColors.primary)
-                  : Center(
-                      child: Text('${widget.number}',
-                          style: const TextStyle(
-                              fontSize: AppFont.micro,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textSecondary))),
-            ),
-          ),
-          const Gap(10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 질문(편집) + 삭제 — 번호와 같은 줄에 정렬.
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _q,
-                        focusNode: _qf,
-                        minLines: 1,
-                        maxLines: 5,
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            height: 1.5,
-                            fontWeight: FontWeight.w700),
-                        onChanged: (_) => setState(() {}),
-                        onTapOutside: (_) => _qf.unfocus(),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          hintText: '질문',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 6),
-                        ),
-                      ),
-                    ),
-                    const Gap(4),
-                    InkWell(
-                      onTap: widget.onDelete,
-                      borderRadius: BorderRadius.circular(14),
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 8, left: 2, bottom: 2),
-                        child: Icon(Icons.close_rounded,
-                            size: 16, color: AppColors.textFaint),
-                      ),
-                    ),
-                  ],
-                ),
-                if (url != null)
-                  InkWell(
-                    onTap: () => launchUrl(Uri.parse(url),
-                        mode: LaunchMode.externalApplication),
-                    borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 3),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.open_in_new_rounded,
-                            size: 14, color: _kQuestionColor),
-                        Gap(5),
-                        Text('링크 열기',
-                            style: TextStyle(
-                                fontSize: AppFont.caption,
-                                color: _kQuestionColor,
-                                fontWeight: FontWeight.w700)),
-                      ]),
-                    ),
-                  ),
-                const Gap(7),
-                // 답 — 바로 편집.
-                TextField(
-                  controller: _a,
-                  focusNode: _af,
-                  minLines: 3,
-                  maxLines: 10,
-                  style: const TextStyle(fontSize: AppFont.label, height: 1.45),
-                  onChanged: (_) => setState(() {}),
-                  onTapOutside: (_) => _af.unfocus(),
-                  decoration: InputDecoration(
-                    hintText: '답 적기',
-                    isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    filled: true,
-                    fillColor: hasAnswer
-                        ? AppColors.primary.withValues(alpha: 0.08)
+          // 번호 + 질문 + 삭제 — 한 줄.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: widget.onToggle,
+                child: Container(
+                  height: 24,
+                  width: 24,
+                  margin: const EdgeInsets.only(top: 5),
+                  decoration: BoxDecoration(
+                    color: done
+                        ? AppColors.primary.withValues(alpha: 0.22)
                         : AppColors.surfaceAlt,
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(9),
-                        borderSide: BorderSide(
-                            color: hasAnswer
-                                ? AppColors.primary.withValues(alpha: 0.45)
-                                : AppColors.border)),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(9),
-                        borderSide:
-                            const BorderSide(color: AppColors.primary)),
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(
+                        color: done ? AppColors.primary : AppColors.border),
+                  ),
+                  child: done
+                      ? const Icon(Icons.check_rounded,
+                          size: 15, color: AppColors.primary)
+                      : Center(
+                          child: Text('${widget.number}',
+                              style: const TextStyle(
+                                  fontSize: AppFont.micro,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textSecondary))),
+                ),
+              ),
+              const Gap(10),
+              Expanded(
+                child: TextField(
+                  controller: _q,
+                  focusNode: _qf,
+                  minLines: 1,
+                  maxLines: 5,
+                  style: const TextStyle(
+                      fontSize: AppFont.body,
+                      height: 1.5,
+                      fontWeight: FontWeight.w700),
+                  onChanged: (_) => setState(() {}),
+                  onTapOutside: (_) => _qf.unfocus(),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: '질문',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 6),
                   ),
                 ),
-              ],
+              ),
+              const Gap(4),
+              InkWell(
+                onTap: widget.onDelete,
+                borderRadius: BorderRadius.circular(14),
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 6, left: 2, bottom: 2),
+                  child: Icon(Icons.close_rounded,
+                      size: 16, color: AppColors.textFaint),
+                ),
+              ),
+            ],
+          ),
+          if (url != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 34),
+              child: InkWell(
+                onTap: () => launchUrl(Uri.parse(url),
+                    mode: LaunchMode.externalApplication),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 3),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.open_in_new_rounded,
+                        size: 14, color: _kQuestionColor),
+                    Gap(5),
+                    Text('링크 열기',
+                        style: TextStyle(
+                            fontSize: AppFont.caption,
+                            color: _kQuestionColor,
+                            fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+              ),
+            ),
+          const Gap(8),
+          // 답 — 번호 아래로 들여써서 정렬.
+          Padding(
+            padding: const EdgeInsets.only(left: 34),
+            child: TextField(
+              controller: _a,
+              focusNode: _af,
+              minLines: 3,
+              maxLines: 10,
+              style: const TextStyle(fontSize: AppFont.label, height: 1.45),
+              onChanged: (_) => setState(() {}),
+              onTapOutside: (_) => _af.unfocus(),
+              decoration: InputDecoration(
+                hintText: '답 적기',
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: hasAnswer
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : AppColors.surfaceAlt,
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(9),
+                    borderSide: BorderSide(
+                        color: hasAnswer
+                            ? AppColors.primary.withValues(alpha: 0.45)
+                            : AppColors.border)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(9),
+                    borderSide: const BorderSide(color: AppColors.primary)),
+              ),
             ),
           ),
         ],
