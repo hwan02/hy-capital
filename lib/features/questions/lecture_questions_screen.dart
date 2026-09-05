@@ -186,6 +186,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Gap(4),
             Row(children: [
               Expanded(child: _weekChips()),
               IconButton(
