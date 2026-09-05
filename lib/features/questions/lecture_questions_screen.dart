@@ -470,7 +470,7 @@ class _QuestionRowState extends State<_QuestionRow> {
             child: Container(
               height: 24,
               width: 24,
-              margin: const EdgeInsets.only(top: 2),
+              margin: const EdgeInsets.only(top: 6),
               decoration: BoxDecoration(
                 color: done
                     ? AppColors.primary.withValues(alpha: 0.22)
@@ -495,38 +495,41 @@ class _QuestionRowState extends State<_QuestionRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  if (hasAnswer)
-                    const Pill('답 있음', color: AppColors.primary),
-                  const Spacer(),
-                  InkWell(
-                    onTap: widget.onDelete,
-                    borderRadius: BorderRadius.circular(14),
-                    child: const Padding(
-                      padding: EdgeInsets.all(2),
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: AppColors.textFaint),
+                // 질문(편집) + 삭제 — 번호와 같은 줄에 정렬.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _q,
+                        focusNode: _qf,
+                        minLines: 1,
+                        maxLines: 5,
+                        style: const TextStyle(
+                            fontSize: AppFont.body,
+                            height: 1.5,
+                            fontWeight: FontWeight.w700),
+                        onChanged: (_) => setState(() {}),
+                        onTapOutside: (_) => _qf.unfocus(),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: '질문',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 6),
+                        ),
+                      ),
                     ),
-                  ),
-                ]),
-                // 질문 — 바로 편집.
-                TextField(
-                  controller: _q,
-                  focusNode: _qf,
-                  minLines: 1,
-                  maxLines: 4,
-                  style: const TextStyle(
-                      fontSize: AppFont.body,
-                      height: 1.5,
-                      fontWeight: FontWeight.w700),
-                  onChanged: (_) => setState(() {}),
-                  onTapOutside: (_) => _qf.unfocus(),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    hintText: '질문',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  ),
+                    const Gap(4),
+                    InkWell(
+                      onTap: widget.onDelete,
+                      borderRadius: BorderRadius.circular(14),
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: 8, left: 2, bottom: 2),
+                        child: Icon(Icons.close_rounded,
+                            size: 16, color: AppColors.textFaint),
+                      ),
+                    ),
+                  ],
                 ),
                 if (url != null)
                   InkWell(
@@ -552,8 +555,8 @@ class _QuestionRowState extends State<_QuestionRow> {
                 TextField(
                   controller: _a,
                   focusNode: _af,
-                  minLines: 1,
-                  maxLines: 6,
+                  minLines: 3,
+                  maxLines: 10,
                   style: const TextStyle(fontSize: AppFont.label, height: 1.45),
                   onChanged: (_) => setState(() {}),
                   onTapOutside: (_) => _af.unfocus(),
