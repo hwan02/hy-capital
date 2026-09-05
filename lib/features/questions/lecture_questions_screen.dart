@@ -15,6 +15,15 @@ import '../../models/models.dart';
 const _kQuestionColor = Color(0xFFF97316);
 final _urlRe = RegExp(r'https?://\S+');
 
+/// Cmd(⌘)+Enter 또는 Ctrl+Enter 로 [onDo] 실행 — 저장/편집완료.
+Widget _cmdEnter(VoidCallback onDo, Widget child) => CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): onDo,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): onDo,
+      },
+      child: child,
+    );
+
 /// 내 상황 기본값(편집하면 DB의 __situation__ 이 우선).
 const _defaultSituation = [
   '무주택 신혼부부 · 세대 전원 무주택',
@@ -251,16 +260,19 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextField(
-                      controller: _addCtl,
-                      autofocus: true,
-                      minLines: 1,
-                      maxLines: 5,
-                      style:
-                          const TextStyle(fontSize: AppFont.body, height: 1.5),
-                      decoration:
-                          const InputDecoration(hintText: '질문을 입력하세요'),
-                      onSubmitted: (_) => _addQuestion(),
+                    _cmdEnter(
+                      _addQuestion,
+                      TextField(
+                        controller: _addCtl,
+                        autofocus: true,
+                        minLines: 1,
+                        maxLines: 5,
+                        style: const TextStyle(
+                            fontSize: AppFont.body, height: 1.5),
+                        decoration: const InputDecoration(
+                            hintText: '질문을 입력하세요 (⌘/Ctrl+Enter로 추가)'),
+                        onSubmitted: (_) => _addQuestion(),
+                      ),
                     ),
                     const Gap(10),
                     Row(children: [
@@ -353,6 +365,11 @@ class _SituationCardState extends State<_SituationCard> {
     super.dispose();
   }
 
+  Future<void> _doSave() async {
+    await widget.onSave(_c.text);
+    if (mounted) setState(() => _edit = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GlassCard(
@@ -381,13 +398,17 @@ class _SituationCardState extends State<_SituationCard> {
           ]),
           const Gap(12),
           if (_edit) ...[
-            TextField(
-              controller: _c,
-              autofocus: true,
-              minLines: 5,
-              maxLines: 12,
-              style: const TextStyle(fontSize: AppFont.body, height: 1.5),
-              decoration: const InputDecoration(hintText: '한 줄에 하나씩'),
+            _cmdEnter(
+              _doSave,
+              TextField(
+                controller: _c,
+                autofocus: true,
+                minLines: 5,
+                maxLines: 12,
+                style: const TextStyle(fontSize: AppFont.body, height: 1.5),
+                decoration: const InputDecoration(
+                    hintText: '한 줄에 하나씩 (⌘/Ctrl+Enter로 저장)'),
+              ),
             ),
             const Gap(10),
             Row(children: [
@@ -399,10 +420,7 @@ class _SituationCardState extends State<_SituationCard> {
               FilledButton.icon(
                 style:
                     FilledButton.styleFrom(backgroundColor: _kQuestionColor),
-                onPressed: () async {
-                  await widget.onSave(_c.text);
-                  if (mounted) setState(() => _edit = false);
-                },
+                onPressed: _doSave,
                 icon: const Icon(Icons.save_rounded, size: 17),
                 label: const Text('저장'),
               ),
@@ -553,23 +571,26 @@ class _QuestionRowState extends State<_QuestionRow> {
               const Gap(10),
               Expanded(
                 child: _qEdit
-                    ? TextField(
-                        controller: _q,
-                        focusNode: _qf,
-                        autofocus: true,
-                        minLines: 1,
-                        maxLines: 5,
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            height: 1.4,
-                            fontWeight: FontWeight.w700),
-                        onChanged: (_) => setState(() {}),
-                        onTapOutside: (_) => _qf.unfocus(),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          hintText: '질문',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
+                    ? _cmdEnter(
+                        () => _qf.unfocus(),
+                        TextField(
+                          controller: _q,
+                          focusNode: _qf,
+                          autofocus: true,
+                          minLines: 1,
+                          maxLines: 5,
+                          style: const TextStyle(
+                              fontSize: AppFont.body,
+                              height: 1.4,
+                              fontWeight: FontWeight.w700),
+                          onChanged: (_) => setState(() {}),
+                          onTapOutside: (_) => _qf.unfocus(),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            hintText: '질문',
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
                       )
                     : InkWell(
@@ -624,7 +645,9 @@ class _QuestionRowState extends State<_QuestionRow> {
           // 답 — 번호 아래로 들여써서 정렬.
           Padding(
             padding: const EdgeInsets.only(left: 34),
-            child: TextField(
+            child: _cmdEnter(
+              () => _af.unfocus(),
+              TextField(
               controller: _a,
               focusNode: _af,
               minLines: 3,
@@ -651,6 +674,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                     borderRadius: BorderRadius.circular(9),
                     borderSide: const BorderSide(color: AppColors.primary)),
               ),
+            ),
             ),
           ),
         ],
