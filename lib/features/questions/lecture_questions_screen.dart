@@ -305,7 +305,7 @@ class _SituationCardState extends State<_SituationCard> {
         children: [
           Row(children: [
             const Expanded(
-              child: Text('내 상황 (질문 전에 먼저 말할 것)',
+              child: Text('내 상황',
                   style: TextStyle(
                       fontSize: AppFont.title, fontWeight: FontWeight.w700)),
             ),
