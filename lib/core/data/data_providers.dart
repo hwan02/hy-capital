@@ -613,6 +613,14 @@ final zonesProvider = FutureProvider<List<Zone>>((ref) async {
   return rows.map<Zone>(Zone.fromMap).toList();
 });
 
+/// 정비 뉴스·공시 다이제스트 — 트리거가 모으고, 직접 추가도 한다. 최신순.
+final newsDigestProvider = FutureProvider<List<NewsItem>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows =
+      await sb.from('news_digest').select().order('sent_at', ascending: false);
+  return rows.map<NewsItem>(NewsItem.fromMap).toList();
+});
+
 final calcRecordsProvider = FutureProvider<List<CalcRecord>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows =

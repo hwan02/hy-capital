@@ -1399,6 +1399,37 @@ class Zone {
       );
 }
 
+/// 정비 뉴스·공시 한 건. 아침 트리거가 모으거나 직접 추가한다.
+class NewsItem {
+  final String id;
+  final String url;
+  final String title;
+  final String? source; // 매체명 또는 '직접 추가'
+  final String? topic; // 신통 | 모아타운 | 민간도심복합 | 공시 | 기타
+  final DateTime? publishedOn;
+  final DateTime? sentAt;
+
+  NewsItem({
+    required this.id,
+    required this.url,
+    required this.title,
+    this.source,
+    this.topic,
+    this.publishedOn,
+    this.sentAt,
+  });
+
+  factory NewsItem.fromMap(Map<String, dynamic> m) => NewsItem(
+        id: m['id']?.toString() ?? '',
+        url: m['url'] ?? '',
+        title: m['title'] ?? '',
+        source: m['source'],
+        topic: m['topic'],
+        publishedOn: _date(m['published_on']),
+        sentAt: _date(m['sent_at']),
+      );
+}
+
 /// 단지 — 조사·임장이 붙는 단위. 구역 밖이어도 된다(zoneId == null).
 class Complex {
   final String id;

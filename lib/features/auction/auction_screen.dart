@@ -21,6 +21,7 @@ import 'auction_calculator.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
 import 'moa_town_screen.dart';
+import 'news_view.dart';
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
@@ -402,6 +403,10 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   onTap: () => editBuiltinRecord(context, ref, zoneSpec)),
             ]),
         4 => const KnowledgeActions(),
+        10 => AddButton(
+            color: AppColors.violet,
+            label: '링크',
+            onTap: () => addNewsLink(context, ref)),
         _ => null,
       },
       children: [
@@ -414,6 +419,12 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               color: AppColors.sky,
               selected: _tab == 9,
               onTap: () => setState(() => _tab = 9)),
+          ModuleTab(
+              label: '뉴스',
+              icon: Icons.newspaper_rounded,
+              color: AppColors.violet,
+              selected: _tab == 10,
+              onTap: () => setState(() => _tab = 10)),
           ModuleTab(
               label: '매물·단지',
               icon: Icons.gavel_rounded,
@@ -464,6 +475,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               onTap: () => setState(() => _tab = 5)),
         ]),
         const Gap(18),
+        if (_tab == 10) const NewsView(),
         if (_tab == 9) const MoaTownView(),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
