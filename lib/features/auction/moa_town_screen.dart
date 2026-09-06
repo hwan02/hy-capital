@@ -40,6 +40,18 @@ class MoaTownView extends ConsumerStatefulWidget {
 }
 
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
+  @override
+  void initState() {
+    super.initState();
+    // zonesProvider 는 autoDispose 가 아니라 최초 1회만 불러오고 캐시된다.
+    // 탭에 들어올 때마다 다시 불러와, 서버·트리거가 갱신한 단계·동의율을 반영한다.
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.invalidate(zonesProvider);
+      ref.invalidate(auctionProvider);
+    });
+  }
+
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
   /// 자치구 안에서 보는 사업 종류. 모아와 신통은 «절차가 달라»
