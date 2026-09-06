@@ -1296,6 +1296,9 @@ class Zone {
   final DateTime? stageCheckedAt; // 단계 확인 시각
   final List<String> aliases; // 구역에 포함된 다른 번지들(대표번지 외)
 
+  /// 입지 우선 체크리스트 — 항목 key → 체크 여부. 매수 단계보다 입지가 먼저다.
+  final Map<String, bool> locChecks;
+
   Zone({
     required this.id,
     required this.name,
@@ -1311,6 +1314,7 @@ class Zone {
     this.stageSource,
     this.stageCheckedAt,
     this.aliases = const [],
+    this.locChecks = const {},
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1389,6 +1393,9 @@ class Zone {
         stageCheckedAt: _date(m['stage_checked_at']),
         aliases: (m['aliases'] as List?)?.map((e) => e.toString()).toList() ??
             const [],
+        locChecks: (m['loc_checks'] as Map?)?.map(
+                (k, v) => MapEntry(k.toString(), v == true)) ??
+            const {},
       );
 }
 

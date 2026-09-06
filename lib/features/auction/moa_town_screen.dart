@@ -26,6 +26,18 @@ Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 String? _nextJump(Zone z) =>
     z.isSin ? kSinNextRise[z.stage] : kNextRise[z.stage];
 
+// 입지 우선 체크 — 매수 밴드(단계)보다 «입지»가 먼저다. (은천 사례 기준)
+// (key, 라벨, 설명)
+const _locItems = <(String, String, String)>[
+  ('station', '역세권·교통', '지하철역 인접, 실거주 수요 충분'),
+  ('scale', '대단지', '예상 세대수 충분 — 사업성 확보'),
+  ('drive', '추진 동력', '활발한 추진 주체·단톡방, 주민 참여'),
+  ('valley', '저점 진입', '관리계획 수립 중 등 저점 단계'),
+  ('exit', '출구 전략', '다음 단계(상승) 직전 단기매도 가능'),
+];
+
+int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).length;
+
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
       'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
@@ -158,6 +170,17 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         .read(supabaseProvider)
         .from('zones')
         .update({'consent_rate': v}).eq('id', z.id);
+    ref.invalidate(zonesProvider);
+  }
+
+  /// 입지 체크 항목 하나를 토글하고 DB에 저장한다.
+  Future<void> _toggleLoc(Zone z, String key) async {
+    final next = Map<String, bool>.from(z.locChecks);
+    next[key] = !(next[key] ?? false);
+    await ref
+        .read(supabaseProvider)
+        .from('zones')
+        .update({'loc_checks': next}).eq('id', z.id);
     ref.invalidate(zonesProvider);
   }
 
@@ -473,6 +496,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           const Gap(6),
                           Pill('물건 ${mine.length}', color: AppColors.primary),
                         ],
+                        const Gap(6),
+                        Pill('입지 ${_locDone(z)}/${_locItems.length}',
+                            color: _locDone(z) == _locItems.length
+                                ? AppColors.primary
+                                : _locDone(z) == 0
+                                    ? AppColors.textFaint
+                                    : AppColors.gold),
                       ]),
                       const Gap(8),
                       Text(unknown ? '동·번지 확인 전' : z.name,
@@ -660,6 +690,58 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 구역 지도
             _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
                 () => _openNaver(_zoneSeed(z)), _teal),
+            const Gap(12),
+            // 입지 우선 체크 — 매수 단계(밴드)보다 입지가 먼저다.
+            Row(children: [
+              const Icon(Icons.place_rounded, size: 15, color: _teal),
+              const Gap(6),
+              Text('입지 체크 (매수보다 우선) · ${_locDone(z)}/${_locItems.length}',
+                  style: const TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w800,
+                      color: _teal)),
+            ]),
+            const Gap(6),
+            for (final it in _locItems)
+              InkWell(
+                onTap: () => _toggleLoc(z, it.$1),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                            z.locChecks[it.$1] == true
+                                ? Icons.check_box_rounded
+                                : Icons.check_box_outline_blank_rounded,
+                            size: 18,
+                            color: z.locChecks[it.$1] == true
+                                ? AppColors.primary
+                                : AppColors.textFaint),
+                        const Gap(8),
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(it.$2,
+                                    style: TextStyle(
+                                        fontSize: AppFont.body,
+                                        fontWeight: FontWeight.w700,
+                                        color: z.locChecks[it.$1] == true
+                                            ? AppColors.textPrimary
+                                            : AppColors.textSecondary)),
+                                Text(it.$3,
+                                    style: const TextStyle(
+                                        fontSize: AppFont.caption,
+                                        color: AppColors.textFaint,
+                                        height: 1.3)),
+                              ]),
+                        ),
+                      ]),
+                ),
+              ),
+            const Gap(6),
+            const Divider(height: 1, color: AppColors.border),
             const Gap(10),
             // 물건 리스트
             if (mine.isEmpty)
