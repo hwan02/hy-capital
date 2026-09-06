@@ -66,8 +66,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
-  /// 자치구 안에서 보는 사업 종류. 모아와 신통은 «절차가 달라»
-  /// 사다리를 같이 그릴 수 없다 — 골라서 본다.
+  /// 상단 탭 — 모아타운 / 신통기획. 절차가 달라 아예 나눠서 본다.
+  String _topKind = '모아타운';
+  /// 자치구 안에서 보는 사업 종류(= _topKind 와 동기화).
   String _kind = '모아타운';
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
   int _stageF = -1;
@@ -112,7 +113,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _teal),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
-      chip(1, '매수 A · 첫 골짜기', AppColors.primary),
+      chip(1, '🟢 매수적기 · 관리계획수립·공람', AppColors.primary),
       chip(2, '매수 B · 동의서 징구', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
@@ -211,12 +212,62 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         }
         final props =
             ref.watch(auctionProvider).asData?.value ?? const <AuctionProperty>[];
-        final shown = zones.where(_stageMatch).toList();
-        return _district == null
-            ? _overview(shown)
-            : _districtList(shown, props, _district!);
+        // 먼저 «탭(종류)»으로 나누고, 그 안에서 단계 필터를 건다.
+        final shown =
+            zones.where((z) => z.kind == _topKind).where(_stageMatch).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _kindTabs(zones),
+            const Gap(14),
+            _district == null
+                ? _overview(shown)
+                : _districtList(shown, props, _district!),
+          ],
+        );
       },
     );
+  }
+
+  /// 상단 탭 — 모아타운 / 신통기획. 절차가 다르므로 완전히 분리해서 본다.
+  Widget _kindTabs(List<Zone> all) {
+    final moaN = all.where((z) => z.kind == '모아타운').length;
+    final sinN = all.where((z) => z.kind == '신통기획').length;
+    Widget tab(String k, int n, Color c) {
+      final on = _topKind == k;
+      return Expanded(
+        child: InkWell(
+          onTap: () => setState(() {
+            _topKind = k;
+            _kind = k;
+            _district = null;
+            _openZoneId = null;
+          }),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: on ? c.withValues(alpha: 0.18) : AppColors.surfaceAlt,
+              border:
+                  Border.all(color: on ? c : AppColors.border, width: on ? 1.6 : 1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('$k · $n곳',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: on ? c : AppColors.textSecondary,
+                    fontSize: AppFont.body,
+                    fontWeight: FontWeight.w800)),
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      tab('모아타운', moaN, _teal),
+      const Gap(8),
+      tab('신통기획', sinN, AppColors.violet),
+    ]);
   }
 
   // ── 서울 자치구 개요 ────────────────────────────────────────
@@ -228,17 +279,15 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     }
     final dists = byDist.keys.toList()
       ..sort((a, b) => byDist[b]!.length.compareTo(byDist[a]!.length));
-    final moaTotal = zones.where((z) => z.kind == '모아타운').length;
-    final sinTotal = zones.where((z) => z.kind == '신통기획').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('모아타운 · 신통기획 신청지',
-            style:
-                TextStyle(fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+        Text('$_topKind 신청지',
+            style: const TextStyle(
+                fontSize: AppFont.title, fontWeight: FontWeight.w800)),
         const Gap(2),
-        Text('모아 $moaTotal · 신통 $sinTotal · 자치구를 눌러 구역 리스트로.',
+        Text('${zones.length}곳 · 자치구를 눌러 구역 리스트로.',
             style: const TextStyle(
                 fontSize: AppFont.caption, color: AppColors.textFaint)),
         const Gap(10),
