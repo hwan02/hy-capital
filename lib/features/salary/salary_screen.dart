@@ -214,6 +214,9 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
 
   String get _mkey => _month.toIso8601String().substring(0, 10);
 
+  /// 지금 저장 중인 항목 id. 눌렀는데 아무 반응이 없으면 불안하다.
+  final _saving = <String>{};
+
   // ── 저장 ──────────────────────────────────────────────────
   Future<void> _err(Object e) async {
     if (!mounted) return;
@@ -343,55 +346,13 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
     ref.invalidate(budgetItemsProvider);
   }
 
-  /// 「이 항목에서 이번 달에 얼마 썼나」를 넣는다.
-  Future<void> _editSpend(BudgetItem item, double now) async {
-    var v = now;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text('${item.name} — ${Dates.ym(_month)} 쓴 돈',
-            style: const TextStyle(fontSize: AppFont.section)),
-        content: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('배정액 ${Won.plain(item.amount)}',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: AppFont.body)),
-              const Gap(14),
-              MoneyField(
-                label: '쓴 돈',
-                initial: now,
-                autofocus: true,
-                accent: _salaryColor,
-                onChanged: (x) => v = x,
-                onSubmitted: (x) {
-                  v = x;
-                  Navigator.pop(context, true);
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: _salaryColor,
-                foregroundColor: const Color(0xFF04240F)),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('저장'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+  /// 「이 항목에서 이번 달에 얼마 썼나」를 그 자리에서 저장한다.
+  ///
+  /// 팝업을 안 쓴다. 항목마다 창을 띄우면 «몇 개를 채웠고 몇 개가 남았는지»
+  /// 가 안 보인다 — 한 번에 하나씩만 보이니까. 목록에서 바로 친다.
+  Future<void> _saveSpend(BudgetItem item, double v) async {
     final sb = ref.read(supabaseProvider);
+    setState(() => _saving.add(item.id));
     try {
       await sb.from('budget_spends').upsert({
         'user_id': sb.auth.currentUser!.id,
@@ -400,8 +361,10 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
         'spent': v,
       }, onConflict: 'user_id,item_id,month');
     } catch (e) {
+      if (mounted) setState(() => _saving.remove(item.id));
       return _err(e);
     }
+    if (mounted) setState(() => _saving.remove(item.id));
     ref.invalidate(budgetSpendsProvider);
   }
 
@@ -411,7 +374,9 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
     final c2 = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // builder 가 주는 context 를 «반드시» 쓴다. 바깥 context 로 pop 하면
+      // 다이얼로그가 아니라 화면이 닫혀 흰 화면이 된다 (실제로 겪었다).
+      builder: (dctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: const Text('비밀번호 설정',
             style: TextStyle(fontSize: AppFont.section)),
@@ -442,13 +407,13 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dctx, false),
               child: const Text('취소')),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: _salaryColor,
                 foregroundColor: const Color(0xFF04240F)),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dctx, true),
             child: const Text('설정'),
           ),
         ],
@@ -891,36 +856,54 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                     if (mine.isEmpty) return const SizedBox.shrink();
                     final cs = mine.fold(0.0, (a, i) => a + (spentBy[i.id] ?? 0));
                     final cp = mine.fold(0.0, (a, i) => a + i.amount);
+                    final left = mine.where((i) => (spentBy[i.id] ?? 0) <= 0);
                     return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // 묶음 머리 — 몇 개 남았는지가 제일 급하다.
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 8, top: 4),
+                          padding: const EdgeInsets.fromLTRB(2, 6, 2, 10),
                           child: Row(children: [
                             Text(cat,
+                                style: const TextStyle(
+                                    fontSize: AppFont.section,
+                                    fontWeight: FontWeight.w900)),
+                            const Gap(10),
+                            if (left.isNotEmpty)
+                              Pill('${left.length}개 안 넣음',
+                                  color: AppColors.gold)
+                            else
+                              const Pill('다 넣음', color: AppColors.primary),
+                            const Spacer(),
+                            Text('${won(cs)} / ${won(cp)}',
                                 style: const TextStyle(
                                     fontSize: AppFont.body,
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.textSecondary)),
-                            const Gap(10),
-                            Text('${won(cs)} / ${won(cp)}',
-                                style: const TextStyle(
-                                    fontSize: AppFont.body,
-                                    color: AppColors.textFaint)),
                           ]),
                         ),
-                        for (final i in mine)
-                          _ItemRow(
-                            item: i,
-                            month: _month,
-                            spent: spentBy[i.id] ?? 0,
-                            masked: masked,
-                            onSpend: () => _editSpend(i, spentBy[i.id] ?? 0),
-                            onEdit: () => _editItem(item: i),
-                            onDelete: () => _deleteItem(i),
-                            onToggle: () => _toggleActive(i),
-                          ),
-                        const Gap(10),
+                        // 한 줄로 쭉 늘어놓지 않고 «타일»로 깐다.
+                        // 목록은 다음 줄이 안 보여 몇 개 남았는지 모른다.
+                        ResponsiveGrid(
+                          minTileWidth: 320,
+                          children: [
+                            for (final i in mine)
+                              _ItemTile(
+                                // 달이 바뀌면 입력칸이 새로 시작해야 한다
+                                key: ValueKey('${i.id}-$_mkey'),
+                                item: i,
+                                month: _month,
+                                spent: spentBy[i.id] ?? 0,
+                                masked: masked,
+                                saving: _saving.contains(i.id),
+                                onSave: (v) => _saveSpend(i, v),
+                                onEdit: () => _editItem(item: i),
+                                onDelete: () => _deleteItem(i),
+                                onToggle: () => _toggleActive(i),
+                              ),
+                          ],
+                        ),
+                        const Gap(18),
                       ],
                     );
                   }),
@@ -1156,114 +1139,178 @@ class _TotalBar extends StatelessWidget {
   }
 }
 
-/// 고정비 한 줄 — 「쓴 돈 / 배정액」과 진행바. 누르면 쓴 돈을 넣는다.
-class _ItemRow extends StatelessWidget {
+/// 고정비 «한 칸». 팝업을 열지 않고 여기서 바로 쓴 돈을 친다.
+///
+/// 목록 한 줄로 두면 다음 줄이 눈에 안 들어와 「몇 개 남았지」를 모른다.
+/// 타일로 깔면 안 채운 칸이 한눈에 보인다.
+class _ItemTile extends StatefulWidget {
   final BudgetItem item;
   final DateTime month;
   final double spent;
   final bool masked;
-  final VoidCallback onSpend;
+  final bool saving;
+  final ValueChanged<double> onSave;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onToggle;
 
-  const _ItemRow({
+  const _ItemTile({
+    super.key,
     required this.item,
     required this.month,
     required this.spent,
     required this.masked,
-    required this.onSpend,
+    required this.saving,
+    required this.onSave,
     required this.onEdit,
     required this.onDelete,
     required this.onToggle,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final r = item.amount <= 0 ? 0.0 : spent / item.amount;
-    final over = spent > item.amount;
-    final done = spent > 0 && !over;
-    final round = item.roundIn(month);
-    String w(double v) => masked ? _mask : '${Won.compact(v)}원';
+  State<_ItemTile> createState() => _ItemTileState();
+}
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(children: [
-        Expanded(
-          child: InkWell(
-            onTap: onSpend,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Text(item.name,
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            fontWeight: FontWeight.w700)),
-                    if (item.payDay != null) ...[
-                      const Gap(8),
-                      Text('${item.payDay}일',
-                          style: const TextStyle(
-                              fontSize: AppFont.body,
-                              color: AppColors.textFaint)),
-                    ],
-                    // 할부 — 몇 회차인지가 제일 궁금하다.
-                    if (round != null) ...[
-                      const Gap(8),
-                      Pill('$round/${item.months}회', color: AppColors.violet),
-                    ],
-                    const Spacer(),
-                    Text('${w(spent)} / ${w(item.amount)}',
-                        style: TextStyle(
-                            fontSize: AppFont.body,
-                            fontWeight: FontWeight.w800,
-                            color: over
-                                ? AppColors.rose
-                                : (done
-                                    ? _salaryColor
-                                    : AppColors.textSecondary))),
-                  ]),
-                  const Gap(6),
-                  ProgressBar(
-                      value: r,
-                      color: over ? AppColors.rose : _salaryColor,
-                      height: 6),
-                  // 할부 — 언제 끝나고 얼마 남았나.
-                  if (round != null) ...[
-                    const Gap(5),
-                    Text(
-                        '${Dates.ym(item.endMonth!)}까지 · '
-                        '${item.remainingRounds(month)}회 · '
-                        '${w(item.remainingAmount(month))}',
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.violet)),
-                  ],
-                  if (over) ...[
-                    const Gap(4),
-                    Text('배정보다 ${w(spent - item.amount)} 초과',
-                        style: const TextStyle(
-                            fontSize: AppFont.body,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.rose)),
-                  ],
-                ],
-              ),
+class _ItemTileState extends State<_ItemTile> {
+  /// 지금 치고 있는 값. null = 아직 안 건드림.
+  double? _draft;
+
+  bool get _dirty => _draft != null && _draft != widget.spent;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final shown = _draft ?? widget.spent;
+    final r = item.amount <= 0 ? 0.0 : shown / item.amount;
+    final over = shown > item.amount;
+    final filled = widget.spent > 0;
+    final round = item.roundIn(widget.month);
+    final accent =
+        over ? AppColors.rose : (filled ? _salaryColor : AppColors.gold);
+    String w(double v) => widget.masked ? _mask : '${Won.compact(v)}원';
+
+    return GlassCard(
+      accent: accent,
+      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── 이름 + 배지 ─────────────────────────────────
+          Row(children: [
+            Expanded(
+              child: Text(item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: AppFont.section,
+                      fontWeight: FontWeight.w900)),
             ),
-          ),
-        ),
-        IconButton(
-          tooltip: '이번 달 쉬기',
-          onPressed: onToggle,
-          icon: const Icon(Icons.pause_circle_outline_rounded,
-              size: 18, color: AppColors.textFaint),
-        ),
-        RecordMenu(onEdit: onEdit, onDelete: onDelete),
-      ]),
+            if (round != null) ...[
+              const Gap(6),
+              Pill('$round/${item.months}회', color: AppColors.violet),
+            ],
+            if (item.payDay != null) ...[
+              const Gap(6),
+              Pill('${item.payDay}일', color: AppColors.sky),
+            ],
+            IconButton(
+              tooltip: '이번 달 쉬기',
+              visualDensity: VisualDensity.compact,
+              onPressed: widget.onToggle,
+              icon: const Icon(Icons.pause_circle_outline_rounded,
+                  size: 18, color: AppColors.textFaint),
+            ),
+            RecordMenu(onEdit: widget.onEdit, onDelete: widget.onDelete),
+          ]),
+          const Gap(12),
+
+          // ── 쓴 돈 입력 ──────────────────────────────────
+          if (widget.masked)
+            // 가린 상태에서 입력칸을 열면 가린 의미가 없다.
+            Row(children: [
+              Text('$_mask / $_mask',
+                  style: const TextStyle(
+                      fontSize: AppFont.section,
+                      fontWeight: FontWeight.w900)),
+              const Spacer(),
+              const Icon(Icons.visibility_off_rounded,
+                  size: 17, color: AppColors.textFaint),
+            ])
+          else
+            Row(children: [
+              Expanded(
+                child: MoneyField(
+                  label: '쓴 돈',
+                  initial: widget.spent,
+                  dense: true,
+                  accent: accent,
+                  onChanged: (v) => setState(() => _draft = v),
+                  onSubmitted: widget.onSave,
+                ),
+              ),
+              const Gap(8),
+              Text('/ ${Won.compact(item.amount)}원',
+                  style: const TextStyle(
+                      fontSize: AppFont.body,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary)),
+              const Gap(4),
+              // 고친 게 있을 때만 저장 단추가 뜬다 — 누를 게 하나뿐이라
+              // 「저장했나?」를 고민하지 않는다.
+              SizedBox(
+                width: 40,
+                child: widget.saving
+                    ? const Center(
+                        child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)))
+                    : (_dirty
+                        ? IconButton(
+                            tooltip: '저장',
+                            onPressed: () => widget.onSave(_draft!),
+                            icon: const Icon(Icons.check_circle_rounded,
+                                color: _salaryColor, size: 24),
+                          )
+                        : const SizedBox.shrink()),
+              ),
+            ]),
+          const Gap(10),
+
+          // ── 진행 ────────────────────────────────────────
+          ProgressBar(value: r, color: accent, height: 8),
+          const Gap(8),
+          Row(children: [
+            Text(
+                over
+                    ? '${w(shown - item.amount)} 초과'
+                    : (filled || _dirty
+                        ? '${w(item.amount - shown)} 남음'
+                        : '아직 안 넣음'),
+                style: TextStyle(
+                    fontSize: AppFont.body,
+                    fontWeight: FontWeight.w700,
+                    color: over ? AppColors.rose : AppColors.textSecondary)),
+            const Spacer(),
+            Text('${(r * 100).round()}%',
+                style: TextStyle(
+                    fontSize: AppFont.body,
+                    fontWeight: FontWeight.w900,
+                    color: accent)),
+          ]),
+
+          // ── 할부 꼬리말 ─────────────────────────────────
+          if (round != null) ...[
+            const Gap(6),
+            Text(
+                '${Dates.ym(item.endMonth!)}까지 · '
+                '${item.remainingRounds(widget.month)}회 · '
+                '${w(item.remainingAmount(widget.month))}',
+                style: const TextStyle(
+                    fontSize: AppFont.body, color: AppColors.violet)),
+          ],
+        ],
+      ),
     );
   }
 }
