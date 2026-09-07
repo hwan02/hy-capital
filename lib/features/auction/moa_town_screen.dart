@@ -223,6 +223,22 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     } catch (_) {}
   }
 
+  /// 「여기 임장 간다」를 찍는다. 139곳을 훑는 것만으로는 어디 갈지가
+  /// 안 남아서, 눈에 걸린 자리를 그 자리에서 찍어 임장예정 탭으로 보낸다.
+  Future<void> _toggleVisit(Zone z) async {
+    try {
+      await ref.read(supabaseProvider).from('zones').update({
+        'visit_plan': !z.visitPlan,
+      }).eq('id', z.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('저장 실패 — $e'), backgroundColor: AppColors.rose));
+      return;
+    }
+    ref.invalidate(zonesProvider);
+  }
+
   /// 입지 체크 항목 하나를 토글하고 DB에 저장한다.
   Future<void> _toggleLoc(Zone z, String key) async {
     final next = Map<String, bool>.from(z.locChecks);
@@ -758,11 +774,16 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         if (matchZoneForAddress(p.address, zones)?.id == z.id) p
     ];
     return GlassCard(
-      accent: c,
+      accent: z.visitPlan ? AppColors.gold : c,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 임장 갈 곳 — 카드를 펼치지 않고 바로 찍는다.
+          Align(
+            alignment: Alignment.centerRight,
+            child: _VisitBtn(on: z.visitPlan, onTap: () => _toggleVisit(z)),
+          ),
           InkWell(
             onTap: () => setState(() => _openZoneId = open ? null : z.id),
             child: Row(
@@ -1586,3 +1607,37 @@ class _RebuildBar extends StatelessWidget {
   }
 }
 
+/// 「임장 간다」 토글. 구역 카드 오른쪽 위.
+class _VisitBtn extends StatelessWidget {
+  final bool on;
+  final VoidCallback onTap;
+  const _VisitBtn({required this.on, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? AppColors.gold.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+              color: on ? AppColors.gold : AppColors.border,
+              width: on ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(on ? Icons.directions_walk_rounded : Icons.add_rounded,
+              size: 15, color: on ? AppColors.gold : AppColors.textFaint),
+          const Gap(5),
+          Text(on ? '임장 예정' : '임장 담기',
+              style: TextStyle(
+                  fontSize: AppFont.body,
+                  fontWeight: FontWeight.w800,
+                  color: on ? AppColors.gold : AppColors.textSecondary)),
+        ]),
+      ),
+    );
+  }
+}

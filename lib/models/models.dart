@@ -1306,6 +1306,11 @@ class Zone {
   /// 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
   final List<Map<String, String>> subs;
 
+  /// 임장 «갈 곳»으로 찍었나. 139곳을 훑는 것만으로는 어디 갈지가 안 남는다.
+  final bool visitPlan;
+  final DateTime? visitOn;
+  final String? visitMemo;
+
   Zone({
     required this.id,
     required this.name,
@@ -1324,6 +1329,9 @@ class Zone {
     this.locChecks = const {},
     this.docs = const [],
     this.subs = const [],
+    this.visitPlan = false,
+    this.visitOn,
+    this.visitMemo,
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1415,6 +1423,9 @@ class Zone {
                     (k, v) => MapEntry(k.toString(), (v ?? '').toString())))
                 .toList() ??
             const [],
+        visitPlan: m['visit_plan'] == true,
+        visitOn: _date(m['visit_on']),
+        visitMemo: m['visit_memo'],
       );
 }
 

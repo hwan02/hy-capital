@@ -31,6 +31,10 @@ ANON = ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6'
 CATS = {'fire': '🔥', 'film': '🎬', 'mind': '🤯',
         'data': '📈', 'trophy': '🏆', 'swap': '🔄'}
 
+# 어떤 섹션을 슬랙으로 보낼지 켜고 끈다. 「뉴스만 일단」 방침으로
+# Shorts·부동산은 꺼둔다. 다시 켜려면 True 로 바꾸면 된다.
+SECTIONS = {'ipo': True, 'shorts': False, 'realestate': False, 'moa': True}
+
 
 def env():
     with open(os.path.join(HERE, 'env.local.json')) as f:
@@ -99,7 +103,7 @@ def build(token, today):
             ipo_lines.append(f'📈 오늘 상장 · 매도 판단 — {who}')
         if r.get('refund_date') == today:
             ipo_lines.append(f'💸 오늘 환불 — {who}')
-    if ipo_lines:
+    if ipo_lines and SECTIONS['ipo']:
         lines.append(('💰 공모주', ipo_lines))
 
     # ── Shorts ─────────────────────────────────────────────
@@ -119,7 +123,7 @@ def build(token, today):
         s_lines.append(f'⚠️ 밀린 것 {len(late)}건 — ' +
                        ', '.join(f'{x["slot_date"][5:]} {x["title"][:18]}'
                                  for x in late[:3]))
-    if s_lines:
+    if s_lines and SECTIONS['shorts']:
         lines.append(('🎬 Shorts', s_lines))
 
     # ── 부동산: 지켜야 할 날짜 ──────────────────────────────
@@ -165,7 +169,7 @@ def build(token, today):
                 tag = '오늘 명도' if d == 0 else f'명도 D-{d}'
                 p_lines.append(f'🔑 {tag} — {r["title"][:40]}')
 
-    if p_lines:
+    if p_lines and SECTIONS['realestate']:
         lines.append(('🏠 부동산', p_lines))
 
     # ── 모아타운 공람 공고 ──────────────────────────────────
@@ -180,7 +184,7 @@ def build(token, today):
             if m:
                 by[f'{m.group(1)}동 {m.group(2)}'] = z
         m_lines = moa_notice.slack_lines(today, by)
-        if m_lines:
+        if m_lines and SECTIONS['moa']:
             lines.append(('🏘️ 모아타운 공람', m_lines))
     except Exception as ex:  # noqa: BLE001
         print(f'  공람 조회 실패: {ex}', file=sys.stderr)
@@ -202,7 +206,8 @@ def main():
 
     wd = ['월', '화', '수', '목', '금', '토', '일'][
         datetime.date.fromisoformat(today).weekday()]
-    md = [f'*{today[5:].replace("-", "/")} ({wd}) 오늘 할 일*']
+    n = sum(len(rows) for _, rows in sections)  # 총 건수
+    md = [f'*{today[5:].replace("-", "/")} ({wd}) {n}건*']
     for title, rows in sections:
         md.append('')
         md.append(f'*{title}*')

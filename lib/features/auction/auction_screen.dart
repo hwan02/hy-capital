@@ -1,3 +1,5 @@
+import 'dart:html' as html;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -21,6 +23,7 @@ import 'auction_calculator.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
 import 'moa_town_screen.dart';
+import 'visit_plan_view.dart';
 import 'news_view.dart';
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
@@ -32,6 +35,60 @@ import '../property/survey_screen.dart';
 import '../../core/edit/plain_controller.dart';
 
 const _teal = Color(0xFF14B8A6);
+
+/// 부동산 화면의 탭 한 칸.
+class AuctionTab {
+  final int id;
+  final String label;
+  final IconData icon;
+  final Color color;
+  const AuctionTab(this.id, this.label, this.icon, this.color);
+}
+
+const _amber = Color(0xFFFBBF24);
+const _orange = Color(0xFFF97316);
+
+/// 탭 목록. 순서 = 프로세스 순서.
+///   발굴(모아·신통·임장·뉴스) → 판단(계산기) → 실행(진행) → 참고(나머지)
+/// id 는 «고정»이다 — 숨김 설정을 id 로 저장하므로 순서를 바꿔도 안 깨진다.
+const kAuctionTabs = <AuctionTab>[
+  AuctionTab(9, '모아타운', Icons.map_rounded, _teal),
+  AuctionTab(11, '신통기획', Icons.apartment_rounded, AppColors.violet),
+  AuctionTab(12, '임장예정', Icons.directions_walk_rounded, AppColors.gold),
+  AuctionTab(10, '뉴스', Icons.newspaper_rounded, AppColors.violet),
+  AuctionTab(0, '매물·단지', Icons.gavel_rounded, _teal),
+  AuctionTab(6, '계산기', Icons.calculate_rounded, AppColors.gold),
+  AuctionTab(1, '진행', Icons.timeline_rounded, kProgressAccent),
+  AuctionTab(7, '세제', Icons.receipt_long_rounded, AppColors.violet),
+  AuctionTab(8, '재개발절차', Icons.account_tree_rounded, AppColors.rose),
+  AuctionTab(3, '기준', Icons.rule_rounded, _amber),
+  AuctionTab(4, '자료실', Icons.menu_book_rounded, _amber),
+  AuctionTab(5, '강의 질문', Icons.live_help_rounded, _orange),
+];
+
+/// 처음부터 숨겨두는 탭 — 참고 자료라 매번 보이면 방해된다.
+/// 「탭」 버튼으로 언제든 켠다.
+const _kHiddenByDefault = <int>{0, 7, 8, 3, 4};
+const _kHiddenKey = 'auction_hidden_tabs';
+
+/// 숨김 목록은 «이 브라우저»에만 둔다 — 화면 취향이라 기기마다 달라도 된다.
+Set<int> _loadHidden() {
+  try {
+    final raw = html.window.localStorage[_kHiddenKey];
+    if (raw == null) return {..._kHiddenByDefault};
+    if (raw.isEmpty) return {};
+    return raw.split(',').map(int.parse).toSet();
+  } catch (_) {
+    return {..._kHiddenByDefault};
+  }
+}
+
+void _saveHidden(Set<int> v) {
+  try {
+    html.window.localStorage[_kHiddenKey] = v.join(',');
+  } catch (_) {/* 사파리 프라이빗 등 — 저장 못 해도 화면은 돈다 */}
+}
+
 
 /// 붙여넣기 한 판으로 물건을 등록한다. 사용자가 받는 카톡/사이트 텍스트에
 /// 필요한 숫자가 다 들어있으므로 손입력을 최소화한다.
@@ -317,6 +374,9 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   // «구역부터 고르고» 물건을 본다 — 그래서 모아타운이 기본이다.
   int _tab = 9;
 
+  /// 숨긴 탭 id. 기본값은 참고 탭 5개.
+  late Set<int> _hidden = _loadHidden();
+
   /// 물건이 속한 구역 — 소속 단지(complex.zoneId) 우선, 없으면 주소로 매칭.
   Zone? _zoneOfProp(
       AuctionProperty p, Map<String, Complex> cById, List<Zone> zones) {
@@ -353,6 +413,88 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
     );
   }
 
+  /// 어떤 탭을 볼지 고른다. 켜고 끄면 «즉시» 반영되고 이 브라우저에 남는다.
+  Future<void> _pickTabs() async {
+    void flip(AuctionTab t, void Function(VoidCallback) setLocal) {
+      setState(() {
+        _hidden.contains(t.id) ? _hidden.remove(t.id) : _hidden.add(t.id);
+        // 보고 있던 탭을 껐으면 살아있는 첫 탭으로 옮긴다.
+        if (_hidden.contains(_tab)) {
+          _tab = kAuctionTabs.firstWhere((x) => !_hidden.contains(x.id)).id;
+        }
+        _saveHidden(_hidden);
+      });
+      setLocal(() {});
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setLocal) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('보여줄 탭',
+              style: TextStyle(fontSize: AppFont.section)),
+          content: SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final t in kAuctionTabs)
+                  Builder(builder: (_) {
+                    final on = !_hidden.contains(t.id);
+                    // 마지막 하나까지 끄면 화면이 텅 빈다 — 못 끄게 막는다.
+                    final last =
+                        on && _hidden.length == kAuctionTabs.length - 1;
+                    return Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(children: [
+                        Icon(t.icon,
+                            size: 17,
+                            color: on ? t.color : AppColors.textFaint),
+                        const Gap(10),
+                        Expanded(
+                          child: Text(t.label,
+                              style: TextStyle(
+                                  fontSize: AppFont.body,
+                                  fontWeight: FontWeight.w700,
+                                  color: on
+                                      ? AppColors.textPrimary
+                                      : AppColors.textFaint)),
+                        ),
+                        Switch(
+                          value: on,
+                          onChanged: last ? null : (_) => flip(t, setLocal),
+                        ),
+                      ]),
+                    );
+                  }),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _hidden = {..._kHiddenByDefault};
+                  if (_hidden.contains(_tab)) _tab = 9;
+                  _saveHidden(_hidden);
+                });
+                setLocal(() {});
+              },
+              child: const Text('기본값으로'),
+            ),
+            FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: _teal,
+                    foregroundColor: const Color(0xFF04211D)),
+                onPressed: () => Navigator.pop(dctx),
+                child: const Text('닫기')),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(auctionProvider);
@@ -385,9 +527,18 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         6 => AppColors.gold,
         9 => _teal,
         11 => AppColors.violet,
+        12 => AppColors.gold,
         _ => AppColors.violet
       },
-      action: switch (_tab) {
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
+        // 탭이 12개라 다 띄우면 두 줄이 된다. 안 쓰는 건 접어둔다.
+        IconButton(
+          tooltip: '보여줄 탭 고르기',
+          onPressed: _pickTabs,
+          icon: Icon(Icons.tune_rounded,
+              color: _hidden.isEmpty ? AppColors.textFaint : _teal),
+        ),
+        ?switch (_tab) {
         0 => Row(mainAxisSize: MainAxisSize.min, children: [
               AddButton(
                   color: _teal,
@@ -411,83 +562,25 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
             onTap: () => addNewsLink(context, ref)),
         _ => null,
       },
+      ]),
       children: [
         // 물건 / 자료실 / 강의 질문 전환 (좁은 화면에서 줄바꿈)
         // 프로세스 순서: 발굴(모아타운·매물) → 판단(계산기) → 실행(진행) → 참고(세제·절차·기준·자료실·강의)
         Wrap(spacing: 8, runSpacing: 8, children: [
-          ModuleTab(
-              label: '모아타운',
-              icon: Icons.map_rounded,
-              color: _teal,
-              selected: _tab == 9,
-              onTap: () => setState(() => _tab = 9)),
-          // 절차가 아예 달라 탭을 나눈다. 화면 안에서 또 고르게 두면
-          // 탭이 두 층이 되어 지금 뭘 보고 있는지 헷갈린다.
-          ModuleTab(
-              label: '신통기획',
-              icon: Icons.apartment_rounded,
-              color: AppColors.violet,
-              selected: _tab == 11,
-              onTap: () => setState(() => _tab = 11)),
-          ModuleTab(
-              label: '뉴스',
-              icon: Icons.newspaper_rounded,
-              color: AppColors.violet,
-              selected: _tab == 10,
-              onTap: () => setState(() => _tab = 10)),
-          ModuleTab(
-              label: '매물·단지',
-              icon: Icons.gavel_rounded,
-              color: _teal,
-              selected: _tab == 0,
-              onTap: () => setState(() => _tab = 0)),
-          ModuleTab(
-              label: '계산기',
-              icon: Icons.calculate_rounded,
-              color: AppColors.gold,
-              selected: _tab == 6,
-              onTap: () => setState(() => _tab = 6)),
-          ModuleTab(
-              label: '진행',
-              icon: Icons.timeline_rounded,
-              color: kProgressAccent,
-              selected: _tab == 1,
-              onTap: () => setState(() => _tab = 1)),
-          ModuleTab(
-              label: '세제',
-              icon: Icons.receipt_long_rounded,
-              color: AppColors.violet,
-              selected: _tab == 7,
-              onTap: () => setState(() => _tab = 7)),
-          ModuleTab(
-              label: '재개발절차',
-              icon: Icons.account_tree_rounded,
-              color: AppColors.rose,
-              selected: _tab == 8,
-              onTap: () => setState(() => _tab = 8)),
-          ModuleTab(
-              label: '기준',
-              icon: Icons.rule_rounded,
-              color: amber,
-              selected: _tab == 3,
-              onTap: () => setState(() => _tab = 3)),
-          ModuleTab(
-              label: '자료실',
-              icon: Icons.menu_book_rounded,
-              color: amber,
-              selected: _tab == 4,
-              onTap: () => setState(() => _tab = 4)),
-          ModuleTab(
-              label: '강의 질문',
-              icon: Icons.live_help_rounded,
-              color: orange,
-              selected: _tab == 5,
-              onTap: () => setState(() => _tab = 5)),
+          for (final t in kAuctionTabs)
+            if (!_hidden.contains(t.id))
+              ModuleTab(
+                  label: t.label,
+                  icon: t.icon,
+                  color: t.color,
+                  selected: _tab == t.id,
+                  onTap: () => setState(() => _tab = t.id)),
         ]),
         const Gap(18),
         if (_tab == 10) const NewsView(),
         if (_tab == 9) const MoaTownView(kind: '모아타운'),
         if (_tab == 11) const MoaTownView(kind: '신통기획'),
+        if (_tab == 12) const VisitPlanView(),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const AuctionCalculator(),
