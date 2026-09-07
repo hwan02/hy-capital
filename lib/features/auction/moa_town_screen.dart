@@ -267,6 +267,102 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     ref.invalidate(zonesProvider);
   }
 
+  /// 구역 설명(메모) 렌더 — ⚠️/주의는 붉은 경고, 마크다운 표는 key·value 로,
+  /// 그 외는 일반 텍스트. 붙여넣은 표가 raw `| |` 로 보이지 않게 한다.
+  Widget _memoBody(String m) {
+    final warn = m.startsWith('⚠️') || m.startsWith('주의');
+    String clean(String s) => s.replaceAll('**', '').trim();
+    final rows = <(String, String)>[];
+    final plain = <String>[];
+    for (final ln in m.split('\n')) {
+      final t = ln.trim();
+      if (t.isEmpty) continue;
+      if (t.startsWith('|')) {
+        if (RegExp(r'^[|\s\-:]+$').hasMatch(t)) continue; // 구분선
+        final cells =
+            t.split('|').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        if (cells.length >= 2) {
+          rows.add((clean(cells[0]), clean(cells.sublist(1).join(' '))));
+        } else if (cells.length == 1) {
+          rows.add(('', clean(cells[0])));
+        }
+      } else {
+        plain.add(clean(t));
+      }
+    }
+    // 표가 아니면 기존 방식(경고 박스 / 흐린 텍스트).
+    if (rows.isEmpty) {
+      if (!warn) {
+        return Text(m,
+            style: const TextStyle(
+                fontSize: AppFont.caption,
+                color: AppColors.textFaint,
+                height: 1.4));
+      }
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+            color: AppColors.rose.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.rose),
+          const Gap(8),
+          Expanded(
+            child: Text(m,
+                style: const TextStyle(
+                    fontSize: AppFont.label,
+                    color: AppColors.rose,
+                    fontWeight: FontWeight.w700,
+                    height: 1.5)),
+          ),
+        ]),
+      );
+    }
+    // 첫 행이 헤더(항목/내용)면 버린다.
+    if (rows.isNotEmpty &&
+        (rows.first.$1 == '항목' || rows.first.$1.isEmpty && rows.first.$2 == '내용')) {
+      rows.removeAt(0);
+    }
+    final c = warn ? AppColors.rose : AppColors.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+          color: (warn ? AppColors.rose : AppColors.sky).withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(8)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final p in plain) ...[
+          Text(p,
+              style: TextStyle(
+                  fontSize: AppFont.label, color: c, height: 1.4)),
+          const Gap(4),
+        ],
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2.5),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (r.$1.isNotEmpty)
+                SizedBox(
+                  width: 78,
+                  child: Text(r.$1,
+                      style: const TextStyle(
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textFaint)),
+                ),
+              Expanded(
+                child: Text(r.$2,
+                    style: TextStyle(
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w600,
+                        color: c,
+                        height: 1.4)),
+              ),
+            ]),
+          ),
+      ]),
+    );
+  }
+
   /// 구역의 네이버 검색어 / 물건 추가 시 주소 seed (동+번지 포함).
   String _zoneSeed(Zone z) {
     var n = z.name
@@ -718,42 +814,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                       ],
                       if ((z.memo ?? '').isNotEmpty) ...[
                         const Gap(6),
-                        // ⚠️/주의 로 시작하는 메모는 «표류·리스크 경고»로 붉게 띄운다.
-                        // 300곳 중 옥석 가리기 — 입지 좋아도 추진 표류면 거른다.
-                        Builder(builder: (_) {
-                          final m = z.memo!;
-                          final warn = m.startsWith('⚠️') || m.startsWith('주의');
-                          if (!warn) {
-                            return Text(m,
-                                style: const TextStyle(
-                                    fontSize: AppFont.caption,
-                                    color: AppColors.textFaint,
-                                    height: 1.4));
-                          }
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.rose.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(Icons.warning_amber_rounded,
-                                      size: 14, color: AppColors.rose),
-                                  const Gap(8),
-                                  Expanded(
-                                    child: Text(m,
-                                        style: const TextStyle(
-                                            fontSize: AppFont.label,
-                                            color: AppColors.rose,
-                                            fontWeight: FontWeight.w700,
-                                            height: 1.5)),
-                                  ),
-                                ]),
-                          );
-                        }),
+                        // ⚠️/주의 경고 · 마크다운 표 · 일반 텍스트를 알아서 렌더.
+                        _memoBody(z.memo!),
                       ],
                     ],
                   ),
@@ -795,13 +857,18 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                 ),
               ),
             ]),
+            const Padding(
+              padding: EdgeInsets.only(top: 2, bottom: 2),
+              child: Text(
+                  '💡 임장 사전조사 보고서·현장 사진·조합 자료 등을 구글 드라이브에 올린 뒤 '
+                  '공유 링크(URL)를 ＋링크로 첨부하세요. 협업자도 클릭 한 번으로 열어봅니다.',
+                  style: TextStyle(
+                      fontSize: AppFont.caption,
+                      color: AppColors.textFaint,
+                      height: 1.45)),
+            ),
             if (z.docs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 4),
-                child: Text('붙은 자료가 없어요. ＋링크로 구청 공고·PDF·기사를 넣으세요.',
-                    style: TextStyle(
-                        fontSize: AppFont.label, color: AppColors.textFaint)),
-              )
+              const SizedBox.shrink()
             else
               for (final d in z.docs)
                 InkWell(
