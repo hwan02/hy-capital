@@ -884,8 +884,10 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                 const Gap(18),
                 for (final cat in BudgetItem.categories)
                   Builder(builder: (context) {
+                    // 개월 수를 넣었으면 그게 할부다 — 묶음을 따로 고를
+                    // 필요가 없다. 고르게 두면 안 골라서 엉뚱한 데 붙는다.
                     final mine =
-                        list.where((i) => i.category == cat).toList();
+                        list.where((i) => i.groupOf == cat).toList();
                     if (mine.isEmpty) return const SizedBox.shrink();
                     final cs = mine.fold(0.0, (a, i) => a + (spentBy[i.id] ?? 0));
                     final cp = mine.fold(0.0, (a, i) => a + i.amount);
@@ -1082,9 +1084,16 @@ class _Stat extends StatelessWidget {
   final String? sub;
   const _Stat(this.label, this.value, this.color, {this.sub});
 
+  /// 높이를 «고정»한다. 빈 Text('')는 높이가 0 이라 자리를 안 잡아서,
+  /// 밑줄이 있는 칸과 없는 칸의 높이가 그대로 어긋났다.
+  /// ResponsiveGrid 는 Wrap 이라 타일 높이를 맞춰주지 않는다.
+  static const height = 112.0;
+
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    return SizedBox(
+        height: height,
+        child: GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1102,16 +1111,13 @@ class _Stat extends StatelessWidget {
                   fontSize: AppFont.display,
                   fontWeight: FontWeight.w900,
                   color: color)),
-          // 밑줄은 «항상» 자리를 잡는다. 있는 칸과 없는 칸을 섞으면
-          // 카드 높이가 달라져 셋이 어긋나 보인다 (Wrap 이라 높이가
-          // 서로 안 맞춰진다).
           const Gap(4),
           Text(sub ?? '',
               style: const TextStyle(
                   fontSize: AppFont.body, color: AppColors.textFaint)),
         ],
       ),
-    );
+    ));
   }
 }
 

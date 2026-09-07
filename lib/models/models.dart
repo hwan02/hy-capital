@@ -1816,6 +1816,10 @@ class BudgetItem {
   /// 끝나는 날이 정해져 있나.
   bool get isInstallment => months != null && months! > 0 && startMonth != null;
 
+  /// 화면에서 «실제로» 묶이는 이름. 개월 수를 넣었으면 그게 할부다 —
+  /// 묶음을 따로 고르게 두면 안 골라서 고정비에 섞인다.
+  String get groupOf => isInstallment ? '할부' : category;
+
   /// 마지막 회차 달. 12개월이면 시작월 + 11개월.
   DateTime? get endMonth => !isInstallment
       ? null
