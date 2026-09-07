@@ -82,16 +82,11 @@ class MoaTownView extends ConsumerStatefulWidget {
 }
 
 class _MoaTownViewState extends ConsumerState<MoaTownView> {
-  @override
-  void initState() {
-    super.initState();
-    // zonesProvider 는 autoDispose 가 아니라 최초 1회만 불러오고 캐시된다.
-    // 탭에 들어올 때마다 다시 불러와, 서버·트리거가 갱신한 단계·동의율을 반영한다.
-    Future.microtask(() {
-      if (!mounted) return;
-      ref.invalidate(zonesProvider);
-      ref.invalidate(auctionProvider);
-    });
+  // zonesProvider 는 캐시된다(빠름). 서버·트리거가 바꾼 뒤엔 새로고침 버튼으로만 다시 불러온다.
+  Future<void> _refresh() async {
+    ref.invalidate(zonesProvider);
+    ref.invalidate(auctionProvider);
+    await ref.read(zonesProvider.future);
   }
 
   String? _district; // null = 서울 개요
@@ -458,11 +453,15 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('$_kind 신청지',
-            style: const TextStyle(
-                fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+        Row(children: [
+          Text('$_kind 신청지',
+              style: const TextStyle(
+                  fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+          const Spacer(),
+          _RefreshBtn(onTap: _refresh),
+        ]),
         const Gap(2),
-        Text('${zones.length}곳 · 자치구를 눌러 구역 리스트로.',
+        Text('${zones.length}곳 · 자치구를 눌러 구역 리스트로. · 캐시됨(⟳로 새로고침)',
             style: const TextStyle(
                 fontSize: AppFont.caption, color: AppColors.textFaint)),
         const Gap(10),
@@ -630,9 +629,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           ),
         ),
         const Gap(8),
-        Text(d,
-            style: const TextStyle(
-                fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+        Row(children: [
+          Text(d,
+              style: const TextStyle(
+                  fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+          const Spacer(),
+          _RefreshBtn(onTap: _refresh),
+        ]),
         const Gap(12),
         // 단계 사다리 — 고른 종류의 절차만 그린다.
         _StageLadder(zones: zs, sin: _sin),
@@ -1463,5 +1466,54 @@ class _StageLadder extends StatelessWidget {
         ),
       ),
     ]);
+  }
+}
+
+/// 새로고침 버튼 — 누르면 도는 스피너. 캐시된 구역을 필요할 때만 다시 불러온다.
+class _RefreshBtn extends StatefulWidget {
+  final Future<void> Function() onTap;
+  const _RefreshBtn({required this.onTap});
+  @override
+  State<_RefreshBtn> createState() => _RefreshBtnState();
+}
+
+class _RefreshBtnState extends State<_RefreshBtn> {
+  bool _busy = false;
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _busy
+          ? null
+          : () async {
+              setState(() => _busy = true);
+              try {
+                await widget.onTap();
+              } catch (_) {}
+              if (mounted) setState(() => _busy = false);
+            },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          _busy
+              ? const SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: _teal))
+              : const Icon(Icons.refresh_rounded, size: 15, color: _teal),
+          const Gap(5),
+          Text(_busy ? '새로고침…' : '새로고침',
+              style: const TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700,
+                  color: _teal)),
+        ]),
+      ),
+    );
   }
 }
