@@ -716,12 +716,43 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 color: AppColors.textSecondary)),
                       ],
                       if ((z.memo ?? '').isNotEmpty) ...[
-                        const Gap(4),
-                        Text(z.memo!,
-                            style: const TextStyle(
-                                fontSize: AppFont.caption,
-                                color: AppColors.textFaint,
-                                height: 1.4)),
+                        const Gap(6),
+                        // ⚠️/주의 로 시작하는 메모는 «표류·리스크 경고»로 붉게 띄운다.
+                        // 300곳 중 옥석 가리기 — 입지 좋아도 추진 표류면 거른다.
+                        Builder(builder: (_) {
+                          final m = z.memo!;
+                          final warn = m.startsWith('⚠️') || m.startsWith('주의');
+                          if (!warn) {
+                            return Text(m,
+                                style: const TextStyle(
+                                    fontSize: AppFont.caption,
+                                    color: AppColors.textFaint,
+                                    height: 1.4));
+                          }
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.rose.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded,
+                                      size: 14, color: AppColors.rose),
+                                  const Gap(8),
+                                  Expanded(
+                                    child: Text(m,
+                                        style: const TextStyle(
+                                            fontSize: AppFont.label,
+                                            color: AppColors.rose,
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.5)),
+                                  ),
+                                ]),
+                          );
+                        }),
                       ],
                     ],
                   ),
