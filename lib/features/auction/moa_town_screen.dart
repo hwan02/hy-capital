@@ -92,6 +92,11 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
 
+  /// 아파트 재건축까지 볼지. 기본은 «끔» — 빌라를 낙찰받는 게 목적이라
+  /// 재건축 단지는 살 물건 자체가 없다. 신통에서만 뜻이 있다(모아는 전부
+  /// 소규모 재개발).
+  bool _withRebuild = false;
+
   /// 보고 있는 사업 종류. 상단 탭이 정한다.
   String get _kind => widget.kind;
   bool get _sin => widget.kind == '신통기획';
@@ -147,10 +152,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       );
     }
 
+    // 라벨은 «그 사업의 단계 이름»으로 쓴다. 모아 용어를 신통 탭에
+    // 그대로 두면 무슨 구간인지 알 수가 없다.
+    final aWhen = _sin ? '대상지선정 후~확정 전' : '관리계획수립·공람';
     return Wrap(spacing: 6, runSpacing: 6, children: [
-      chip(-1, '전체', _teal),
+      chip(-1, '전체', _kindColor(_kind)),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
-      chip(1, '🟢 매수적기 · 수립·공람/기획중', AppColors.primary),
+      chip(1, '🟢 매수적기 · $aWhen', AppColors.primary),
       chip(2, '🟢 조합설립 진행중 · 세부구역', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
@@ -164,7 +172,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         text: z.consentRate > 0 ? z.consentRate.toStringAsFixed(0) : '');
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // builder 의 context 로 pop 해야 «다이얼로그»가 닫힌다.
+      // 바깥 context 를 쓰면 화면이 닫혀 흰 화면이 된다.
+      builder: (dctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: const Text('조합설립 동의율',
             style: TextStyle(fontSize: AppFont.section)),
@@ -191,13 +201,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dctx, false),
               child: const Text('취소')),
           FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: _teal,
                   foregroundColor: const Color(0xFF04211D)),
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dctx, true),
               child: const Text('저장')),
         ],
       ),
@@ -406,7 +416,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     final d = z.district ?? '';
-    if (n.contains('확인 전') || n.isEmpty) return '서울 $d 모아타운';
+    if (n.contains('확인 전') || n.isEmpty) return '서울 $d $_kind';
     final base = (d.isNotEmpty && n.contains(d)) ? n : '$d $n';
     return '서울 $base'.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
@@ -426,11 +436,24 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         final props =
             ref.watch(auctionProvider).asData?.value ?? const <AuctionProperty>[];
         // 먼저 «탭(종류)»으로 나누고, 그 안에서 단계 필터를 건다.
-        final shown =
-            zones.where((z) => z.kind == _kind).where(_stageMatch).toList();
+        final mine = zones.where((z) => z.kind == _kind).toList();
+        // 신통 목록엔 «아파트 재건축»이 섞여 온다 — 포털이 한 코드로 준다.
+        final rebuilt = _sin ? mine.where((z) => isRebuild(z.name)).length : 0;
+        final shown = mine
+            .where((z) => _withRebuild || !_sin || !isRebuild(z.name))
+            .where(_stageMatch)
+            .toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (rebuilt > 0) ...[
+              _RebuildBar(
+                count: rebuilt,
+                on: _withRebuild,
+                onTap: () => setState(() => _withRebuild = !_withRebuild),
+              ),
+              const Gap(12),
+            ],
             _district == null
                 ? _overview(shown)
                 : _districtList(shown, props, _district!),
@@ -455,8 +478,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       children: [
         Row(children: [
           Text('$_kind 신청지',
-              style: const TextStyle(
-                  fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+              style: TextStyle(
+                  fontSize: AppFont.title,
+                  fontWeight: FontWeight.w800,
+                  color: _kindColor(_kind))),
           const Spacer(),
           _RefreshBtn(onTap: _refresh),
         ]),
@@ -526,8 +551,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                         fontSize: AppFont.caption,
                         color: b.color,
                         fontWeight: FontWeight.w800)),
-                row('모아', moaPlan(b)),
-                row('신통', sinPlan(b)),
+                // 보고 있는 종류만. 둘 다 그리면 신통 탭에서 모아 설명이
+                // 같이 떠서 「왜 모아가 나오나」가 된다.
+                row(_sin ? '신통' : '모아', _sin ? sinPlan(b) : moaPlan(b)),
               ],
             );
           }),
@@ -569,7 +595,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(children: [
-            const Icon(Icons.location_on_rounded, size: 18, color: _teal),
+            Icon(Icons.location_on_rounded,
+                size: 18, color: _kindColor(_kind)),
             const Gap(4),
             Flexible(
               child: Text(d,
@@ -1302,7 +1329,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 // 단계 사다리 — 순서와 «내 자리»를 같이 본다
 // ══════════════════════════════════════════════════════════
 
-/// 모아타운 7단계를 순서대로 늘어놓고, 이 자치구 구역이 몇 곳씩
+/// 그 사업의 진행 단계를 순서대로 늘어놓고, 이 자치구 구역이 몇 곳씩
 /// 어느 칸에 있는지 표시한다. 매수 A/B/금지 구간도 색으로 가른다.
 class _StageLadder extends StatelessWidget {
   final List<Zone> zones;
@@ -1517,3 +1544,45 @@ class _RefreshBtnState extends State<_RefreshBtn> {
     );
   }
 }
+
+/// 「아파트 재건축 N곳 숨김」 줄. 칩을 한 줄 더 깔지 않고 한 줄로 끝낸다.
+class _RebuildBar extends StatelessWidget {
+  final int count;
+  final bool on;
+  final VoidCallback onTap;
+  const _RebuildBar(
+      {required this.count, required this.on, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      accent: on ? AppColors.textFaint : AppColors.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(children: [
+        Icon(on ? Icons.apartment_rounded : Icons.holiday_village_rounded,
+            size: 18, color: on ? AppColors.textFaint : AppColors.primary),
+        const Gap(10),
+        Expanded(
+          child: Text(
+              on
+                  ? '아파트 재건축 $count곳도 같이 보는 중 — 낙찰받을 빌라가 없다'
+                  : '아파트 재건축 $count곳 숨김 — 빌라 낙찰 대상만 본다',
+              style: TextStyle(
+                  fontSize: AppFont.body,
+                  fontWeight: FontWeight.w700,
+                  color: on ? AppColors.textSecondary : AppColors.primary)),
+        ),
+        TextButton(
+          onPressed: onTap,
+          style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              foregroundColor: on ? AppColors.primary : AppColors.textSecondary),
+          child: Text(on ? '재개발만' : '재건축도 보기',
+              style: const TextStyle(
+                  fontSize: AppFont.body, fontWeight: FontWeight.w800)),
+        ),
+      ]),
+    );
+  }
+}
+
