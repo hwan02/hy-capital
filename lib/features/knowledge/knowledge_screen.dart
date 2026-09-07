@@ -457,8 +457,8 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
               const Gap(10),
               TextField(
                   controller: b,
-                  minLines: 4,
-                  maxLines: 12,
+                  minLines: 3,
+                  maxLines: null,
                   decoration:
                       InputDecoration(labelText: isQa ? '답변' : '내용')),
               const Gap(10),

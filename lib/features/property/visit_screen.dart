@@ -146,8 +146,8 @@ class _VisitScreenState extends ConsumerState<VisitScreen> {
           TextField(
             controller: c,
             autofocus: true,
-            maxLines: 3,
             minLines: 1,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.body),
             decoration: const InputDecoration(
                 hintText: '한 줄만. 예: 주차 완전 불가 — 매도 시 감액 요인'),

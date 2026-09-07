@@ -168,8 +168,8 @@ class _PasteDialogState extends State<_PasteDialog> {
               TextField(
                 controller: widget.controller,
                 autofocus: true,
-                maxLines: 7,
-                minLines: 4,
+                minLines: 3,
+                maxLines: null,
                 style: const TextStyle(fontSize: AppFont.label, height: 1.45),
                 onChanged: (v) =>
                     setState(() => _p = parseAuctionText(v)),

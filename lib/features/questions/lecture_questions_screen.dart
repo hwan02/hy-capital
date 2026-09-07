@@ -266,7 +266,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
                         controller: _addCtl,
                         autofocus: true,
                         minLines: 1,
-                        maxLines: 5,
+                        maxLines: null,
                         style: const TextStyle(
                             fontSize: AppFont.body, height: 1.5),
                         decoration: const InputDecoration(
@@ -403,8 +403,8 @@ class _SituationCardState extends State<_SituationCard> {
               TextField(
                 controller: _c,
                 autofocus: true,
-                minLines: 5,
-                maxLines: 12,
+                minLines: 3,
+                maxLines: null,
                 style: const TextStyle(fontSize: AppFont.body, height: 1.5),
                 decoration: const InputDecoration(
                     hintText: '한 줄에 하나씩 (⌘/Ctrl+Enter로 저장)'),
@@ -578,7 +578,7 @@ class _QuestionRowState extends State<_QuestionRow> {
                           focusNode: _qf,
                           autofocus: true,
                           minLines: 1,
-                          maxLines: 5,
+                          maxLines: null,
                           style: const TextStyle(
                               fontSize: AppFont.body,
                               height: 1.4,
@@ -651,7 +651,7 @@ class _QuestionRowState extends State<_QuestionRow> {
               controller: _a,
               focusNode: _af,
               minLines: 3,
-              maxLines: 10,
+              maxLines: null,
               style: const TextStyle(fontSize: AppFont.label, height: 1.45),
               onChanged: (_) => setState(() {}),
               onTapOutside: (_) => _af.unfocus(),

@@ -190,8 +190,8 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                     const Gap(6),
                     TextField(
                       controller: _c['plus_zone_note'],
-                      maxLines: 3,
                       minLines: 2,
+                      maxLines: null,
                       style: const TextStyle(fontSize: AppFont.label),
                       decoration: const InputDecoration(
                           labelText: '구역·조합설립 진행 상황 메모',
@@ -326,7 +326,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
           TextField(
             controller: _c['nakchal'],
             minLines: 2,
-            maxLines: 4,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.body),
             decoration: _dec('감정가 대비 낙찰가, 날짜 등'),
           ),
@@ -356,7 +356,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
           TextField(
             controller: _c['field_note'],
             minLines: 2,
-            maxLines: 5,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.body),
             decoration: _dec('예: 소유자 점유, 관리비 50만 미납, 우편물 확인'),
           ),
@@ -415,8 +415,8 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
                   const Gap(5),
                   TextField(
                     controller: _c[key],
-                    minLines: multiline ? 1 : 1,
-                    maxLines: multiline ? 3 : 1,
+                    minLines: 1,
+                    maxLines: multiline ? null : 1,
                     style: const TextStyle(fontSize: AppFont.body),
                     decoration: _dec('없음 / 내용'),
                   ),

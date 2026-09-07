@@ -285,7 +285,10 @@ class _RecordFormState extends State<_RecordForm> {
       case FieldType.longtext:
         return TextFormField(
           controller: _controllers[f.key],
-          maxLines: 3,
+          // 긴 텍스트는 내용만큼 늘어난다 — 3줄로 못박으면 안에서
+          // 스크롤되고 테두리가 글자와 안 맞는다.
+          minLines: 2,
+          maxLines: null,
           decoration: InputDecoration(
             labelText: f.label,
             prefixIcon: Icon(f.icon, size: 20),

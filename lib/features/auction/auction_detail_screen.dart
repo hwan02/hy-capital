@@ -924,8 +924,8 @@ class _CalcTabState extends State<_CalcTab> {
           const Gap(12),
           TextField(
             controller: _reasonC,
-            maxLines: 3,
             minLines: 2,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.label, height: 1.45),
             decoration: const InputDecoration(
                 labelText: '판단 근거 — 왜 이 물건·이 입찰가?',
@@ -960,8 +960,8 @@ class _CalcTabState extends State<_CalcTab> {
           const Gap(12),
           TextField(
             controller: _reviewC,
-            maxLines: 4,
             minLines: 2,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.label, height: 1.45),
             decoration: const InputDecoration(
                 labelText: '원인분석(회고) — 왜 이 결과였나',
@@ -1409,7 +1409,7 @@ class _ChecksTabState extends State<_ChecksTab> {
                 controller: _notes[key],
                 autofocus: true,
                 minLines: 2,
-                maxLines: 5,
+                maxLines: null,
                 style: const TextStyle(fontSize: AppFont.label),
                 onChanged: (t) {
                   _v['${key}__note'] = t;
@@ -1522,7 +1522,7 @@ class _MemoTabState extends State<_MemoTab> {
                 TextField(
                   controller: _entryC,
                   minLines: 2,
-                  maxLines: 5,
+                  maxLines: null,
                   decoration: InputDecoration(
                     hintText: '전세 2.6억까진 나감 · 매물 적음 · 다용도실 크다고 함',
                     isDense: true,
@@ -1555,8 +1555,9 @@ class _MemoTabState extends State<_MemoTab> {
           const Gap(10),
           TextField(
             controller: _c,
-            minLines: 8,
-            maxLines: 20,
+            // 두 줄만 써도 8줄 높이가 남아 테두리가 글자와 안 맞았다.
+            minLines: 3,
+            maxLines: null,
             decoration: InputDecoration(
               hintText:
                   '8/21 #부동산전화 - 동일 타입 12.8억이면 매도 가능성 높다고 함\n8/22 #대출 - A은행 5.5억, 금리 4.3%',
@@ -1826,7 +1827,7 @@ class _MoaTabState extends State<_MoaTab> {
           TextField(
             controller: _note,
             minLines: 3,
-            maxLines: 8,
+            maxLines: null,
             decoration: InputDecoration(
               hintText:
                   '권리산정기준일 2022-01-20 이전 취득 → 입주권 O\n조합설립 전 · 매도 6개월 내 2.9억 가능(부동산 확인)',

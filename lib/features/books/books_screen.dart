@@ -909,8 +909,8 @@ class _BookDialogState extends State<_BookDialog> {
             const Gap(10),
             TextField(
                 controller: _memo,
-                maxLines: 4,
                 minLines: 2,
+                maxLines: null,
                 decoration: const InputDecoration(
                     labelText: '읽고 남긴 것', hintText: '핵심 3줄, 써먹을 것')),
             const Gap(10),

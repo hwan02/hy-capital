@@ -112,6 +112,9 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceAlt,
+        // 여러 줄 칸에서 라벨·힌트를 «맨 위»에 붙인다. 기본은 세로 가운데라
+        // 칸이 커질수록 글자와 어긋나 보인다.
+        alignLabelWithHint: true,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.border),
