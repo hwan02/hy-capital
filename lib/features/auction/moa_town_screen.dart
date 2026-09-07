@@ -99,9 +99,21 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   /// 필터는 «단계 번호»가 아니라 «밴드»로 건다.
   /// 모아 4 와 신통 5 가 둘 다 매수 A 이므로 번호로는 못 거른다.
   bool _stageMatch(Zone z) {
+    if (_stageF < 0) return true;
+    // 세부구역이 있으면 «세부구역 기준»으로 판정한다 —
+    // 한 구역이라도 조합설립 «진행중» 세부구역이 있으면 매수 가능.
+    if (z.subs.isNotEmpty) {
+      final buy = _buySubs(z);
+      return switch (_stageF) {
+        0 => buy > 0, // 살 수 있는 것
+        1 => false, // 매수적기(관리계획수립·신통 기획중)는 세부구역 이전 단계
+        2 => buy > 0, // 매수 B(조합설립 진행중) = 세부 타깃
+        3 => buy == 0, // 진입불가 — 매수가능 세부 없음(전부 인가·사업시행)
+        _ => true,
+      };
+    }
     final b = bandOfZone(z);
     return switch (_stageF) {
-      < 0 => true,
       0 => b.canBuy, // 매수 A + B
       1 => b == BuyBand.early,
       2 => b == BuyBand.late_,
@@ -136,8 +148,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _teal),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
-      chip(1, '🟢 매수적기 · 관리계획수립·공람', AppColors.primary),
-      chip(2, '매수 B · 동의서 징구', AppColors.gold),
+      chip(1, '🟢 매수적기 · 수립·공람/기획중', AppColors.primary),
+      chip(2, '🟢 조합설립 진행중 · 세부구역', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
     ]);
   }
@@ -873,27 +885,44 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                         color: AppColors.gold)),
               ]),
               const Gap(6),
-              for (final s in z.subs)
+              // 매수가능(조합설립 진행중)을 위로, 그 다음 인가·사업시행.
+              for (final s in [
+                ...z.subs.where((s) => _subInfo(s['status'] ?? '').tag.contains('매수 가능')),
+                ...z.subs.where((s) => !_subInfo(s['status'] ?? '').tag.contains('매수 가능')),
+              ])
                 Builder(builder: (_) {
                   final info = _subInfo(s['status'] ?? '');
                   final rating = s['rating'] ?? '';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+                  final buy = info.tag.contains('매수 가능');
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: info.color.withValues(alpha: buy ? 0.13 : 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: buy
+                          ? Border.all(
+                              color: info.color.withValues(alpha: 0.5), width: 1)
+                          : null,
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 44,
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            margin: const EdgeInsets.only(right: 8, top: 1),
+                            width: 46,
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            margin: const EdgeInsets.only(right: 9),
                             decoration: BoxDecoration(
-                                color: info.color.withValues(alpha: 0.15),
+                                color: info.color
+                                    .withValues(alpha: buy ? 0.9 : 0.18),
                                 borderRadius: BorderRadius.circular(6)),
                             child: Text(s['code'] ?? '',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                     fontSize: AppFont.label,
                                     fontWeight: FontWeight.w800,
-                                    color: info.color)),
+                                    color: buy
+                                        ? const Color(0xFF04211D)
+                                        : info.color)),
                           ),
                           Expanded(
                             child: Column(
@@ -902,20 +931,23 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                   Text(s['status'] ?? '',
                                       style: TextStyle(
                                           fontSize: AppFont.label,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight: FontWeight.w800,
                                           color: info.color,
-                                          height: 1.3)),
-                                  if (info.tag.isNotEmpty ||
-                                      rating.isNotEmpty)
-                                    Text(
-                                        [
-                                          if (info.tag.isNotEmpty) info.tag,
-                                          if (rating.isNotEmpty)
-                                            '★' * (int.tryParse(rating) ?? 0)
-                                        ].join('  '),
-                                        style: TextStyle(
-                                            fontSize: AppFont.caption,
-                                            color: info.color)),
+                                          height: 1.25)),
+                                  if (info.tag.isNotEmpty || rating.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 1),
+                                      child: Text(
+                                          [
+                                            if (info.tag.isNotEmpty) info.tag,
+                                            if (rating.isNotEmpty)
+                                              '★' * (int.tryParse(rating) ?? 0)
+                                          ].join('  '),
+                                          style: TextStyle(
+                                              fontSize: AppFont.caption,
+                                              fontWeight: FontWeight.w700,
+                                              color: info.color)),
+                                    ),
                                 ]),
                           ),
                         ]),
