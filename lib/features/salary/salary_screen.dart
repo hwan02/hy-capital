@@ -134,13 +134,13 @@ class _LockGateState extends ConsumerState<_LockGate> {
                 const Gap(16),
                 const Text('잠긴 화면입니다',
                     style: TextStyle(
-                        fontSize: AppFont.title, fontWeight: FontWeight.w900)),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w900)),
                 const Gap(6),
-                const Text('비밀번호를 넣어야 월급과 고정비가 보입니다.',
+                const Text('비밀번호를 넣어주세요',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: AppColors.textSecondary,
-                        fontSize: AppFont.label)),
+                        fontSize: AppFont.body)),
                 const Gap(20),
                 TextField(
                   controller: _c,
@@ -151,7 +151,7 @@ class _LockGateState extends ConsumerState<_LockGate> {
                   textAlign: TextAlign.center,
                   onSubmitted: (_) => _try(),
                   style: const TextStyle(
-                      fontSize: AppFont.title,
+                      fontSize: AppFont.display,
                       letterSpacing: 8,
                       fontWeight: FontWeight.w800),
                   decoration: const InputDecoration(hintText: '••••'),
@@ -161,7 +161,7 @@ class _LockGateState extends ConsumerState<_LockGate> {
                   Text(_err!,
                       style: const TextStyle(
                           color: AppColors.rose,
-                          fontSize: AppFont.label,
+                          fontSize: AppFont.body,
                           fontWeight: FontWeight.w700)),
                 ],
                 const Gap(16),
@@ -179,10 +179,10 @@ class _LockGateState extends ConsumerState<_LockGate> {
                 ),
                 const Gap(12),
                 const Text(
-                    '비밀번호를 잊었으면 Supabase 의 salary_lock 행을 지우면 풀립니다.',
+                    '잊었으면 Supabase 의 salary_lock 행을 지우세요',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        color: AppColors.textFaint, fontSize: AppFont.caption)),
+                        color: AppColors.textFaint, fontSize: AppFont.body)),
               ],
             ),
           ),
@@ -230,11 +230,11 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
       accent: _salaryColor,
       fields: const [
         FieldSpec(
-            key: 'net', label: '실수령액 (통장에 찍히는 돈)', type: FieldType.money,
+            key: 'net', label: '실수령액', type: FieldType.money,
             required: true),
-        FieldSpec(key: 'gross', label: '세전 (몰라도 됩니다)', type: FieldType.money),
+        FieldSpec(key: 'gross', label: '세전', type: FieldType.money),
         FieldSpec(key: 'paid_on', label: '들어온 날', type: FieldType.date),
-        FieldSpec(key: 'memo', label: '메모 (상여·수당 …)', type: FieldType.text),
+        FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
       ],
       initial: cur == null
           ? {'paid_on': DateTime.now().toIso8601String().substring(0, 10)}
@@ -266,20 +266,20 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
       title: item == null ? '고정비 추가' : '고정비 수정',
       accent: _salaryColor,
       fields: const [
-        FieldSpec(key: 'name', label: '항목 (월세·통신비·보험 …)', type: FieldType.text,
+        FieldSpec(key: 'name', label: '항목', type: FieldType.text,
             required: true),
         FieldSpec(key: 'category', label: '묶음', type: FieldType.select,
             required: true, options: BudgetItem.categories),
-        FieldSpec(key: 'amount', label: '매달 배정액', type: FieldType.money,
+        FieldSpec(key: 'amount', label: '배정액', type: FieldType.money,
             required: true),
-        FieldSpec(key: 'pay_day', label: '나가는 날 (1~31)', type: FieldType.number),
+        FieldSpec(key: 'pay_day', label: '나가는 날', type: FieldType.number),
         // 할부 — 이 둘을 채우면 끝나는 달·남은 회차가 자동으로 나온다.
         FieldSpec(
             key: 'start_month',
-            label: '할부 시작월 (첫 회차가 나간 달)',
+            label: '할부 시작월',
             type: FieldType.date),
-        FieldSpec(key: 'months', label: '할부 개월 수 (예: 12)', type: FieldType.number),
-        FieldSpec(key: 'total', label: '할부 총액 (몰라도 됩니다)', type: FieldType.money),
+        FieldSpec(key: 'months', label: '할부 개월 수', type: FieldType.number),
+        FieldSpec(key: 'total', label: '할부 총액', type: FieldType.money),
         FieldSpec(key: 'sort_order', label: '표시 순서', type: FieldType.number),
         FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
       ],
@@ -360,10 +360,10 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
             children: [
               Text('배정액 ${Won.plain(item.amount)}',
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: AppFont.label)),
+                      color: AppColors.textSecondary, fontSize: AppFont.body)),
               const Gap(14),
               MoneyField(
-                label: '이번 달 실제로 쓴 돈',
+                label: '쓴 돈',
                 initial: now,
                 autofocus: true,
                 accent: _salaryColor,
@@ -418,12 +418,10 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
         content: SizedBox(
           width: 340,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text(
-                '이 화면에 들어올 때마다 묻습니다. 숫자만 됩니다.\n'
-                '잊으면 Supabase 의 salary_lock 행을 지워 푸세요.',
+            const Text('숫자 4자리 이상',
                 style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: AppFont.label,
+                    fontSize: AppFont.body,
                     height: 1.5)),
             const Gap(14),
             TextField(
@@ -510,7 +508,6 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
 
     return ModulePage(
       title: '월급',
-      subtitle: '들어온 돈을 어디에 쓸지 미리 나눈다',
       icon: Icons.payments_rounded,
       color: _salaryColor,
       action: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -539,7 +536,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
               const Gap(6),
               Text(hasLock ? '잠금 켜짐' : '잠금 설정',
                   style: TextStyle(
-                      fontSize: AppFont.label,
+                      fontSize: AppFont.body,
                       fontWeight: FontWeight.w800,
                       color: hasLock ? _salaryColor : AppColors.gold)),
             ]),
@@ -661,11 +658,6 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                               fontSize: AppFont.body,
                               fontWeight: FontWeight.w800,
                               color: AppColors.gold)),
-                      Gap(3),
-                      Text('비밀번호를 걸면 들어올 때마다 물어봅니다.',
-                          style: TextStyle(
-                              fontSize: AppFont.label,
-                              color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
@@ -743,8 +735,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                     ? '배정의 ${(spent / planned * 100).round()}%'
                     : null),
             _Stat('통장에 남을 돈', won(left),
-                left >= 0 ? AppColors.primary : AppColors.rose,
-                sub: '월급 − 쓴 돈'),
+                left >= 0 ? AppColors.primary : AppColors.rose),
           ],
         ),
         const Gap(16),
@@ -774,7 +765,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                             fontSize: AppFont.section,
                             fontWeight: FontWeight.w800)),
                     const Spacer(),
-                    Text('이 달 ${won(monthly)}',
+                    Text(won(monthly),
                         style: const TextStyle(
                             fontSize: AppFont.body,
                             fontWeight: FontWeight.w900,
@@ -782,10 +773,9 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                   ]),
                   if (inst.isNotEmpty) ...[
                     const Gap(6),
-                    Text('앞으로 더 낼 돈 ${won(rest)} · '
-                        '마지막 ${Dates.ym(inst.last.endMonth!)}',
+                    Text('남은 ${won(rest)} · 마지막 ${Dates.ym(inst.last.endMonth!)}',
                         style: const TextStyle(
-                            fontSize: AppFont.label,
+                            fontSize: AppFont.body,
                             color: AppColors.textSecondary)),
                     const Gap(12),
                     // 가장 먼저 끝나는 순서. 「이거 끝나면 얼마 빈다」가 보인다.
@@ -799,7 +789,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: AppFont.label,
+                                    fontSize: AppFont.body,
                                     fontWeight: FontWeight.w700)),
                           ),
                           const Gap(8),
@@ -813,7 +803,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                           Text('${i.roundIn(_month)}/${i.months}회 · '
                               '~${Dates.ym(i.endMonth!)}',
                               style: const TextStyle(
-                                  fontSize: AppFont.caption,
+                                  fontSize: AppFont.body,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textSecondary)),
                         ]),
@@ -825,7 +815,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                         '시작 전 ${upcoming.length}건 — '
                         '${upcoming.map((i) => '${i.name} ${Dates.ym(i.startMonth!)}부터').join(' · ')}',
                         style: const TextStyle(
-                            fontSize: AppFont.caption,
+                            fontSize: AppFont.body,
                             color: AppColors.textFaint)),
                   ],
                 ],
@@ -853,7 +843,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                 Expanded(
                   child: Text(
                       unallocated > 0
-                          ? '아직 어디에 쓸지 안 정한 돈이 ${won(unallocated)} 있습니다'
+                          ? '안 나눈 돈 ${won(unallocated)}'
                           : '배정액이 월급보다 ${won(-unallocated)} 많습니다',
                       style: TextStyle(
                           fontSize: AppFont.body,
@@ -872,7 +862,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionHeader('고정비',
-                  subtitle: '${list.length}개 · 항목을 눌러 쓴 돈을 넣습니다',
+                  subtitle: '${list.length}개',
                   trailing: FilledButton.icon(
                     style: FilledButton.styleFrom(
                         backgroundColor: _salaryColor,
@@ -887,7 +877,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
               if (list.isEmpty)
                 const EmptyState(
                     icon: Icons.pie_chart_outline_rounded,
-                    message: '고정비를 넣으세요.\n월세·통신비·보험·적금처럼 매달 나가는 것부터.')
+                    message: '고정비를 넣으세요')
               else ...[
                 // 전체 진행
                 _TotalBar(spent: spent, planned: planned, masked: masked),
@@ -907,13 +897,13 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                           child: Row(children: [
                             Text(cat,
                                 style: const TextStyle(
-                                    fontSize: AppFont.label,
+                                    fontSize: AppFont.body,
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.textSecondary)),
                             const Gap(10),
                             Text('${won(cs)} / ${won(cp)}',
                                 style: const TextStyle(
-                                    fontSize: AppFont.caption,
+                                    fontSize: AppFont.body,
                                     color: AppColors.textFaint)),
                           ]),
                         ),
@@ -938,7 +928,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                 const Divider(color: AppColors.border, height: 28),
                 Text('끝난 할부 ${finished.length}건',
                     style: const TextStyle(
-                        fontSize: AppFont.label,
+                        fontSize: AppFont.body,
                         fontWeight: FontWeight.w700,
                         color: AppColors.violet)),
                 const Gap(8),
@@ -951,10 +941,9 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                       const Gap(8),
                       Expanded(
                         child: Text(
-                            '${i.name} — ${Dates.ym(i.endMonth!)}에 ${i.months}회 완납'
-                            '${i.totalAmount == null ? '' : ' (${won(i.totalAmount!)})'}',
+                            '${i.name} · ${Dates.ym(i.endMonth!)} ${i.months}회 완납',
                             style: const TextStyle(
-                                fontSize: AppFont.caption,
+                                fontSize: AppFont.body,
                                 color: AppColors.textSecondary)),
                       ),
                       RecordMenu(
@@ -968,7 +957,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                 const Divider(color: AppColors.border, height: 28),
                 Text('쉬는 항목 ${off.length}개',
                     style: const TextStyle(
-                        fontSize: AppFont.label,
+                        fontSize: AppFont.body,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textFaint)),
                 const Gap(8),
@@ -976,7 +965,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
                   for (final i in off)
                     ActionChip(
                       label: Text('${i.name}  ${Won.compact(i.amount)}',
-                          style: const TextStyle(fontSize: AppFont.caption)),
+                          style: const TextStyle(fontSize: AppFont.body)),
                       backgroundColor: AppColors.surfaceAlt,
                       side: const BorderSide(color: AppColors.border),
                       onPressed: () => _toggleActive(i),
@@ -1022,7 +1011,7 @@ class _SalaryCard extends StatelessWidget {
           Row(children: [
             Text('${Dates.ym(month)} 실수령액',
                 style: const TextStyle(
-                    fontSize: AppFont.label,
+                    fontSize: AppFont.body,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary)),
             const Gap(10),
@@ -1039,7 +1028,7 @@ class _SalaryCard extends StatelessWidget {
               icon: const Icon(Icons.edit_rounded, size: 16),
               label: Text(salary == null ? '월급 넣기' : '수정',
                   style: const TextStyle(
-                      fontSize: AppFont.label, fontWeight: FontWeight.w700)),
+                      fontSize: AppFont.body, fontWeight: FontWeight.w700)),
             ),
           ]),
           const Gap(10),
@@ -1072,13 +1061,13 @@ class _SalaryCard extends StatelessWidget {
             const Gap(4),
             Text('세전 ${Won.compact(salary!.gross!)}원',
                 style: const TextStyle(
-                    fontSize: AppFont.label, color: AppColors.textFaint)),
+                    fontSize: AppFont.body, color: AppColors.textFaint)),
           ],
           if (salary?.memo?.isNotEmpty == true) ...[
             const Gap(6),
             Text(salary!.memo!,
                 style: const TextStyle(
-                    fontSize: AppFont.label, color: AppColors.textSecondary)),
+                    fontSize: AppFont.body, color: AppColors.textSecondary)),
           ],
         ],
       ),
@@ -1102,7 +1091,7 @@ class _Stat extends StatelessWidget {
         children: [
           Text(label,
               style: const TextStyle(
-                  fontSize: AppFont.label,
+                  fontSize: AppFont.body,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textSecondary)),
           const Gap(8),
@@ -1117,7 +1106,7 @@ class _Stat extends StatelessWidget {
             const Gap(4),
             Text(sub!,
                 style: const TextStyle(
-                    fontSize: AppFont.caption, color: AppColors.textFaint)),
+                    fontSize: AppFont.body, color: AppColors.textFaint)),
           ],
         ],
       ),
@@ -1211,7 +1200,7 @@ class _ItemRow extends StatelessWidget {
                       const Gap(8),
                       Text('${item.payDay}일',
                           style: const TextStyle(
-                              fontSize: AppFont.caption,
+                              fontSize: AppFont.body,
                               color: AppColors.textFaint)),
                     ],
                     // 할부 — 몇 회차인지가 제일 궁금하다.
@@ -1240,18 +1229,18 @@ class _ItemRow extends StatelessWidget {
                     const Gap(5),
                     Text(
                         '${Dates.ym(item.endMonth!)}까지 · '
-                        '${item.remainingRounds(month)}회 남음 '
-                        '(${w(item.remainingAmount(month))})',
+                        '${item.remainingRounds(month)}회 · '
+                        '${w(item.remainingAmount(month))}',
                         style: const TextStyle(
-                            fontSize: AppFont.caption,
+                            fontSize: AppFont.body,
                             fontWeight: FontWeight.w600,
                             color: AppColors.violet)),
                   ],
                   if (over) ...[
                     const Gap(4),
-                    Text('배정보다 ${w(spent - item.amount)} 더 썼습니다',
+                    Text('배정보다 ${w(spent - item.amount)} 초과',
                         style: const TextStyle(
-                            fontSize: AppFont.caption,
+                            fontSize: AppFont.body,
                             fontWeight: FontWeight.w700,
                             color: AppColors.rose)),
                   ],
@@ -1323,7 +1312,7 @@ class _Chip extends StatelessWidget {
                       ? const Color(0xFF04240F)
                       : AppColors.textSecondary,
                   fontWeight: FontWeight.w700,
-                  fontSize: AppFont.label)),
+                  fontSize: AppFont.body)),
         ),
       ),
     );
