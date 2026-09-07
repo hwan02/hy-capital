@@ -1299,6 +1299,9 @@ class Zone {
   /// 입지 우선 체크리스트 — 항목 key → 체크 여부. 매수 단계보다 입지가 먼저다.
   final Map<String, bool> locChecks;
 
+  /// 구역에 붙인 자료 — [{title, url, type: 'pdf'|'link'}]. 카드에서 열람.
+  final List<Map<String, String>> docs;
+
   Zone({
     required this.id,
     required this.name,
@@ -1315,6 +1318,7 @@ class Zone {
     this.stageCheckedAt,
     this.aliases = const [],
     this.locChecks = const {},
+    this.docs = const [],
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1396,6 +1400,11 @@ class Zone {
         locChecks: (m['loc_checks'] as Map?)?.map(
                 (k, v) => MapEntry(k.toString(), v == true)) ??
             const {},
+        docs: (m['docs'] as List?)
+                ?.map((e) => (e as Map).map(
+                    (k, v) => MapEntry(k.toString(), (v ?? '').toString())))
+                .toList() ??
+            const [],
       );
 }
 

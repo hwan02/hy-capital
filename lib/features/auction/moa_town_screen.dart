@@ -189,6 +189,61 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     ref.invalidate(zonesProvider);
   }
 
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// 구역에 «자료 링크»(구청 공고·기사 등)를 붙인다. PDF는 스토리지 URL을 넣으면 된다.
+  Future<void> _addZoneDoc(Zone z) async {
+    final titleCtl = TextEditingController();
+    final urlCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('자료 추가', style: TextStyle(fontSize: AppFont.section)),
+        content: SizedBox(
+          width: 360,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+                controller: titleCtl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    labelText: '제목', hintText: '예: 영등포소식 공고 / 구역계 PDF')),
+            const Gap(10),
+            TextField(
+                controller: urlCtl,
+                decoration: const InputDecoration(
+                    labelText: '링크(URL)', hintText: 'https://...')),
+          ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('추가')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final title = titleCtl.text.trim();
+    final url = urlCtl.text.trim();
+    if (title.isEmpty || url.isEmpty) return;
+    final t = url.toLowerCase().contains('.pdf') ? 'pdf' : 'link';
+    final next = [
+      ...z.docs,
+      {'title': title, 'url': url, 'type': t}
+    ];
+    await ref
+        .read(supabaseProvider)
+        .from('zones')
+        .update({'docs': next}).eq('id', z.id);
+    ref.invalidate(zonesProvider);
+  }
+
   /// 구역의 네이버 검색어 / 물건 추가 시 주소 seed (동+번지 포함).
   String _zoneSeed(Zone z) {
     var n = z.name
@@ -693,6 +748,68 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 구역 지도
             _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
                 () => _openNaver(_zoneSeed(z)), _teal),
+            const Gap(12),
+            // 자료 — 구청 공고·구역계 PDF·기사 링크. 눌러서 열람·미리보기.
+            Row(children: [
+              const Icon(Icons.folder_open_rounded, size: 15, color: AppColors.sky),
+              const Gap(6),
+              const Text('자료',
+                  style: TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.sky)),
+              const Spacer(),
+              InkWell(
+                onTap: () => _addZoneDoc(z),
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Text('＋ 링크',
+                      style: TextStyle(
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.sky)),
+                ),
+              ),
+            ]),
+            if (z.docs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text('붙은 자료가 없어요. ＋링크로 구청 공고·PDF·기사를 넣으세요.',
+                    style: TextStyle(
+                        fontSize: AppFont.label, color: AppColors.textFaint)),
+              )
+            else
+              for (final d in z.docs)
+                InkWell(
+                  onTap: () => _openUrl(d['url'] ?? ''),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(children: [
+                      Icon(
+                          d['type'] == 'pdf'
+                              ? Icons.picture_as_pdf_rounded
+                              : Icons.link_rounded,
+                          size: 16,
+                          color: d['type'] == 'pdf'
+                              ? AppColors.rose
+                              : AppColors.sky),
+                      const Gap(8),
+                      Expanded(
+                        child: Text(d['title'] ?? d['url'] ?? '',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: AppFont.label,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary)),
+                      ),
+                      const Icon(Icons.open_in_new_rounded,
+                          size: 14, color: AppColors.textFaint),
+                    ]),
+                  ),
+                ),
             const Gap(12),
             // 입지 우선 체크 — 매수 단계(밴드)보다 입지가 먼저다.
             Row(children: [
