@@ -12,6 +12,7 @@ import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'file_viewer.dart';
 import 'knowledge_files.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _amber = Color(0xFFF59E0B);
 
@@ -96,7 +97,7 @@ class KnowledgeView extends ConsumerStatefulWidget {
 }
 
 class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
-  final _q = TextEditingController();
+  final _q = PlainController();
   String _tag = '전체';
   bool _allTags = false; // 태그 전체 펼치기
   String _kind = 'all'; // all | qa | article | note | file
@@ -433,9 +434,9 @@ class _KnowledgeViewState extends ConsumerState<KnowledgeView> {
 /// 메모 추가/수정 다이얼로그.
 Future<void> _noteDialog(BuildContext context, WidgetRef ref,
     {KnowledgeNote? note, String? defaultTag}) async {
-    final t = TextEditingController(text: note?.title ?? '');
-    final b = TextEditingController(text: note?.body ?? '');
-    final g = TextEditingController(
+    final t = PlainController(text: note?.title ?? '');
+    final b = PlainController(text: note?.body ?? '');
+    final g = PlainController(
         text: note?.tags.join(', ') ?? (defaultTag ?? ''));
     final isQa = note?.kind == 'qa';
     final saved = await showDialog<bool>(

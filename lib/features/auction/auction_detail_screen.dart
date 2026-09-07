@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import 'progress.dart' show kStatusOptions;
 import 'auction_checklist.dart';
 import '../property/inherit.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -580,8 +581,8 @@ class _CalcTabState extends State<_CalcTab> {
   bool _tips = false;   // 입찰가 산정 고려사항 펼치기
   late String mode;     // sim=모의 · real=실제
   late double actual;   // 실제 낙찰가
-  final _reasonC = TextEditingController(); // 판단 근거
-  final _reviewC = TextEditingController();  // 원인분석(회고)
+  final _reasonC = PlainController(); // 판단 근거
+  final _reviewC = PlainController();  // 원인분석(회고)
 
   // 진행 상태 옵션 — progress.dart 의 9단계 + 종료 상태.
   static final _statuses = kStatusOptions;
@@ -1214,7 +1215,7 @@ class _ChecksTabState extends State<_ChecksTab> {
     _v = Map<String, dynamic>.from(widget.p.checks);
     for (final it in [..._sonpum, ..._balpum]) {
       _notes[it.$1] =
-          TextEditingController(text: (_v['${it.$1}__note'] ?? '').toString());
+          PlainController(text: (_v['${it.$1}__note'] ?? '').toString());
     }
   }
 
@@ -1445,13 +1446,13 @@ class _MemoTab extends StatefulWidget {
 
 class _MemoTabState extends State<_MemoTab> {
   late final TextEditingController _c;
-  final _shopC = TextEditingController(); // 부동산명
-  final _entryC = TextEditingController(); // 방문 내용
+  final _shopC = PlainController(); // 부동산명
+  final _entryC = PlainController(); // 방문 내용
 
   @override
   void initState() {
     super.initState();
-    _c = TextEditingController(text: widget.p.memo ?? '');
+    _c = PlainController(text: widget.p.memo ?? '');
   }
 
   @override
@@ -1624,10 +1625,10 @@ class _MoaTabState extends State<_MoaTab> {
     _pz = p.projectZone ?? 'unknown';
     _deals = p.recentDeals;
     _listings = p.listingsCount;
-    _note = TextEditingController(text: p.moaNote ?? '');
-    _landC = TextEditingController(text: _land > 0 ? _trim(_land) : '');
-    _dealsC = TextEditingController(text: _deals > 0 ? '$_deals' : '');
-    _listC = TextEditingController(text: _listings > 0 ? '$_listings' : '');
+    _note = PlainController(text: p.moaNote ?? '');
+    _landC = PlainController(text: _land > 0 ? _trim(_land) : '');
+    _dealsC = PlainController(text: _deals > 0 ? '$_deals' : '');
+    _listC = PlainController(text: _listings > 0 ? '$_listings' : '');
   }
 
   String _trim(double v) =>

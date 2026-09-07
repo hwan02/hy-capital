@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../format/formatters.dart';
 import '../theme/app_theme.dart';
+import '../edit/plain_controller.dart';
 
 /// 천단위 콤마 자동 삽입 (정수만).
 class MoneyInputFormatter extends TextInputFormatter {
@@ -76,7 +77,7 @@ class _MoneyFieldState extends State<MoneyField> {
   @override
   void initState() {
     super.initState();
-    _c = TextEditingController(
+    _c = PlainController(
         text: widget.initial > 0 ? moneyComma(widget.initial) : '');
   }
 

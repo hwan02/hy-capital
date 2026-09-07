@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import 'auction_screen.dart' show quickAddAuction;
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'buy_band.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 모아타운/신통기획 신청지 — 서울 자치구 개요 → 자치구별 구역 리스트 →
 /// 구역 안에서 경매물건 추가·상세(임장)·네이버 지도.
@@ -126,7 +127,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   /// 편집 다이얼로그 깊숙이 있어서 119곳 중 «0곳»이 채워져 있었다.
   /// 매수 B 에서 「인가 임박」을 가리는 유일한 값이다.
   Future<void> _editConsent(Zone z) async {
-    final c = TextEditingController(
+    final c = PlainController(
         text: z.consentRate > 0 ? z.consentRate.toStringAsFixed(0) : '');
     final ok = await showDialog<bool>(
       context: context,

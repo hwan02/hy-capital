@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 강의 질문 — 내가 하나씩 만든다. 프리셋 없음. 팝업 없이 그 자리에서 편집.
 const _kQuestionColor = Color(0xFFF97316);
@@ -72,7 +73,7 @@ class _LectureQuestionsViewState extends ConsumerState<LectureQuestionsView> {
   bool _answeredOnly = false;
   bool _adding = false;
   int _week = 0; // 0=전체, 1=1주차, 2=2주차
-  final _addCtl = TextEditingController();
+  final _addCtl = PlainController();
 
   @override
   void dispose() {
@@ -356,7 +357,7 @@ class _SituationCardState extends State<_SituationCard> {
   @override
   void initState() {
     super.initState();
-    _c = TextEditingController(text: widget.currentText);
+    _c = PlainController(text: widget.currentText);
   }
 
   @override
@@ -487,8 +488,8 @@ class _QuestionRowState extends State<_QuestionRow> {
   @override
   void initState() {
     super.initState();
-    _q = TextEditingController(text: widget.rec.question);
-    _a = TextEditingController(text: widget.rec.answer);
+    _q = PlainController(text: widget.rec.question);
+    _a = PlainController(text: widget.rec.answer);
     _qf = FocusNode()..addListener(_onQ);
     _af = FocusNode()..addListener(_onA);
   }

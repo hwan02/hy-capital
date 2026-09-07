@@ -11,6 +11,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 부동산 경매 수익률 계산기 — 월세/전세/매도 3시나리오.
 /// 계산 결과를 이력으로 저장/수정/삭제할 수 있다(calc_records).
@@ -22,7 +23,7 @@ class AuctionCalculator extends ConsumerStatefulWidget {
 }
 
 class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
-  final _label = TextEditingController();
+  final _label = PlainController();
   String? _editingId; // 수정 중인 이력 id (null이면 새 계산)
   int _revision = 0; // MoneyField 초기값 갱신용 key
 

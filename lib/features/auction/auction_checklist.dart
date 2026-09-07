@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import '../../core/format/won_parse.dart';
 export '../../core/format/won_parse.dart' show parseWon;
 import '../../core/theme/app_theme.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 입찰 전 조사표 — 접이식(아코디언) + 모바일 우선.
 /// 섹션: 시세 조사 / 부동산 조사 / 권리 분석 / 현장 점검(임장) / 최종 점검.
@@ -110,7 +111,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
     super.initState();
     final cl = widget.initial;
     for (final k in _allTextKeys) {
-      _c[k] = TextEditingController(text: cl[k]?.toString() ?? '');
+      _c[k] = PlainController(text: cl[k]?.toString() ?? '');
     }
     for (final (k, _) in [
       ..._fieldChecks,
@@ -120,7 +121,7 @@ class AuctionChecklistFormState extends State<AuctionChecklistForm> {
       _checks[k] = cl[k] == true;
     }
     _c['plus_zone_note'] =
-        TextEditingController(text: cl['plus_zone_note']?.toString() ?? '');
+        PlainController(text: cl['plus_zone_note']?.toString() ?? '');
   }
 
   @override

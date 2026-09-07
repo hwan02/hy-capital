@@ -22,6 +22,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _bucket = 'knowledge';
 
@@ -134,7 +135,7 @@ class _VisitScreenState extends ConsumerState<VisitScreen> {
 
   // ── 한 줄 메모 ──────────────────────────────────────────
   Future<void> _addMemo(Visit v) async {
-    final c = TextEditingController();
+    final c = PlainController();
     final text = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -181,7 +182,7 @@ class _VisitScreenState extends ConsumerState<VisitScreen> {
 
   // ── 들은 시세 ───────────────────────────────────────────
   Future<void> _addHeard(Visit v) async {
-    final who = TextEditingController();
+    final who = PlainController();
     double sale = 0, jeonse = 0;
     final ok = await showModalBottomSheet<bool>(
       context: context,

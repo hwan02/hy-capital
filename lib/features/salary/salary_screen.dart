@@ -26,6 +26,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _salaryColor = AppColors.primary;
 
@@ -89,7 +90,7 @@ class _LockGate extends ConsumerStatefulWidget {
 }
 
 class _LockGateState extends ConsumerState<_LockGate> {
-  final _c = TextEditingController();
+  final _c = PlainController();
   String? _err;
   int _tries = 0;
 
@@ -370,8 +371,8 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
 
   // ── 잠금 설정 ─────────────────────────────────────────────
   Future<void> _setPin() async {
-    final c1 = TextEditingController();
-    final c2 = TextEditingController();
+    final c1 = PlainController();
+    final c2 = PlainController();
     final ok = await showDialog<bool>(
       context: context,
       // builder 가 주는 context 를 «반드시» 쓴다. 바깥 context 로 pop 하면

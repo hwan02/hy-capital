@@ -29,6 +29,7 @@ import 'progress_screen.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -38,7 +39,7 @@ const _teal = Color(0xFF14B8A6);
 /// (모아타운 구역에서 추가 시 구역 주소를 넣어 구역 매칭이 되게).
 Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
     {String? prefillAddress}) async {
-  final c = TextEditingController();
+  final c = PlainController();
   final res = await showDialog<(ParsedAuction, String)>(
     context: context,
     builder: (_) => _PasteDialog(controller: c),
@@ -847,7 +848,7 @@ class _AuctionCardState extends State<_AuctionCard> {
       );
       if (val == null) return;
     } else {
-      final c = TextEditingController();
+      final c = PlainController();
       var money = 0.0; // MoneyField 는 콜백으로 값을 준다
       final ok = await showDialog<bool>(
         context: context,
