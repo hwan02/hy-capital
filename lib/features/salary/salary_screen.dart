@@ -1102,12 +1102,13 @@ class _Stat extends StatelessWidget {
                   fontSize: AppFont.display,
                   fontWeight: FontWeight.w900,
                   color: color)),
-          if (sub != null) ...[
-            const Gap(4),
-            Text(sub!,
-                style: const TextStyle(
-                    fontSize: AppFont.body, color: AppColors.textFaint)),
-          ],
+          // 밑줄은 «항상» 자리를 잡는다. 있는 칸과 없는 칸을 섞으면
+          // 카드 높이가 달라져 셋이 어긋나 보인다 (Wrap 이라 높이가
+          // 서로 안 맞춰진다).
+          const Gap(4),
+          Text(sub ?? '',
+              style: const TextStyle(
+                  fontSize: AppFont.body, color: AppColors.textFaint)),
         ],
       ),
     );
