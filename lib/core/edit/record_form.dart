@@ -6,6 +6,7 @@ import '../format/formatters.dart';
 import '../theme/app_theme.dart';
 import '../widgets/money_field.dart';
 import 'field_spec.dart';
+import 'plain_controller.dart';
 
 /// 정수를 천단위 콤마 문자열로.
 
@@ -95,7 +96,7 @@ class _RecordFormState extends State<_RecordForm> {
     for (final f in widget.fields) {
       if (f.type == FieldType.boolean || f.type == FieldType.date) continue;
       final v = _values[f.key];
-      _controllers[f.key] = TextEditingController(
+      _controllers[f.key] = PlainController(
           text: f.type == FieldType.money
               ? _moneyInitText(v)
               : (v?.toString() ?? ''));
@@ -285,7 +286,10 @@ class _RecordFormState extends State<_RecordForm> {
       case FieldType.longtext:
         return TextFormField(
           controller: _controllers[f.key],
-          maxLines: 3,
+          // 긴 텍스트는 내용만큼 늘어난다 — 3줄로 못박으면 안에서
+          // 스크롤되고 테두리가 글자와 안 맞는다.
+          minLines: 2,
+          maxLines: null,
           decoration: InputDecoration(
             labelText: f.label,
             prefixIcon: Icon(f.icon, size: 20),

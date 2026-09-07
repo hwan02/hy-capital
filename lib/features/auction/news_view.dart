@@ -9,6 +9,7 @@ import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 Color _topicColor(String? t) => switch (t) {
       '신통' => AppColors.violet,
@@ -26,8 +27,8 @@ Future<void> _open(String url) async {
 
 /// ＋링크 — 다른 사람에게 받은 기사·공시 링크를 직접 추가한다.
 Future<void> addNewsLink(BuildContext context, WidgetRef ref) async {
-  final urlCtl = TextEditingController();
-  final titleCtl = TextEditingController();
+  final urlCtl = PlainController();
+  final titleCtl = PlainController();
   var topic = '모아타운';
   final ok = await showDialog<bool>(
     context: context,

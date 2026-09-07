@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/money_flow/money_flow_screen.dart';
+import '../../features/salary/salary_screen.dart';
 import '../../features/airbnb/airbnb_screen.dart';
 import '../../features/airbnb/airbnb_detail_screen.dart';
 import '../../features/shorts/shorts_screen.dart';
@@ -56,6 +57,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/dashboard', pageBuilder: (_, __) => _noTransition(const DashboardScreen())),
           GoRoute(path: '/money', pageBuilder: (_, __) => _noTransition(const MoneyFlowScreen())),
+          GoRoute(path: '/salary', pageBuilder: (_, __) => _noTransition(const SalaryScreen())),
           GoRoute(path: '/airbnb', pageBuilder: (_, __) => _noTransition(const AirbnbScreen())),
           GoRoute(
             path: '/airbnb/:id',

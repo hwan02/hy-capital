@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import 'auction_screen.dart' show quickAddAuction;
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'buy_band.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 모아타운/신통기획 신청지 — 서울 자치구 개요 → 자치구별 구역 리스트 →
 /// 구역 안에서 경매물건 추가·상세(임장)·네이버 지도.
@@ -45,7 +46,10 @@ Future<void> _openNaver(String query) async {
 }
 
 class MoaTownView extends ConsumerStatefulWidget {
-  const MoaTownView({super.key});
+  /// '모아타운' | '신통기획'. 절차가 아예 달라서 상단 탭으로 갈라 받는다 —
+  /// 화면 안에서 또 고르게 두면 탭이 두 층이 되어 어디 있는지 헷갈린다.
+  final String kind;
+  const MoaTownView({super.key, required this.kind});
 
   @override
   ConsumerState<MoaTownView> createState() => _MoaTownViewState();
@@ -66,10 +70,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
-  /// 상단 탭 — 모아타운 / 신통기획. 절차가 달라 아예 나눠서 본다.
-  String _topKind = '모아타운';
-  /// 자치구 안에서 보는 사업 종류(= _topKind 와 동기화).
-  String _kind = '모아타운';
+
+  /// 보고 있는 사업 종류. 상단 탭이 정한다.
+  String get _kind => widget.kind;
+  bool get _sin => widget.kind == '신통기획';
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
   int _stageF = -1;
 
@@ -123,7 +127,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   /// 편집 다이얼로그 깊숙이 있어서 119곳 중 «0곳»이 채워져 있었다.
   /// 매수 B 에서 「인가 임박」을 가리는 유일한 값이다.
   Future<void> _editConsent(Zone z) async {
-    final c = TextEditingController(
+    final c = PlainController(
         text: z.consentRate > 0 ? z.consentRate.toStringAsFixed(0) : '');
     final ok = await showDialog<bool>(
       context: context,
@@ -214,12 +218,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             ref.watch(auctionProvider).asData?.value ?? const <AuctionProperty>[];
         // 먼저 «탭(종류)»으로 나누고, 그 안에서 단계 필터를 건다.
         final shown =
-            zones.where((z) => z.kind == _topKind).where(_stageMatch).toList();
+            zones.where((z) => z.kind == _kind).where(_stageMatch).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _kindTabs(zones),
-            const Gap(14),
             _district == null
                 ? _overview(shown)
                 : _districtList(shown, props, _district!),
@@ -227,47 +229,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         );
       },
     );
-  }
-
-  /// 상단 탭 — 모아타운 / 신통기획. 절차가 다르므로 완전히 분리해서 본다.
-  Widget _kindTabs(List<Zone> all) {
-    final moaN = all.where((z) => z.kind == '모아타운').length;
-    final sinN = all.where((z) => z.kind == '신통기획').length;
-    Widget tab(String k, int n, Color c) {
-      final on = _topKind == k;
-      return Expanded(
-        child: InkWell(
-          onTap: () => setState(() {
-            _topKind = k;
-            _kind = k;
-            _district = null;
-            _openZoneId = null;
-          }),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: on ? c.withValues(alpha: 0.18) : AppColors.surfaceAlt,
-              border:
-                  Border.all(color: on ? c : AppColors.border, width: on ? 1.6 : 1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text('$k · $n곳',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: on ? c : AppColors.textSecondary,
-                    fontSize: AppFont.body,
-                    fontWeight: FontWeight.w800)),
-          ),
-        ),
-      );
-    }
-
-    return Row(children: [
-      tab('모아타운', moaN, _teal),
-      const Gap(8),
-      tab('신통기획', sinN, AppColors.violet),
-    ]);
   }
 
   // ── 서울 자치구 개요 ────────────────────────────────────────
@@ -283,7 +244,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('$_topKind 신청지',
+        Text('$_kind 신청지',
             style: const TextStyle(
                 fontSize: AppFont.title, fontWeight: FontWeight.w800)),
         const Gap(2),
@@ -383,15 +344,11 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   }
 
   Widget _distTile(String d, List<Zone> zs) {
-    final moa = zs.where((z) => z.kind == '모아타운').length;
-    final sin = zs.where((z) => z.kind == '신통기획').length;
     return GlassCard(
-      accent: _teal,
+      accent: _kindColor(_kind),
       onTap: () => setState(() {
         _district = d;
         _openZoneId = null;
-        // 그 구에 더 많은 쪽을 기본으로 열어준다
-        _kind = sin > moa ? '신통기획' : '모아타운';
       }),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -410,15 +367,22 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           ]),
           const Gap(8),
           Text('${zs.length}곳',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: AppFont.hero,
                   fontWeight: FontWeight.w800,
-                  color: _teal)),
+                  color: _kindColor(_kind))),
           const Gap(6),
-          Wrap(spacing: 4, runSpacing: 4, children: [
-            if (moa > 0) Pill('모아 $moa', color: _teal),
-            if (sin > 0) Pill('신통 $sin', color: AppColors.violet),
-          ]),
+          // 매수 자리가 몇 곳인지 — 자치구를 고르는 기준이다.
+          Builder(builder: (context) {
+            final a = zs.where((z) => bandOfZone(z) == BuyBand.early).length;
+            final b = zs.where((z) => bandOfZone(z) == BuyBand.late_).length;
+            return Wrap(spacing: 4, runSpacing: 4, children: [
+              if (a > 0) Pill('매수A $a', color: AppColors.primary),
+              if (b > 0) Pill('매수B $b', color: AppColors.gold),
+              if (a == 0 && b == 0)
+                const Pill('살 자리 없음', color: AppColors.textFaint),
+            ]);
+          }),
         ],
       ),
     );
@@ -430,9 +394,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       for (final z in zones)
         if ((z.district ?? '기타') == d || (z.district == null && d == '기타')) z
     ]..sort((a, b) => b.stage.compareTo(a.stage));
-    // 섞여 있으면 고른 종류만 — 절차가 달라 같이 보면 헷갈린다.
-    final mixed = zs.any((z) => z.isSin) && zs.any((z) => !z.isSin);
-    final list = mixed ? zs.where((z) => z.kind == _kind).toList() : zs;
+    // 상단 탭에서 이미 종류로 갈라 들어왔다.
+    final list = zs;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -457,48 +420,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             style: const TextStyle(
                 fontSize: AppFont.title, fontWeight: FontWeight.w800)),
         const Gap(12),
-        // 사업 종류 — 절차가 다르므로 섞어 보지 않는다.
-        Builder(builder: (context) {
-          final moaN = zs.where((z) => !z.isSin).length;
-          final sinN = zs.where((z) => z.isSin).length;
-          if (moaN == 0 || sinN == 0) return const SizedBox.shrink();
-          Widget chip(String k, int n, Color c) {
-            final on = _kind == k;
-            return InkWell(
-              onTap: () => setState(() {
-                _kind = k;
-                _openZoneId = null;
-              }),
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: on ? c.withValues(alpha: 0.18) : AppColors.surfaceAlt,
-                  border: Border.all(
-                      color: on ? c : AppColors.border, width: on ? 1.5 : 1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text('$k $n곳',
-                    style: TextStyle(
-                        color: on ? c : AppColors.textSecondary,
-                        fontSize: AppFont.body,
-                        fontWeight: FontWeight.w800)),
-              ),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(children: [
-              chip('모아타운', moaN, _teal),
-              const Gap(8),
-              chip('신통기획', sinN, AppColors.violet),
-            ]),
-          );
-        }),
         // 단계 사다리 — 고른 종류의 절차만 그린다.
-        _StageLadder(zones: zs.where((z) => z.kind == _kind).toList(),
-            sin: _kind == '신통기획'),
+        _StageLadder(zones: zs, sin: _sin),
         const Gap(14),
         _stageChips(),
         const Gap(14),

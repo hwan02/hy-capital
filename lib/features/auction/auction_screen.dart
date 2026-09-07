@@ -29,6 +29,7 @@ import 'progress_screen.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -38,7 +39,7 @@ const _teal = Color(0xFF14B8A6);
 /// (모아타운 구역에서 추가 시 구역 주소를 넣어 구역 매칭이 되게).
 Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
     {String? prefillAddress}) async {
-  final c = TextEditingController();
+  final c = PlainController();
   final res = await showDialog<(ParsedAuction, String)>(
     context: context,
     builder: (_) => _PasteDialog(controller: c),
@@ -168,8 +169,8 @@ class _PasteDialogState extends State<_PasteDialog> {
               TextField(
                 controller: widget.controller,
                 autofocus: true,
-                maxLines: 7,
-                minLines: 4,
+                minLines: 3,
+                maxLines: null,
                 style: const TextStyle(fontSize: AppFont.label, height: 1.45),
                 onChanged: (v) =>
                     setState(() => _p = parseAuctionText(v)),
@@ -382,7 +383,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         4 => amber,
         5 => orange,
         6 => AppColors.gold,
-        9 => AppColors.sky,
+        9 => _teal,
+        11 => AppColors.violet,
         _ => AppColors.violet
       },
       action: switch (_tab) {
@@ -416,9 +418,17 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
           ModuleTab(
               label: '모아타운',
               icon: Icons.map_rounded,
-              color: AppColors.sky,
+              color: _teal,
               selected: _tab == 9,
               onTap: () => setState(() => _tab = 9)),
+          // 절차가 아예 달라 탭을 나눈다. 화면 안에서 또 고르게 두면
+          // 탭이 두 층이 되어 지금 뭘 보고 있는지 헷갈린다.
+          ModuleTab(
+              label: '신통기획',
+              icon: Icons.apartment_rounded,
+              color: AppColors.violet,
+              selected: _tab == 11,
+              onTap: () => setState(() => _tab = 11)),
           ModuleTab(
               label: '뉴스',
               icon: Icons.newspaper_rounded,
@@ -476,7 +486,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         ]),
         const Gap(18),
         if (_tab == 10) const NewsView(),
-        if (_tab == 9) const MoaTownView(),
+        if (_tab == 9) const MoaTownView(kind: '모아타운'),
+        if (_tab == 11) const MoaTownView(kind: '신통기획'),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const AuctionCalculator(),
@@ -837,7 +848,7 @@ class _AuctionCardState extends State<_AuctionCard> {
       );
       if (val == null) return;
     } else {
-      final c = TextEditingController();
+      final c = PlainController();
       var money = 0.0; // MoneyField 는 콜백으로 값을 준다
       final ok = await showDialog<bool>(
         context: context,

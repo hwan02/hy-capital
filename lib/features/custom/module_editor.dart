@@ -10,6 +10,7 @@ import '../../core/edit/record_form.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/custom.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 모듈 생성/편집 시트를 띄운다.
 Future<void> showModuleEditor(
@@ -50,7 +51,7 @@ class _ModuleEditorState extends ConsumerState<_ModuleEditor> {
   void initState() {
     super.initState();
     final e = widget.existing;
-    _name = TextEditingController(text: e?.name ?? '');
+    _name = PlainController(text: e?.name ?? '');
     _icon = e?.icon ?? 'widgets';
     _color = e?.colorHex ?? kColorPalette.first;
     _fields = e == null
@@ -422,9 +423,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _label = TextEditingController(text: widget.existing?.label ?? '');
+    _label = PlainController(text: widget.existing?.label ?? '');
     _options =
-        TextEditingController(text: widget.existing?.options.join(', ') ?? '');
+        PlainController(text: widget.existing?.options.join(', ') ?? '');
     _type = widget.existing?.type ?? FieldType.text;
     _required = widget.existing?.required ?? false;
   }

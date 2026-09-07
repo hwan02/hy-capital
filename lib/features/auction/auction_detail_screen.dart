@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import 'progress.dart' show kStatusOptions;
 import 'auction_checklist.dart';
 import '../property/inherit.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -580,8 +581,8 @@ class _CalcTabState extends State<_CalcTab> {
   bool _tips = false;   // 입찰가 산정 고려사항 펼치기
   late String mode;     // sim=모의 · real=실제
   late double actual;   // 실제 낙찰가
-  final _reasonC = TextEditingController(); // 판단 근거
-  final _reviewC = TextEditingController();  // 원인분석(회고)
+  final _reasonC = PlainController(); // 판단 근거
+  final _reviewC = PlainController();  // 원인분석(회고)
 
   // 진행 상태 옵션 — progress.dart 의 9단계 + 종료 상태.
   static final _statuses = kStatusOptions;
@@ -924,8 +925,8 @@ class _CalcTabState extends State<_CalcTab> {
           const Gap(12),
           TextField(
             controller: _reasonC,
-            maxLines: 3,
             minLines: 2,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.label, height: 1.45),
             decoration: const InputDecoration(
                 labelText: '판단 근거 — 왜 이 물건·이 입찰가?',
@@ -960,8 +961,8 @@ class _CalcTabState extends State<_CalcTab> {
           const Gap(12),
           TextField(
             controller: _reviewC,
-            maxLines: 4,
             minLines: 2,
+            maxLines: null,
             style: const TextStyle(fontSize: AppFont.label, height: 1.45),
             decoration: const InputDecoration(
                 labelText: '원인분석(회고) — 왜 이 결과였나',
@@ -1214,7 +1215,7 @@ class _ChecksTabState extends State<_ChecksTab> {
     _v = Map<String, dynamic>.from(widget.p.checks);
     for (final it in [..._sonpum, ..._balpum]) {
       _notes[it.$1] =
-          TextEditingController(text: (_v['${it.$1}__note'] ?? '').toString());
+          PlainController(text: (_v['${it.$1}__note'] ?? '').toString());
     }
   }
 
@@ -1409,7 +1410,7 @@ class _ChecksTabState extends State<_ChecksTab> {
                 controller: _notes[key],
                 autofocus: true,
                 minLines: 2,
-                maxLines: 5,
+                maxLines: null,
                 style: const TextStyle(fontSize: AppFont.label),
                 onChanged: (t) {
                   _v['${key}__note'] = t;
@@ -1445,13 +1446,13 @@ class _MemoTab extends StatefulWidget {
 
 class _MemoTabState extends State<_MemoTab> {
   late final TextEditingController _c;
-  final _shopC = TextEditingController(); // 부동산명
-  final _entryC = TextEditingController(); // 방문 내용
+  final _shopC = PlainController(); // 부동산명
+  final _entryC = PlainController(); // 방문 내용
 
   @override
   void initState() {
     super.initState();
-    _c = TextEditingController(text: widget.p.memo ?? '');
+    _c = PlainController(text: widget.p.memo ?? '');
   }
 
   @override
@@ -1522,7 +1523,7 @@ class _MemoTabState extends State<_MemoTab> {
                 TextField(
                   controller: _entryC,
                   minLines: 2,
-                  maxLines: 5,
+                  maxLines: null,
                   decoration: InputDecoration(
                     hintText: '전세 2.6억까진 나감 · 매물 적음 · 다용도실 크다고 함',
                     isDense: true,
@@ -1555,8 +1556,9 @@ class _MemoTabState extends State<_MemoTab> {
           const Gap(10),
           TextField(
             controller: _c,
-            minLines: 8,
-            maxLines: 20,
+            // 두 줄만 써도 8줄 높이가 남아 테두리가 글자와 안 맞았다.
+            minLines: 3,
+            maxLines: null,
             decoration: InputDecoration(
               hintText:
                   '8/21 #부동산전화 - 동일 타입 12.8억이면 매도 가능성 높다고 함\n8/22 #대출 - A은행 5.5억, 금리 4.3%',
@@ -1623,10 +1625,10 @@ class _MoaTabState extends State<_MoaTab> {
     _pz = p.projectZone ?? 'unknown';
     _deals = p.recentDeals;
     _listings = p.listingsCount;
-    _note = TextEditingController(text: p.moaNote ?? '');
-    _landC = TextEditingController(text: _land > 0 ? _trim(_land) : '');
-    _dealsC = TextEditingController(text: _deals > 0 ? '$_deals' : '');
-    _listC = TextEditingController(text: _listings > 0 ? '$_listings' : '');
+    _note = PlainController(text: p.moaNote ?? '');
+    _landC = PlainController(text: _land > 0 ? _trim(_land) : '');
+    _dealsC = PlainController(text: _deals > 0 ? '$_deals' : '');
+    _listC = PlainController(text: _listings > 0 ? '$_listings' : '');
   }
 
   String _trim(double v) =>
@@ -1826,7 +1828,7 @@ class _MoaTabState extends State<_MoaTab> {
           TextField(
             controller: _note,
             minLines: 3,
-            maxLines: 8,
+            maxLines: null,
             decoration: InputDecoration(
               hintText:
                   '권리산정기준일 2022-01-20 이전 취득 → 입주권 O\n조합설립 전 · 매도 6개월 내 2.9억 가능(부동산 확인)',

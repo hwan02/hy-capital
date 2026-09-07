@@ -24,6 +24,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _bookColor = Color(0xFFB4844E); // 나무 — 갈색
 
@@ -722,15 +723,15 @@ class _BookDialog extends StatefulWidget {
 }
 
 class _BookDialogState extends State<_BookDialog> {
-  late final _title = TextEditingController(text: widget.book?.title ?? '');
-  late final _author = TextEditingController(text: widget.book?.author ?? '');
+  late final _title = PlainController(text: widget.book?.title ?? '');
+  late final _author = PlainController(text: widget.book?.author ?? '');
   late final _tags =
-      TextEditingController(text: widget.book?.tags.join(', ') ?? '');
-  late final _why = TextEditingController(text: widget.book?.why ?? '');
-  late final _memo = TextEditingController(text: widget.book?.memo ?? '');
-  late final _link = TextEditingController(text: widget.book?.link ?? '');
+      PlainController(text: widget.book?.tags.join(', ') ?? '');
+  late final _why = PlainController(text: widget.book?.why ?? '');
+  late final _memo = PlainController(text: widget.book?.memo ?? '');
+  late final _link = PlainController(text: widget.book?.link ?? '');
   late final _order =
-      TextEditingController(text: '${widget.book?.sortOrder ?? 1}');
+      PlainController(text: '${widget.book?.sortOrder ?? 1}');
   late String _branch = widget.book?.branch ?? '입문';
   late int _level = widget.book?.level ?? 1;
   late int _rating = widget.book?.rating ?? 0;
@@ -909,8 +910,8 @@ class _BookDialogState extends State<_BookDialog> {
             const Gap(10),
             TextField(
                 controller: _memo,
-                maxLines: 4,
                 minLines: 2,
+                maxLines: null,
                 decoration: const InputDecoration(
                     labelText: '읽고 남긴 것', hintText: '핵심 3줄, 써먹을 것')),
             const Gap(10),

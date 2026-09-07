@@ -1738,3 +1738,166 @@ class Book {
         why: m['why'],
       );
 }
+
+// ══════════════════════════════════════════════════════════════
+// 월급 — 계획(고정비)과 실적(사용액)을 따로 둔다
+// ══════════════════════════════════════════════════════════════
+
+/// 한 달치 월급. 화면에서 쓰는 값은 «실수령액(net)» 이다.
+class SalaryMonth {
+  final String id;
+  final DateTime month; // 해당 월 1일
+  final double net;
+  final double? gross;
+  final DateTime? paidOn;
+  final String? memo;
+
+  SalaryMonth({
+    required this.id,
+    required this.month,
+    required this.net,
+    this.gross,
+    this.paidOn,
+    this.memo,
+  });
+
+  /// 통장에 실제로 들어왔나. 안 들어온 달은 「예정」으로 본다.
+  bool get received => paidOn != null;
+
+  factory SalaryMonth.fromMap(Map<String, dynamic> m) => SalaryMonth(
+        id: m['id'],
+        month: DateTime.parse(m['month']),
+        net: _d(m['net']),
+        gross: m['gross'] == null ? null : _d(m['gross']),
+        paidOn: _date(m['paid_on']),
+        memo: m['memo'],
+      );
+}
+
+/// 고정비 «항목». 매달 반복되는 계획이라 월이 없다.
+///
+/// 할부도 여기 들어간다 — 할부는 «끝나는 날이 있는» 고정비일 뿐이다.
+/// [months] 가 있으면 할부, 없으면 계속 나가는 고정비.
+class BudgetItem {
+  final String id;
+  final String name;
+  final String category; // 고정비 | 할부 | 저축·투자 | 생활비
+  final double amount; // 매달 배정액
+  final int? payDay; // 며칠에 나가나
+  final int sortOrder;
+  final bool active;
+  final String? memo;
+
+  /// 첫 회차 달. 할부가 아니면 null.
+  final DateTime? startMonth;
+
+  /// 총 회차. null = 무기한(끝나지 않는 고정비).
+  final int? months;
+
+  /// 총액(원금+이자). 모르면 amount × months 로 대신 본다.
+  final double? total;
+
+  BudgetItem({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.amount,
+    this.payDay,
+    this.sortOrder = 0,
+    this.active = true,
+    this.memo,
+    this.startMonth,
+    this.months,
+    this.total,
+  });
+
+  static const categories = ['고정비', '할부', '저축·투자', '생활비'];
+
+  /// 끝나는 날이 정해져 있나.
+  bool get isInstallment => months != null && months! > 0 && startMonth != null;
+
+  /// 화면에서 «실제로» 묶이는 이름. 개월 수를 넣었으면 그게 할부다 —
+  /// 묶음을 따로 고르게 두면 안 골라서 고정비에 섞인다.
+  String get groupOf => isInstallment ? '할부' : category;
+
+  /// 마지막 회차 달. 12개월이면 시작월 + 11개월.
+  DateTime? get endMonth => !isInstallment
+      ? null
+      : DateTime(startMonth!.year, startMonth!.month + months! - 1);
+
+  /// [m] 이 시작월로부터 몇 번째 달인가 (0-based). 할부가 아니면 null.
+  int? _offset(DateTime m) => startMonth == null
+      ? null
+      : (m.year - startMonth!.year) * 12 + (m.month - startMonth!.month);
+
+  /// 이 달에 실제로 돈이 나가나. 시작 전·끝난 뒤면 false —
+  /// 그래야 그 달 배정 합계가 부풀지 않는다.
+  bool runsIn(DateTime m) {
+    if (!active) return false;
+    if (!isInstallment) {
+      // 시작월만 있는 경우(끝 없는 고정비)도 시작 전엔 안 나간다.
+      final o = _offset(m);
+      return o == null || o >= 0;
+    }
+    final o = _offset(m)!;
+    return o >= 0 && o < months!;
+  }
+
+  /// 「3/12회차」의 3. 이 달에 안 나가면 null.
+  int? roundIn(DateTime m) =>
+      isInstallment && runsIn(m) ? _offset(m)! + 1 : null;
+
+  /// 이 달 «포함» 앞으로 남은 회차. 이 달에 안 나가면 0.
+  int remainingRounds(DateTime m) {
+    if (!isInstallment) return 0;
+    final o = _offset(m)!;
+    if (o >= months!) return 0;
+    return months! - (o < 0 ? 0 : o);
+  }
+
+  /// 이 달 «포함» 앞으로 더 낼 돈.
+  double remainingAmount(DateTime m) => remainingRounds(m) * amount;
+
+  /// 총액. 안 적었으면 월납 × 회차로 본다.
+  double? get totalAmount =>
+      total ?? (isInstallment ? amount * months! : null);
+
+  factory BudgetItem.fromMap(Map<String, dynamic> m) => BudgetItem(
+        id: m['id'],
+        name: m['name'] ?? '',
+        category: m['category'] ?? '고정비',
+        amount: _d(m['amount']),
+        payDay: m['pay_day'] == null ? null : _i(m['pay_day']),
+        sortOrder: _i(m['sort_order']),
+        active: m['active'] != false,
+        memo: m['memo'],
+        startMonth: _date(m['start_month']),
+        months: m['months'] == null ? null : _i(m['months']),
+        total: m['total'] == null ? null : _d(m['total']),
+      );
+}
+
+/// 「그 항목에서 그 달에 실제로 쓴 돈」. 안 적은 달은 행이 없다(0).
+class BudgetSpend {
+  final String id;
+  final String itemId;
+  final DateTime month;
+  final double spent;
+  final String? memo;
+
+  BudgetSpend({
+    required this.id,
+    required this.itemId,
+    required this.month,
+    required this.spent,
+    this.memo,
+  });
+
+  factory BudgetSpend.fromMap(Map<String, dynamic> m) => BudgetSpend(
+        id: m['id'],
+        itemId: m['item_id'],
+        month: DateTime.parse(m['month']),
+        spent: _d(m['spent']),
+        memo: m['memo'],
+      );
+}
