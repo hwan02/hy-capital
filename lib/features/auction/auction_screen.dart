@@ -382,7 +382,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         4 => amber,
         5 => orange,
         6 => AppColors.gold,
-        9 => AppColors.sky,
+        9 => _teal,
+        11 => AppColors.violet,
         _ => AppColors.violet
       },
       action: switch (_tab) {
@@ -416,9 +417,17 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
           ModuleTab(
               label: '모아타운',
               icon: Icons.map_rounded,
-              color: AppColors.sky,
+              color: _teal,
               selected: _tab == 9,
               onTap: () => setState(() => _tab = 9)),
+          // 절차가 아예 달라 탭을 나눈다. 화면 안에서 또 고르게 두면
+          // 탭이 두 층이 되어 지금 뭘 보고 있는지 헷갈린다.
+          ModuleTab(
+              label: '신통기획',
+              icon: Icons.apartment_rounded,
+              color: AppColors.violet,
+              selected: _tab == 11,
+              onTap: () => setState(() => _tab = 11)),
           ModuleTab(
               label: '뉴스',
               icon: Icons.newspaper_rounded,
@@ -476,7 +485,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         ]),
         const Gap(18),
         if (_tab == 10) const NewsView(),
-        if (_tab == 9) const MoaTownView(),
+        if (_tab == 9) const MoaTownView(kind: '모아타운'),
+        if (_tab == 11) const MoaTownView(kind: '신통기획'),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const AuctionCalculator(),
