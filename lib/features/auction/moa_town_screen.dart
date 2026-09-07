@@ -201,13 +201,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ],
       ),
     );
-    if (ok != true) {
-      c.dispose();
-      return;
-    }
+    if (!mounted || ok != true) return;
     final v = double.tryParse(c.text.trim()) ?? 0;
-    c.dispose();
-    if (!mounted) return;
     try {
       await ref
           .read(supabaseProvider)
