@@ -40,18 +40,24 @@ const _locItems = <(String, String, String)>[
 int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).length;
 
 // 세부구역 상태 → (색·태그).
-// «조합설립인가 전»(관리계획 수립·공람·기획중·조합설립 진행중 등 A·B)은 전부 매수 가능(승계 가능).
-// «인가 후»(조합설립인가·사업시행·관리처분·이주·착공·준공)만 제외.
+// «인가 전»(수립·공람·기획중·동의서징구·조합설립 진행중·«인가 추진중» 등)은 매수 가능(승계 가능).
+// «인가 후·사업시행·시공사 선정» 등 더 진행된 것만 제외.
+// 주의: "조합설립인가 «추진중»"은 아직 인가 전 → 매수 가능(글자에 '인가'가 있어도).
 ({Color color, String tag}) _subInfo(String status) {
-  const doneWords = ['사업시행', '관리처분', '이주', '착공', '준공', '입주'];
+  const doneWords = [
+    '사업시행', '관리처분', '이주', '착공', '준공', '입주', '시공사', '시공자', '선정총회'
+  ];
   if (doneWords.any(status.contains)) {
     return (color: AppColors.textFaint, tag: '너무 진행');
   }
-  if (status.contains('조합설립인가') ||
-      (status.contains('인가') && !status.contains('진행'))) {
+  // 추진중·진행 중 = 아직 인가 전 = 매수 가능.
+  if (status.contains('추진') || status.contains('진행')) {
+    return (color: AppColors.primary, tag: '🟢 매수 가능');
+  }
+  // 인가 «완료»(추진/진행 아님) = 승계 제한.
+  if (status.contains('인가')) {
     return (color: AppColors.rose, tag: '인가·승계제한');
   }
-  // 그 외(수립·공람·기획중·동의서징구·조합설립 진행중 등) = 인가 전 = 매수 가능.
   return (color: AppColors.primary, tag: '🟢 매수 가능');
 }
 
