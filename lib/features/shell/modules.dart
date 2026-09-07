@@ -14,6 +14,7 @@ class ModuleDef {
 const kModules = <ModuleDef>[
   ModuleDef('/dashboard', 'Dashboard', Icons.dashboard_rounded, AppColors.primary),
   ModuleDef('/money', '자금 흐름', Icons.swap_horiz_rounded, AppColors.gold),
+  ModuleDef('/salary', '월급', Icons.payments_rounded, AppColors.primary),
   ModuleDef('/airbnb', 'Airbnb', Icons.house_rounded, AppColors.sky),
   ModuleDef('/shorts', 'Shorts', Icons.play_circle_fill_rounded, AppColors.rose),
   ModuleDef('/land', '토지', Icons.terrain_rounded, Color(0xFFB4844E)),

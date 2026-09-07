@@ -43,6 +43,8 @@ dependencies:
   gap: ^3.0.1
   http: ^1.6.0
   url_launcher: ^6.3.0
+  # 월급 화면 PIN — sha256(salt+pin) 만 저장한다
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

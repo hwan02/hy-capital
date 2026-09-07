@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/models.dart';
 import '../../models/custom.dart';
@@ -581,6 +582,9 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(booksProvider);
   ref.invalidate(planConditionsProvider);
   ref.invalidate(currentPhaseProvider);
+  ref.invalidate(salaryMonthsProvider);
+  ref.invalidate(budgetItemsProvider);
+  ref.invalidate(budgetSpendsProvider);
 }
 
 /// 강의 질문 기록 — qkey 로 바로 찾을 수 있게 Map 으로 준다.
@@ -692,3 +696,109 @@ final booksProvider = FutureProvider<List<Book>>((ref) async {
     return const <Book>[];
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// 월급 (0047)
+//
+// 다른 모듈처럼 통째로 삼키면 「테이블이 없다」와 「데이터가 없다」가
+// 화면에서 똑같아 보인다. 그러면 항목을 넣어보고 저장이 실패해야만
+// 원인을 안다. 그래서 «테이블 없음(42P01)» 만 그대로 던지고
+// (화면이 마이그레이션 안내를 띄운다) 나머지는 조용히 넘긴다.
+// ══════════════════════════════════════════════════════════════
+
+/// 테이블 자체가 없나. 이때만 사용자에게 알릴 값어치가 있다.
+bool _missingTable(Object e) =>
+    e is PostgrestException &&
+    (e.code == '42P01' || e.code == 'PGRST205' ||
+        e.message.contains('does not exist'));
+
+/// 월별 월급 — 최신 달이 먼저.
+final salaryMonthsProvider = FutureProvider<List<SalaryMonth>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return const [];
+  try {
+    final rows =
+        await sb.from('salary_months').select().order('month', ascending: false);
+    return rows.map<SalaryMonth>(SalaryMonth.fromMap).toList();
+  } catch (e) {
+    if (_missingTable(e)) rethrow;
+    return const <SalaryMonth>[];
+  }
+});
+
+/// 고정비 항목 — 화면 순서대로. 같은 sort_order 끼리 순서가 흔들리지
+/// 않도록 이름까지 내려가 못박는다.
+final budgetItemsProvider = FutureProvider<List<BudgetItem>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return const [];
+  try {
+    final rows =
+        await sb.from('budget_items').select().order('sort_order').order('name');
+    return rows.map<BudgetItem>(BudgetItem.fromMap).toList();
+  } catch (e) {
+    if (_missingTable(e)) rethrow;
+    return const <BudgetItem>[];
+  }
+});
+
+/// 월별 사용액 전부. 화면에서 (itemId, month) 로 찾아 쓴다.
+final budgetSpendsProvider = FutureProvider<List<BudgetSpend>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return const [];
+  try {
+    final rows = await sb.from('budget_spends').select();
+    return rows.map<BudgetSpend>(BudgetSpend.fromMap).toList();
+  } catch (e) {
+    if (_missingTable(e)) rethrow;
+    return const <BudgetSpend>[];
+  }
+});
+
+/// 잠금 설정. `null` = 잠금 없음(테이블이 없거나 PIN 미설정).
+final salaryLockProvider =
+    FutureProvider<({String hash, String salt})?>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final uid = sb.auth.currentUser?.id;
+  if (uid == null) return null;
+  try {
+    final row = await sb
+        .from('salary_lock')
+        .select()
+        .eq('user_id', uid)
+        .maybeSingle();
+    final h = row?['pin_hash'] as String?;
+    final s = row?['salt'] as String?;
+    if (h == null || s == null || h.isEmpty) return null;
+    return (hash: h, salt: s);
+  } catch (_) {
+    return null;
+  }
+});
+
+/// 켜고 끄는 값 하나. Riverpod 3 에서 StateProvider 가 legacy 로 빠져
+/// 대신 쓴다.
+class BoolFlag extends Notifier<bool> {
+  BoolFlag(this._init);
+  final bool _init;
+
+  @override
+  bool build() => _init;
+
+  void set(bool v) => state = v;
+  void toggle() => state = !state;
+}
+
+/// 이번 «세션»에 잠금을 풀었는지. 새로고침하면 false 로 돌아간다 —
+/// 저장해두면 잠금이 아무 의미가 없다.
+final salaryUnlockedProvider =
+    NotifierProvider<BoolFlag, bool>(() => BoolFlag(false));
+
+/// 월급 화면 금액을 가릴지. 기본은 «가림» (카드번호와 같은 규칙).
+final salaryMaskedProvider =
+    NotifierProvider<BoolFlag, bool>(() => BoolFlag(true));
+
+void invalidateSalary(WidgetRef ref) {
+  ref.invalidate(salaryMonthsProvider);
+  ref.invalidate(budgetItemsProvider);
+  ref.invalidate(budgetSpendsProvider);
+}
