@@ -194,6 +194,29 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  /// 자료 하나를 연다. PDF(비공개 버킷)는 서명URL을 만들어 미리보기, 링크는 바로 연다.
+  Future<void> _openDoc(Map<String, String> d) async {
+    final path = d['path'] ?? '';
+    if (path.isNotEmpty) {
+      try {
+        final bucket = d['bucket']?.isNotEmpty == true ? d['bucket']! : 'knowledge';
+        final signed = await ref
+            .read(supabaseProvider)
+            .storage
+            .from(bucket)
+            .createSignedUrl(path, 3600);
+        await _openUrl(signed);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('파일을 여는 데 실패했어요.')));
+        }
+      }
+      return;
+    }
+    await _openUrl(d['url'] ?? '');
+  }
+
   /// 구역에 «자료 링크»(구청 공고·기사 등)를 붙인다. PDF는 스토리지 URL을 넣으면 된다.
   Future<void> _addZoneDoc(Zone z) async {
     final titleCtl = TextEditingController();
@@ -782,7 +805,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             else
               for (final d in z.docs)
                 InkWell(
-                  onTap: () => _openUrl(d['url'] ?? ''),
+                  onTap: () => _openDoc(d),
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
