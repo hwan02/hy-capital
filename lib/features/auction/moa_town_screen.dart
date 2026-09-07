@@ -39,19 +39,20 @@ const _locItems = <(String, String, String)>[
 
 int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).length;
 
-// 세부구역 상태 → (색·태그). 타깃은 조합설립 «진행 중»(인가 전 = 승계 가능).
+// 세부구역 상태 → (색·태그).
+// «조합설립인가 전»(관리계획 수립·공람·기획중·조합설립 진행중 등 A·B)은 전부 매수 가능(승계 가능).
+// «인가 후»(조합설립인가·사업시행·관리처분·이주·착공·준공)만 제외.
 ({Color color, String tag}) _subInfo(String status) {
-  if (status.contains('사업시행') || status.contains('관리처분')) {
+  const doneWords = ['사업시행', '관리처분', '이주', '착공', '준공', '입주'];
+  if (doneWords.any(status.contains)) {
     return (color: AppColors.textFaint, tag: '너무 진행');
   }
   if (status.contains('조합설립인가') ||
       (status.contains('인가') && !status.contains('진행'))) {
     return (color: AppColors.rose, tag: '인가·승계제한');
   }
-  if (status.contains('조합설립') && status.contains('진행')) {
-    return (color: AppColors.primary, tag: '🟢 매수 가능');
-  }
-  return (color: AppColors.sky, tag: '');
+  // 그 외(수립·공람·기획중·동의서징구·조합설립 진행중 등) = 인가 전 = 매수 가능.
+  return (color: AppColors.primary, tag: '🟢 매수 가능');
 }
 
 /// 조합설립 «진행 중»(매수 가능) 세부구역 수.
@@ -200,13 +201,20 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true) {
+      c.dispose();
+      return;
+    }
     final v = double.tryParse(c.text.trim()) ?? 0;
-    await ref
-        .read(supabaseProvider)
-        .from('zones')
-        .update({'consent_rate': v}).eq('id', z.id);
-    ref.invalidate(zonesProvider);
+    c.dispose();
+    if (!mounted) return;
+    try {
+      await ref
+          .read(supabaseProvider)
+          .from('zones')
+          .update({'consent_rate': v}).eq('id', z.id);
+      ref.invalidate(zonesProvider);
+    } catch (_) {}
   }
 
   /// 입지 체크 항목 하나를 토글하고 DB에 저장한다.
