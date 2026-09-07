@@ -92,6 +92,27 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String? _district; // null = 서울 개요
   String? _openZoneId; // 펼친 구역
 
+  /// 구역 카드의 «자리». 위 요약에서 칩을 누르면 여기로 스크롤한다 —
+  /// 카드만 펼쳐두면 목록이 길어 어디가 열렸는지 못 찾는다.
+  final _zoneKeys = <String, GlobalKey>{};
+  GlobalKey _keyFor(String id) => _zoneKeys.putIfAbsent(id, GlobalKey.new);
+
+  /// 그 구역 카드를 펼치고 화면에 보이게 올린다.
+  void _jumpTo(String id) {
+    setState(() => _openZoneId = id);
+    // 펼친 «뒤»에 위치가 잡힌다 — 다음 프레임에 스크롤한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _zoneKeys[id]?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        alignment: 0.06, // 화면 위쪽에 붙인다
+      );
+    });
+  }
+
   /// 아파트 재건축까지 볼지. 기본은 «끔» — 빌라를 낙찰받는 게 목적이라
   /// 재건축 단지는 살 물건 자체가 없다. 신통에서만 뜻이 있다(모아는 전부
   /// 소규모 재개발).
@@ -492,20 +513,23 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 곳 수는 제목 옆에 붙인다 — 한 줄 아래 설명은 매번 읽을 게 아니다.
         Row(children: [
           Text('$_kind 신청지',
               style: TextStyle(
                   fontSize: AppFont.title,
                   fontWeight: FontWeight.w800,
                   color: _kindColor(_kind))),
+          const Gap(8),
+          Text('${zones.length}곳',
+              style: const TextStyle(
+                  fontSize: AppFont.title,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textSecondary)),
           const Spacer(),
           _RefreshBtn(onTap: _refresh),
         ]),
-        const Gap(2),
-        Text('${zones.length}곳 · 자치구를 눌러 구역 리스트로. · 캐시됨(⟳로 새로고침)',
-            style: const TextStyle(
-                fontSize: AppFont.caption, color: AppColors.textFaint)),
-        const Gap(10),
+        const Gap(12),
         _stageChips(),
         // 왜 이 구간인지 — 「가격이 뛰는 구간」(자료실 2026-08-31) 기준.
         if (_stageF >= 0) ...[
@@ -725,7 +749,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     for (final (z, s) in buyable)
                       InkWell(
-                        onTap: () => setState(() => _openZoneId = z.id),
+                        onTap: () => _jumpTo(z.id),
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -757,7 +781,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           );
         }),
         for (final z in list) ...[
-          _zoneCard(z, props, zones),
+          KeyedSubtree(
+              key: _keyFor(z.id), child: _zoneCard(z, props, zones)),
           const Gap(10),
         ],
       ],
