@@ -630,6 +630,77 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         const Gap(14),
         _stageChips(),
         const Gap(14),
+        // 「틈」 요약 — 이 자치구에서 지금 살 수 있는 세부구역만 평평하게 모아 앞에 띄운다.
+        Builder(builder: (_) {
+          final buyable = <(Zone, Map<String, String>)>[];
+          for (final z in list) {
+            for (final s in z.subs) {
+              if (_subInfo(s['status'] ?? '').tag.contains('매수 가능')) {
+                buyable.add((z, s));
+              }
+            }
+          }
+          if (buyable.isEmpty) return const SizedBox.shrink();
+          buyable.sort((a, b) => (int.tryParse(b.$2['rating'] ?? '') ?? 0)
+              .compareTo(int.tryParse(a.$2['rating'] ?? '') ?? 0));
+          String short(Zone z) => z.name
+              .replaceAll('번지 일대', '')
+              .replaceAll(' 일대', '')
+              .replaceAll('화곡1동 ', '')
+              .replaceAll('화곡6동 ', '')
+              .trim();
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('🟢 지금 살 수 있는 세부구역 ${buyable.length}개 · 조합설립 진행중(승계 가능)',
+                      style: const TextStyle(
+                          fontSize: AppFont.label,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary)),
+                  const Gap(9),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final (z, s) in buyable)
+                      InkWell(
+                        onTap: () => setState(() => _openZoneId = z.id),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.4))),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text('${short(z)} ${s['code']}',
+                                style: const TextStyle(
+                                    fontSize: AppFont.label,
+                                    fontWeight: FontWeight.w800)),
+                            if ((s['rating'] ?? '').isNotEmpty) ...[
+                              const Gap(5),
+                              Text('★${s['rating']}',
+                                  style: const TextStyle(
+                                      fontSize: AppFont.caption,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.gold)),
+                            ],
+                          ]),
+                        ),
+                      ),
+                  ]),
+                ]),
+          );
+        }),
         for (final z in list) ...[
           _zoneCard(z, props, zones),
           const Gap(10),
@@ -665,10 +736,12 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                       Row(children: [
                         Pill(z.kind, color: c),
                         const Gap(6),
-                        Pill('단계 ${z.stage} · ${z.stageLabel}',
-                            color: z.stage >= 3
-                                ? AppColors.gold
-                                : AppColors.sky),
+                        // 세부구역이 있으면 뭉뚱그린 단계 대신 세부 판정을 앞세운다.
+                        if (z.subs.isEmpty)
+                          Pill('단계 ${z.stage} · ${z.stageLabel}',
+                              color: z.stage >= 3
+                                  ? AppColors.gold
+                                  : AppColors.sky),
                         if (mine.isNotEmpty) ...[
                           const Gap(6),
                           Pill('물건 ${mine.length}', color: AppColors.primary),
@@ -693,6 +766,27 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           style: const TextStyle(
                               fontSize: AppFont.section,
                               fontWeight: FontWeight.w800)),
+                      // 되는 세부구역(조합설립 진행중)을 이름 밑에 바로 — 펼치지 않아도 보이게.
+                      if (z.subs.isNotEmpty && _buySubs(z) > 0) ...[
+                        const Gap(4),
+                        Wrap(spacing: 5, runSpacing: 4, children: [
+                          for (final s in z.subs.where((s) =>
+                              _subInfo(s['status'] ?? '').tag.contains('매수 가능')))
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(6)),
+                              child: Text(
+                                  '${s['code']}${(s['rating'] ?? '').isNotEmpty ? ' ★${s['rating']}' : ''}',
+                                  style: const TextStyle(
+                                      fontSize: AppFont.caption,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF04211D))),
+                            ),
+                        ]),
+                      ],
                       if (_nextJump(z) != null) ...[
                         const Gap(4),
                         Row(children: [
