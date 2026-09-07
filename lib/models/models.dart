@@ -1302,6 +1302,10 @@ class Zone {
   /// 구역에 붙인 자료 — [{title, url, type: 'pdf'|'link'}]. 카드에서 열람.
   final List<Map<String, String>> docs;
 
+  /// 세부구역 — [{code, status, rating}]. 한 구역이 A2-1·A3-1 등으로 쪼개져
+  /// 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
+  final List<Map<String, String>> subs;
+
   Zone({
     required this.id,
     required this.name,
@@ -1319,6 +1323,7 @@ class Zone {
     this.aliases = const [],
     this.locChecks = const {},
     this.docs = const [],
+    this.subs = const [],
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1401,6 +1406,11 @@ class Zone {
                 (k, v) => MapEntry(k.toString(), v == true)) ??
             const {},
         docs: (m['docs'] as List?)
+                ?.map((e) => (e as Map).map(
+                    (k, v) => MapEntry(k.toString(), (v ?? '').toString())))
+                .toList() ??
+            const [],
+        subs: (m['subs'] as List?)
                 ?.map((e) => (e as Map).map(
                     (k, v) => MapEntry(k.toString(), (v ?? '').toString())))
                 .toList() ??

@@ -39,6 +39,25 @@ const _locItems = <(String, String, String)>[
 
 int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).length;
 
+// 세부구역 상태 → (색·태그). 타깃은 조합설립 «진행 중»(인가 전 = 승계 가능).
+({Color color, String tag}) _subInfo(String status) {
+  if (status.contains('사업시행') || status.contains('관리처분')) {
+    return (color: AppColors.textFaint, tag: '너무 진행');
+  }
+  if (status.contains('조합설립인가') ||
+      (status.contains('인가') && !status.contains('진행'))) {
+    return (color: AppColors.rose, tag: '인가·승계제한');
+  }
+  if (status.contains('조합설립') && status.contains('진행')) {
+    return (color: AppColors.primary, tag: '🟢 매수 가능');
+  }
+  return (color: AppColors.sky, tag: '');
+}
+
+/// 조합설립 «진행 중»(매수 가능) 세부구역 수.
+int _buySubs(Zone z) =>
+    z.subs.where((s) => _subInfo(s['status'] ?? '').tag.contains('매수 가능')).length;
+
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
       'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
@@ -649,6 +668,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                 : _locDone(z) == 0
                                     ? AppColors.textFaint
                                     : AppColors.gold),
+                        if (z.subs.isNotEmpty) ...[
+                          const Gap(6),
+                          Pill('매수가능 ${_buySubs(z)}/${z.subs.length}',
+                              color: _buySubs(z) > 0
+                                  ? AppColors.primary
+                                  : AppColors.textFaint),
+                        ],
                       ]),
                       const Gap(8),
                       Text(unknown ? '동·번지 확인 전' : z.name,
@@ -833,6 +859,69 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 구역 지도
             _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
                 () => _openNaver(_zoneSeed(z)), _teal),
+            // 세부구역 — A2-1·A3-1… 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
+            if (z.subs.isNotEmpty) ...[
+              const Gap(12),
+              Row(children: [
+                const Icon(Icons.grid_view_rounded,
+                    size: 15, color: AppColors.gold),
+                const Gap(6),
+                Text('세부구역 · 매수가능 ${_buySubs(z)}/${z.subs.length}',
+                    style: const TextStyle(
+                        fontSize: AppFont.label,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.gold)),
+              ]),
+              const Gap(6),
+              for (final s in z.subs)
+                Builder(builder: (_) {
+                  final info = _subInfo(s['status'] ?? '');
+                  final rating = s['rating'] ?? '';
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 44,
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            margin: const EdgeInsets.only(right: 8, top: 1),
+                            decoration: BoxDecoration(
+                                color: info.color.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6)),
+                            child: Text(s['code'] ?? '',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: AppFont.label,
+                                    fontWeight: FontWeight.w800,
+                                    color: info.color)),
+                          ),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(s['status'] ?? '',
+                                      style: TextStyle(
+                                          fontSize: AppFont.label,
+                                          fontWeight: FontWeight.w700,
+                                          color: info.color,
+                                          height: 1.3)),
+                                  if (info.tag.isNotEmpty ||
+                                      rating.isNotEmpty)
+                                    Text(
+                                        [
+                                          if (info.tag.isNotEmpty) info.tag,
+                                          if (rating.isNotEmpty)
+                                            '★' * (int.tryParse(rating) ?? 0)
+                                        ].join('  '),
+                                        style: TextStyle(
+                                            fontSize: AppFont.caption,
+                                            color: info.color)),
+                                ]),
+                          ),
+                        ]),
+                  );
+                }),
+            ],
             const Gap(12),
             // 자료 — 구청 공고·구역계 PDF·기사 링크. 눌러서 열람·미리보기.
             Row(children: [
