@@ -51,7 +51,7 @@ class SalaryScreen extends ConsumerWidget {
 
     return lock.when(
       loading: () => const _Shell(children: [SizedBox.shrink()]),
-      error: (_, __) => const _SalaryBody(),
+      error: (_, _) => const _SalaryBody(),
       data: (l) {
         // 잠금이 없으면 바로 본문. 있으면 세션에서 한 번 풀어야 한다.
         if (l == null || unlocked) return const _SalaryBody();
@@ -521,11 +521,29 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
               masked ? Icons.visibility_off_rounded : Icons.visibility_rounded,
               color: masked ? AppColors.textFaint : _salaryColor),
         ),
+        // 아이콘만 두니 어디서 비밀번호를 거는지 못 찾았다 — 글자를 붙인다.
+        // (PopupMenuButton 은 icon 과 child 를 동시에 못 준다)
         PopupMenuButton<String>(
           tooltip: '잠금',
-          icon: Icon(hasLock ? Icons.lock_rounded : Icons.lock_open_rounded,
-              color: hasLock ? _salaryColor : AppColors.textFaint),
           color: AppColors.surfaceAlt,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: (hasLock ? _salaryColor : AppColors.gold)
+                  .withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(hasLock ? Icons.lock_rounded : Icons.lock_open_rounded,
+                  size: 15, color: hasLock ? _salaryColor : AppColors.gold),
+              const Gap(6),
+              Text(hasLock ? '잠금 켜짐' : '잠금 설정',
+                  style: TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w800,
+                      color: hasLock ? _salaryColor : AppColors.gold)),
+            ]),
+          ),
           onSelected: (v) {
             switch (v) {
               case 'set':
@@ -552,7 +570,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
         if (items.hasError || salaries.hasError)
           const _MigrationNotice()
         else
-          _build(salaries, items, spends, won, masked),
+          _build(salaries, items, spends, won, masked, hasLock),
       ],
     );
   }
@@ -563,6 +581,7 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
     AsyncValue<List<BudgetSpend>> spends,
     String Function(double) won,
     bool masked,
+    bool hasLock,
   ) {
     if (salaries.isLoading || items.isLoading || spends.isLoading) {
       return AsyncStatus.loading();
@@ -620,14 +639,86 @@ class _SalaryBodyState extends ConsumerState<_SalaryBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── 월 선택 ─────────────────────────────────────────
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final m in months.take(14))
-            _Chip(
-              label: Dates.ym(m),
-              selected: m.year == _month.year && m.month == _month.month,
-              onTap: () => setState(() => _month = m),
+        // ── 잠금이 없으면 «화면 안에서» 걸 수 있게 ───────────
+        // 헤더 아이콘만으로는 못 찾는다. 안 걸었을 때만 뜬다.
+        if (!hasLock)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: GlassCard(
+              accent: AppColors.gold,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              child: Row(children: [
+                const Icon(Icons.lock_open_rounded,
+                    size: 20, color: AppColors.gold),
+                const Gap(12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('이 화면은 아직 안 잠겨 있습니다',
+                          style: TextStyle(
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.gold)),
+                      Gap(3),
+                      Text('비밀번호를 걸면 들어올 때마다 물어봅니다.',
+                          style: TextStyle(
+                              fontSize: AppFont.label,
+                              color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: const Color(0xFF1B1400),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10)),
+                  onPressed: _setPin,
+                  icon: const Icon(Icons.lock_rounded, size: 17),
+                  label: const Text('비밀번호 걸기',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ]),
             ),
+          ),
+
+        // ── 월 선택 ─────────────────────────────────────────
+        // 화살표로 «어느 달이든» 간다. 칩만 두면 기록이 있는 달에만
+        // 갈 수 있어 지난 달을 새로 넣을 수가 없다.
+        Row(children: [
+          _NavBtn(
+            icon: Icons.chevron_left_rounded,
+            tooltip: '지난 달',
+            onTap: () => setState(
+                () => _month = DateTime(_month.year, _month.month - 1)),
+          ),
+          const Gap(8),
+          Expanded(
+            child: Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final m in months.take(14))
+                _Chip(
+                  label: Dates.ym(m),
+                  selected: m.year == _month.year && m.month == _month.month,
+                  onTap: () => setState(() => _month = m),
+                ),
+              // 이번 달에서 멀어졌으면 돌아올 길을 준다.
+              if (_month != _thisMonth())
+                _Chip(
+                  label: '이번 달',
+                  selected: false,
+                  onTap: () => setState(() => _month = _thisMonth()),
+                ),
+            ]),
+          ),
+          const Gap(8),
+          _NavBtn(
+            icon: Icons.chevron_right_rounded,
+            tooltip: '다음 달',
+            onTap: () => setState(
+                () => _month = DateTime(_month.year, _month.month + 1)),
+          ),
         ]),
         const Gap(16),
 
@@ -1177,6 +1268,34 @@ class _ItemRow extends StatelessWidget {
         ),
         RecordMenu(onEdit: onEdit, onDelete: onDelete),
       ]),
+    );
+  }
+}
+
+/// 월을 앞뒤로 넘기는 버튼.
+class _NavBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _NavBtn(
+      {required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Icon(icon, size: 22, color: AppColors.textSecondary),
+          ),
+        ),
+      ),
     );
   }
 }
