@@ -400,3 +400,34 @@ bool isRebuild(String name) {
   if (_reBunji.hasMatch(name)) return false;
   return true;
 }
+
+// ══════════════════════════════════════════════════════════
+// 「후계공통승」 — 모아타운 관리계획 지정 절차
+// ══════════════════════════════════════════════════════════
+//
+//   후 보지 선정 → 계 획 수립 → 공 람(14일) → 통 합심의 → 승 인고시
+//
+// 앱의 단계 축(12칸)과 «칸 수가 다르다». 주민공람은 별도 칸이 아니라
+// 관리계획 수립(4)과 통합심의(5) 사이에 끼는 14일짜리 절차다. 칸을 늘리면
+// 이미 저장된 353개 구역의 단계가 통째로 밀리므로, 축은 그대로 두고
+// «어느 칸이 어느 글자인지»만 얹는다.
+class MoaStep {
+  final String letter;
+  final String label;
+
+  /// 이 절차가 벌어지는 축의 칸. 공람은 4번 칸 «안»에서 일어난다.
+  final int stage;
+  const MoaStep(this.letter, this.label, this.stage);
+}
+
+const kMoaSteps = <MoaStep>[
+  MoaStep('후', '후보지 선정', 3),
+  MoaStep('계', '관리계획 수립', 4),
+  MoaStep('공', '주민공람 14일', 4),
+  MoaStep('통', '통합심의', 5),
+  MoaStep('승', '관리계획 승인고시', 6),
+];
+
+/// 그 칸에 붙는 글자들. 4번 칸은 「계·공」 둘이다.
+String moaLetters(int stage) =>
+    kMoaSteps.where((s) => s.stage == stage).map((s) => s.letter).join('·');

@@ -711,17 +711,20 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         const Gap(14),
         // 「틈」 요약 — 이 자치구에서 지금 살 수 있는 세부구역만 평평하게 모아 앞에 띄운다.
         Builder(builder: (_) {
+          // 별 순위로 줄 세우면 같은 일대가 흩어져, 「어디를 볼지」가 아니라
+          // 「이건 어느 구역이지」를 매번 되짚게 된다. 구역끼리 붙이고
+          // 순서는 «아래 카드와 같게» 둔다 — 눌러서 내려가면 그 순서다.
           final buyable = <(Zone, Map<String, String>)>[];
           for (final z in list) {
-            for (final s in z.subs) {
-              if (_subInfo(s['status'] ?? '').tag.contains('매수 가능')) {
-                buyable.add((z, s));
-              }
+            final mineSubs = [
+              for (final s in z.subs)
+                if (_subInfo(s['status'] ?? '').tag.contains('매수 가능')) s
+            ]..sort((a, b) => (a['code'] ?? '').compareTo(b['code'] ?? ''));
+            for (final s in mineSubs) {
+              buyable.add((z, s));
             }
           }
           if (buyable.isEmpty) return const SizedBox.shrink();
-          buyable.sort((a, b) => (int.tryParse(b.$2['rating'] ?? '') ?? 0)
-              .compareTo(int.tryParse(a.$2['rating'] ?? '') ?? 0));
           String short(Zone z) => z.name
               .replaceAll('번지 일대', '')
               .replaceAll(' 일대', '')
@@ -1410,6 +1413,24 @@ class _StageLadder extends StatelessWidget {
                 style: TextStyle(
                     fontSize: AppFont.label, color: AppColors.textFaint)),
           ]),
+          // 모아타운 관리계획 절차 — 「후계공통승」.
+          // 축(12칸)과 칸 수가 달라 «어느 칸이 어느 글자인지»만 얹는다.
+          if (!_sin) ...[
+            const Gap(10),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (var i = 0; i < kMoaSteps.length; i++) ...[
+                _StepChip(step: kMoaSteps[i]),
+                if (i < kMoaSteps.length - 1)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text('›',
+                        style: TextStyle(
+                            fontSize: AppFont.body,
+                            color: AppColors.textFaint)),
+                  ),
+              ],
+            ]),
+          ],
           const Gap(12),
           // 축이 모아 12칸 · 신통 11칸이라 한 줄에 안 들어간다.
           // 가로 스크롤은 브라우저 뒤로가기와 충돌하므로 «줄바꿈»으로 간다.
@@ -1498,7 +1519,13 @@ class _StageLadder extends StatelessWidget {
               color: has ? c : c.withValues(alpha: 0.25),
               width: has ? 1.3 : 1),
         ),
-        child: Text(has ? '$stage · $n곳' : '$stage',
+        child: Text(
+            _sin
+                ? (has ? '$stage · $n곳' : '$stage')
+                : [
+                    if (moaLetters(stage).isNotEmpty) moaLetters(stage),
+                    has ? '$stage · $n곳' : '$stage',
+                  ].join(' '),
             style: TextStyle(
                 fontSize: AppFont.body,
                 fontWeight: FontWeight.w900,
@@ -1663,6 +1690,38 @@ class _VisitBtn extends StatelessWidget {
                   color: on ? AppColors.gold : AppColors.textSecondary)),
         ]),
       ),
+    );
+  }
+}
+
+/// 「후계공통승」 한 글자. 글자와 뜻을 같이 둬야 외운 게 뭔지 안다.
+class _StepChip extends StatelessWidget {
+  final MoaStep step;
+  const _StepChip({required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    // 매수 자리(관리계획 수립·공람)만 초록으로 띄운다.
+    final buy = bandOfStage(step.stage) == BuyBand.early;
+    final c = buy ? AppColors.primary : AppColors.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: buy ? c.withValues(alpha: 0.14) : AppColors.surfaceAlt,
+        border: Border.all(color: buy ? c : AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(step.letter,
+            style: TextStyle(
+                fontSize: AppFont.body, fontWeight: FontWeight.w900, color: c)),
+        const Gap(6),
+        Text(step.label,
+            style: TextStyle(
+                fontSize: AppFont.body,
+                fontWeight: FontWeight.w600,
+                color: buy ? c : AppColors.textSecondary)),
+      ]),
     );
   }
 }
