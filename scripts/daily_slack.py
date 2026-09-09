@@ -6,6 +6,7 @@
   · 공모주   오늘 청약 마감/시작 · 상장 · 환불 (마감이 제일 급하다)
   · 부동산   입찰일 D-7 이내 · 잔금·명도 기한
   · 모아타운 주민공람 공고 — 공람이 뜨면 통합심의 임박 = «마지막 매수 기회»
+  · 뉴스     모아타운·신통기획 기사 — 한 번 보낸 건 다시 안 보낸다
 
 webhook 은 env.local.json 의 SLACK_WEBHOOK 에서 읽는다.
 저장소는 공개이므로 코드에 넣지 않는다.
@@ -33,7 +34,8 @@ CATS = {'fire': '🔥', 'film': '🎬', 'mind': '🤯',
 
 # 어떤 섹션을 슬랙으로 보낼지 켜고 끈다. 「뉴스만 일단」 방침으로
 # Shorts·부동산은 꺼둔다. 다시 켜려면 True 로 바꾸면 된다.
-SECTIONS = {'ipo': True, 'shorts': False, 'realestate': False, 'moa': True}
+SECTIONS = {'ipo': True, 'shorts': False, 'realestate': False,
+            'moa': True, 'news': True}
 
 
 def env():
@@ -189,7 +191,42 @@ def build(token, today):
     except Exception as ex:  # noqa: BLE001
         print(f'  공람 조회 실패: {ex}', file=sys.stderr)
 
+    # ── 모아타운·신통 뉴스 ──────────────────────────────────
+    # 전에는 이 섹션이 «아예 없었다». 뉴스가 안 오던 게 아니라 안 찾았다.
+    # 한 번 보낸 기사는 news_digest 에 남겨 다시 안 보낸다.
+    try:
+        import news_watch
+        fresh = news_watch.new_items(lambda p: get(p, token), None, today)
+        n_lines = news_watch.slack_lines(fresh)
+        if n_lines and SECTIONS['news']:
+            lines.append(('📰 정비사업 뉴스', n_lines))
+            # 보낸 것만 기록한다 — 잘려서 «안 보낸» 기사는 내일 다시 후보다.
+            _remember(token, fresh[:8])
+    except Exception as ex:  # noqa: BLE001
+        print(f'  뉴스 조회 실패: {ex}', file=sys.stderr)
+
     return lines
+
+
+def _remember(token, items):
+    """보낸 기사를 news_digest 에 남긴다. url 이 unique 라 중복은 무시된다."""
+    if not items:
+        return
+    body = [{'url': i['url'], 'title': i['title'][:300],
+             'source': i.get('source'), 'topic': i.get('topic'),
+             'published_on': (i['published_on'].isoformat()
+                              if i.get('published_on') else None)}
+            for i in items]
+    req = u.Request(URL + '/rest/v1/news_digest', method='POST',
+                    data=json.dumps(body).encode())
+    req.add_header('apikey', ANON)
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('Prefer', 'resolution=ignore-duplicates,return=minimal')
+    try:
+        u.urlopen(req, timeout=30)
+    except Exception as ex:  # noqa: BLE001
+        print(f'  뉴스 기록 실패: {ex}', file=sys.stderr)
 
 
 def main():

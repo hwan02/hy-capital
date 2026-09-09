@@ -1413,29 +1413,13 @@ class _StageLadder extends StatelessWidget {
                 style: TextStyle(
                     fontSize: AppFont.label, color: AppColors.textFaint)),
           ]),
-          // 모아타운 관리계획 절차 — 「후계공통승」.
-          // 축(12칸)과 칸 수가 달라 «어느 칸이 어느 글자인지»만 얹는다.
-          if (!_sin) ...[
-            const Gap(10),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              for (var i = 0; i < kMoaSteps.length; i++) ...[
-                _StepChip(step: kMoaSteps[i]),
-                if (i < kMoaSteps.length - 1)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Text('›',
-                        style: TextStyle(
-                            fontSize: AppFont.body,
-                            color: AppColors.textFaint)),
-                  ),
-              ],
-            ]),
-          ],
+          // 「후계공통승」은 칸마다 글자로 얹혀 있다(후 3 · 계 4 · 공 5 …).
+          // 위에 줄을 하나 더 깔면 같은 걸 두 번 읽게 돼서 뺐다.
           const Gap(12),
           // 축이 모아 12칸 · 신통 11칸이라 한 줄에 안 들어간다.
           // 가로 스크롤은 브라우저 뒤로가기와 충돌하므로 «줄바꿈»으로 간다.
           LayoutBuilder(builder: (context, c) {
-            final last = sin ? 11 : 12;
+            final last = sin ? 11 : 13;
             const gap = 6.0;
             // 한 줄에 6칸씩 — 라벨이 두 줄까지 들어가는 너비.
             // 칸이 넓어야 글씨를 키울 수 있다. 넓은 화면도 4칸까지만.
@@ -1486,6 +1470,18 @@ class _StageLadder extends StatelessWidget {
                   fontSize: AppFont.label,
                   color: AppColors.rose,
                   height: 1.55)),
+          const Gap(3),
+          // 「진입 불가」에 «구멍»이 하나 있다. 이걸 모르면 조합설립 난 구역을
+          // 통째로 버리게 되는데, 실제로 경매에서 노릴 자리는 여기다.
+          const Text(
+              '단, 조합설립 «이후»라도 국가·지자체·금융기관 채무로 넘어간 '
+              '«경매·공매» 물건은 승계가 된다 — 양도제한의 법정 예외다. '
+              '경매정보에서 «채권자»가 은행·공공기관인지 먼저 본다.',
+              style: TextStyle(
+                  fontSize: AppFont.label,
+                  color: AppColors.primary,
+                  height: 1.55,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -1694,34 +1690,3 @@ class _VisitBtn extends StatelessWidget {
   }
 }
 
-/// 「후계공통승」 한 글자. 글자와 뜻을 같이 둬야 외운 게 뭔지 안다.
-class _StepChip extends StatelessWidget {
-  final MoaStep step;
-  const _StepChip({required this.step});
-
-  @override
-  Widget build(BuildContext context) {
-    // 매수 자리(관리계획 수립·공람)만 초록으로 띄운다.
-    final buy = bandOfStage(step.stage) == BuyBand.early;
-    final c = buy ? AppColors.primary : AppColors.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: buy ? c.withValues(alpha: 0.14) : AppColors.surfaceAlt,
-        border: Border.all(color: buy ? c : AppColors.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(step.letter,
-            style: TextStyle(
-                fontSize: AppFont.body, fontWeight: FontWeight.w900, color: c)),
-        const Gap(6),
-        Text(step.label,
-            style: TextStyle(
-                fontSize: AppFont.body,
-                fontWeight: FontWeight.w600,
-                color: buy ? c : AppColors.textSecondary)),
-      ]),
-    );
-  }
-}
