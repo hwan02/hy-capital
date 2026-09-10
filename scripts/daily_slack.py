@@ -75,7 +75,7 @@ def won(n):
     return f'{man:,}만'
 
 
-def build(token, today):
+def build(token, today, record=True):
     """섹션 목록을 만든다. 비어 있으면 보낼 게 없다는 뜻."""
     lines = []
 
@@ -201,7 +201,10 @@ def build(token, today):
         if n_lines and SECTIONS['news']:
             lines.append(('📰 정비사업 뉴스', n_lines))
             # 보낸 것만 기록한다 — 잘려서 «안 보낸» 기사는 내일 다시 후보다.
-            _remember(token, fresh[:8])
+            # --dry 는 기록하지 않는다. 화면으로만 본 걸 「보냈다」고 남기면
+            # 진짜 발송 때 그 기사들이 통째로 빠진다.
+            if record:
+                _remember(token, fresh[:8])
     except Exception as ex:  # noqa: BLE001
         print(f'  뉴스 조회 실패: {ex}', file=sys.stderr)
 
@@ -235,7 +238,7 @@ def main():
     e = env()
     token = login(e)
     today = datetime.date.today().isoformat()
-    sections = build(token, today)
+    sections = build(token, today, record=not dry)
 
     if not sections and not force:
         print(f'{today} — 보낼 것 없음 (슬랙 미발송)')
