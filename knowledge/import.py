@@ -12,14 +12,27 @@ JSON 포맷 (둘 다 지원):
   1) Q&A  : {"meta": {...}, "items": [{"question","answer","asker","tags",...}]}
   2) 일반 : {"meta": {...}, "items": [{"title","body","tags",...}]}
 """
-import json, sys, glob, os, urllib.request
+import json, sys, glob, os, urllib.request, urllib.error
 
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJia3Ntam5"
         "mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMsImV4cCI6MjEwMTMwODM1M30"
         ".v7a-ZkdHr0neEwRuZBveCROrs6J80bVeBFd2jN4LGUI")
-EMAIL = os.environ.get("HY_EMAIL", "demo@hycapital.app")
-PW = os.environ.get("HY_PASSWORD", "")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _local_env():
+    """env.local.json(gitignore) 의 앱 계정. daily_slack.py 와 같은 파일을 쓴다."""
+    try:
+        with open(os.path.join(ROOT, "env.local.json")) as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001 — 없으면 환경변수로 간다
+        return {}
+
+
+_E = _local_env()
+EMAIL = os.environ.get("HY_EMAIL") or _E.get("AUTO_EMAIL") or "demo@hycapital.app"
+PW = os.environ.get("HY_PASSWORD") or _E.get("AUTO_PASSWORD") or ""
 
 
 def api(path, method="GET", body=None, token=None):
@@ -31,14 +44,21 @@ def api(path, method="GET", body=None, token=None):
     if body is not None:
         req.add_header("Prefer", "return=representation")
         body = json.dumps(body).encode()
-    with urllib.request.urlopen(req, body) as r:
-        raw = r.read()
-        return json.loads(raw) if raw else None
+    try:
+        with urllib.request.urlopen(req, body) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as ex:
+        # 본문을 안 보여주면 「400」만 남아서 원인을 알 수 없다.
+        detail = ex.read().decode("utf-8", "replace")[:400]
+        raise SystemExit(f"{method} {path} → HTTP {ex.code}\n  {detail}") from None
 
 
 def login():
     if not PW:
-        sys.exit("환경변수 HY_PASSWORD 를 설정해주세요.  예: HY_PASSWORD=xxx python3 knowledge/import.py")
+        sys.exit("계정을 찾을 수 없습니다. env.local.json 에 AUTO_EMAIL/AUTO_PASSWORD 가 있거나\n"
+                 "  HY_PASSWORD=xxx python3 knowledge/import.py 로 넘겨주세요.")
+    print(f"로그인: {EMAIL}")
     tok = api("/auth/v1/token?grant_type=password", "POST",
               {"email": EMAIL, "password": PW})
     return tok["access_token"], api("/auth/v1/user", token=tok["access_token"])["id"]
