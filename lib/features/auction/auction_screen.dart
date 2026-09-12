@@ -19,7 +19,7 @@ import '../knowledge/knowledge_screen.dart';
 import '../questions/lecture_questions_screen.dart';
 import 'auction_paste.dart';
 import 'buy_band.dart';
-import 'auction_calculator.dart';
+import 'calculator_tab.dart';
 import 'tax_timeline.dart';
 import 'redevelopment_flow.dart';
 import 'moa_town_screen.dart';
@@ -583,7 +583,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         if (_tab == 12) const VisitPlanView(),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
-        if (_tab == 6) const AuctionCalculator(),
+        if (_tab == 6) const CalculatorTab(),
         if (_tab == 5) const LectureQuestionsView(),
         if (_tab == 4) const KnowledgeView(excludeTag: '에어비앤비'),
         if (_tab == 3) const CriteriaView(),

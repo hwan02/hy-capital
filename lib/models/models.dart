@@ -512,6 +512,12 @@ class CalcRecord {
     required this.createdAt,
   });
   double num_(String k) => (inputs[k] as num?)?.toDouble() ?? 0;
+  String str_(String k) => inputs[k] as String? ?? '';
+
+  /// 어느 계산기에서 나온 이력인가 — 'auction'(경매) | 'redev'(정비구역).
+  /// 컬럼을 늘리지 않으려고 inputs 안에 넣는다. 없으면 옛 경매 이력.
+  String get kind => inputs['_kind'] as String? ?? 'auction';
+
   factory CalcRecord.fromMap(Map<String, dynamic> m) => CalcRecord(
         id: m['id'],
         label: m['label'] ?? '',

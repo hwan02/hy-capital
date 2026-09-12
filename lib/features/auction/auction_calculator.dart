@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
-import '../../core/data/data_providers.dart';
+import '../../core/edit/plain_controller.dart';
 import '../../core/format/formatters.dart';
-import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
-import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
-import '../../core/edit/plain_controller.dart';
+import 'calc_fields.dart';
+import 'calc_history.dart';
 
 /// 부동산 경매 수익률 계산기 — 월세/전세/매도 3시나리오.
 /// 계산 결과를 이력으로 저장/수정/삭제할 수 있다(calc_records).
@@ -82,35 +80,12 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
   }
 
   Future<void> _save() async {
-    final sb = ref.read(supabaseProvider);
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
-    final body = {'label': _label.text.trim().isEmpty ? '계산 ${DateTime.now().toString().substring(5, 16)}' : _label.text.trim(), 'inputs': _inputs()};
-    try {
-      if (_editingId != null) {
-        await sb.from('calc_records').update(body).eq('id', _editingId!);
-      } else {
-        final row = await sb.from('calc_records').insert({'user_id': uid, ...body}).select().single();
-        _editingId = row['id'] as String;
-      }
-      ref.invalidate(calcRecordsProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('계산 이력 저장됨'), backgroundColor: AppColors.gold));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('저장 실패: $e'), backgroundColor: AppColors.rose));
-      }
-    }
-  }
-
-  Future<void> _delete(String id) async {
-    final sb = ref.read(supabaseProvider);
-    await sb.from('calc_records').delete().eq('id', id);
-    if (_editingId == id) _editingId = null;
-    ref.invalidate(calcRecordsProvider);
+    final id = await saveCalcRecord(context, ref,
+        kind: 'auction',
+        label: _label.text,
+        inputs: _inputs(),
+        editingId: _editingId);
+    if (mounted && id != null) setState(() => _editingId = id);
   }
 
   // ── 계산 ──
@@ -128,10 +103,13 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
   double get profitWol => incomeWol - (loanInterest + mgmt + etc);
   double get yieldWol => netWol > 0 ? profitWol / netWol * 100 : 0;
   double get profitSale => sale - totalInvest - capTax;
+  /// 매도 수익률 — 분모는 «실투자금»(내 돈). 월세 수익률과 같은 기준.
+  double get yieldSale => ownCapital > 0 ? profitSale / ownCapital * 100 : 0;
+  /// 전세가율. 갭투자 판단에 쓴다.
+  double get jeonseRate => bid > 0 ? jeonse / bid * 100 : 0;
 
   @override
   Widget build(BuildContext context) {
-    final history = ref.watch(calcRecordsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -187,43 +165,44 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
             const SectionHeader('초기투자비'),
             const Gap(14),
             ResponsiveGrid(minTileWidth: 150, spacing: 10, children: [
-              _money('낙찰가', bid, (v) => setState(() => bid = v)),
-              _pct('은행대출 비율', loanPct, (v) => setState(() => loanPct = v)),
-              _pct('취득세율', acqPct, (v) => setState(() => acqPct = v)),
-              _money('법무비용', legal, (v) => setState(() => legal = v)),
-              _money('인수 보증금', takeover, (v) => setState(() => takeover = v)),
-              _money('이사비(도비)', moving, (v) => setState(() => moving = v)),
-              _money('미납관리비', unpaid, (v) => setState(() => unpaid = v)),
-              _money('수리비', repair, (v) => setState(() => repair = v)),
-              _money('중개비', agent, (v) => setState(() => agent = v)),
+              calcMoney('낙찰가', bid, (v) => setState(() => bid = v), _revision),
+              calcPct('은행대출 비율', loanPct, (v) => setState(() => loanPct = v), _revision),
+              calcPct('취득세율', acqPct, (v) => setState(() => acqPct = v), _revision),
+              calcMoney('법무비용', legal, (v) => setState(() => legal = v), _revision),
+              calcMoney('인수 보증금', takeover, (v) => setState(() => takeover = v), _revision),
+              calcMoney('이사비(도비)', moving, (v) => setState(() => moving = v), _revision),
+              calcMoney('미납관리비', unpaid, (v) => setState(() => unpaid = v), _revision),
+              calcMoney('수리비', repair, (v) => setState(() => repair = v), _revision),
+              calcMoney('중개비', agent, (v) => setState(() => agent = v), _revision),
             ]),
             const Gap(14),
-            _calc('입찰보증금 (낙찰가 10%)', bid * 0.1),
-            _calc('은행대출', loan),
-            _calc('취득세', acqTax),
-            _calc('총비용', costTotal),
+            calcRow('입찰보증금 (낙찰가 10%)', bid * 0.1),
+            calcRow('은행대출', loan),
+            calcRow('취득세', acqTax),
+            calcRow('총비용', costTotal),
             const Divider(height: 20, color: AppColors.border),
-            _calc('총자기자본', ownCapital, strong: true, color: AppColors.gold),
-            _calc('총투자금액', totalInvest, strong: true, color: AppColors.gold),
+            calcRow('총자기자본', ownCapital, strong: true, color: AppColors.gold),
+            calcRow('총투자금액', totalInvest, strong: true, color: AppColors.gold),
           ]),
         ),
         const Gap(14),
 
         _scenario('월세', Icons.calendar_view_month_rounded, AppColors.sky,
           inputs: [
-            _money('월세 보증금', wolDeposit, (v) => setState(() => wolDeposit = v)),
-            _money('월세(월)', wolMonthly, (v) => setState(() => wolMonthly = v)),
-            _pct('대출이자(연)', loanRate, (v) => setState(() => loanRate = v)),
-            _money('관리·운영비', mgmt, (v) => setState(() => mgmt = v)),
-            _money('기타지출', etc, (v) => setState(() => etc = v)),
+            calcMoney('월세 보증금', wolDeposit, (v) => setState(() => wolDeposit = v), _revision),
+            calcMoney('월세(월)', wolMonthly, (v) => setState(() => wolMonthly = v), _revision),
+            calcPct('대출이자(연)', loanRate, (v) => setState(() => loanRate = v), _revision),
+            calcMoney('관리·운영비', mgmt, (v) => setState(() => mgmt = v), _revision),
+            calcMoney('기타지출', etc, (v) => setState(() => etc = v), _revision),
           ],
           rows: [('실투자금', netWol, false), ('연 임대수입', incomeWol, false), ('대출이자(연)', loanInterest, false), ('연 순수익', profitWol, true)],
           tailLabel: '연 수익률', tailValue: '${yieldWol.toStringAsFixed(1)}%'),
         const Gap(14),
 
         _scenario('전세 (플피)', Icons.account_balance_wallet_rounded, AppColors.violet,
-          inputs: [_money('전세 보증금', jeonse, (v) => setState(() => jeonse = v))],
+          inputs: [calcMoney('전세 보증금', jeonse, (v) => setState(() => jeonse = v), _revision)],
           rows: [('총투자금액', totalInvest, false), ('전세 보증금', jeonse, false), (netJeonse <= 0 ? '플피 (남는 돈)' : '실투자금', netJeonse.abs(), true)],
+          extra: bid > 0 ? calcTextRow('전세가율 (낙찰가 대비)', '${jeonseRate.toStringAsFixed(1)}%') : null,
           tailLabel: netJeonse <= 0 ? '판정' : '실투자금',
           tailValue: netJeonse <= 0 ? '플피 성공' : '${Won.compact(netJeonse)}원',
           tailColor: netJeonse <= 0 ? AppColors.primary : AppColors.gold),
@@ -231,70 +210,38 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
 
         _scenario('매도 (차익)', Icons.sell_rounded, AppColors.primary,
           inputs: [
-            _money('매도 가격', sale, (v) => setState(() => sale = v)),
-            _pct('양도세율', capGainPct, (v) => setState(() => capGainPct = v)),
+            calcMoney('매도 가격', sale, (v) => setState(() => sale = v), _revision),
+            calcPct('양도세율', capGainPct, (v) => setState(() => capGainPct = v), _revision),
           ],
           rows: [('총투자금액', totalInvest, false), ('시세차익(과표)', capGain, false), ('양도소득세', capTax, false), ('세후 시세차익', profitSale, true)],
+          extra: calcTextRow('세후 수익률 (실투자금 대비)',
+              ownCapital > 0 ? '${yieldSale.toStringAsFixed(1)}%' : '—'),
           tailLabel: '세후 차익', tailValue: '${Won.compact(profitSale)}원',
           tailColor: profitSale >= 0 ? AppColors.primary : AppColors.rose),
         const Gap(22),
 
-        // 이력
-        const SectionHeader('계산 이력'),
-        const Gap(10),
-        history.when(
-          loading: () => const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Text('불러오기 실패: $e', style: const TextStyle(color: AppColors.rose)),
-          data: (list) {
-            if (list.isEmpty) {
-              return const Text('저장된 계산이 없어요. 위에서 계산하고 «이력 저장»을 눌러보세요.',
-                  style: TextStyle(color: AppColors.textFaint, fontSize: AppFont.label));
-            }
-            return Column(children: [for (final r in list) _historyRow(r)]);
+        CalcHistory(
+          kind: 'auction',
+          editingId: _editingId,
+          onLoad: _load,
+          onDelete: (id) {
+            if (_editingId == id) setState(() => _editingId = null);
+            deleteCalcRecord(ref, id);
           },
+          summary: _summary,
         ),
       ],
     );
   }
 
-  Widget _historyRow(CalcRecord r) {
+  String _summary(CalcRecord r) {
     final bidV = r.num_('bid');
-    final cost = r.num_('acqPct') / 100 * bidV + r.num_('legal') + r.num_('takeover') + r.num_('moving') + r.num_('unpaid') + r.num_('repair') + r.num_('agent');
+    final cost = r.num_('acqPct') / 100 * bidV + r.num_('legal') + r.num_('takeover') +
+        r.num_('moving') + r.num_('unpaid') + r.num_('repair') + r.num_('agent');
     final total = bidV + cost;
     final netJ = total - r.num_('jeonse');
-    final editing = _editingId == r.id;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GlassCard(
-        accent: editing ? AppColors.gold : null,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r.label.isEmpty ? '(무제)' : r.label,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-              const Gap(3),
-              Text('낙찰 ${Won.compact(bidV)} · 총투자 ${Won.compact(total)} · '
-                  '${netJ <= 0 ? "플피" : "전세실투 ${Won.compact(netJ)}"}',
-                  style: const TextStyle(fontSize: AppFont.caption, color: AppColors.textSecondary)),
-            ]),
-          ),
-          TextButton(
-            onPressed: () => _load(r),
-            style: TextButton.styleFrom(
-                foregroundColor: AppColors.gold, minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-            child: const Text('불러오기/수정'),
-          ),
-          IconButton(
-            onPressed: () => _delete(r.id),
-            icon: const Icon(Icons.delete_outline_rounded, size: 19, color: AppColors.textFaint),
-            tooltip: '삭제',
-          ),
-        ]),
-      ),
-    );
+    return '낙찰 ${Won.compact(bidV)} · 총투자 ${Won.compact(total)} · '
+        '${netJ <= 0 ? "플피" : "전세실투 ${Won.compact(netJ)}"}';
   }
 
   Widget _scenario(String title, IconData icon, Color color,
@@ -302,6 +249,7 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
       required List<(String, double, bool)> rows,
       required String tailLabel,
       required String tailValue,
+      Widget? extra,
       Color? tailColor}) {
     return GlassCard(
       accent: color,
@@ -314,59 +262,11 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
         const Gap(12),
         ResponsiveGrid(minTileWidth: 150, spacing: 10, children: inputs),
         const Gap(12),
-        for (final (l, v, s) in rows) _calc(l, v, strong: s, color: s ? color : null),
+        for (final (l, v, s) in rows) calcRow(l, v, strong: s, color: s ? color : null),
+        ?extra,
         const Gap(6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-              color: (tailColor ?? color).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(tailLabel, style: TextStyle(fontSize: AppFont.label, fontWeight: FontWeight.w700, color: tailColor ?? color)),
-            Text(tailValue, style: TextStyle(fontSize: AppFont.display, fontWeight: FontWeight.w900, color: tailColor ?? color)),
-          ]),
-        ),
+        calcTail(tailLabel, tailValue, tailColor ?? color),
       ]),
     );
   }
-
-  Widget _money(String label, double value, ValueChanged<double> onChanged) =>
-      MoneyField(
-          key: ValueKey('$label-$_revision'),
-          label: label,
-          initial: value,
-          accent: AppColors.gold,
-          onChanged: onChanged);
-
-  Widget _pct(String label, double value, ValueChanged<double> onChanged) =>
-      TextFormField(
-        key: ValueKey('$label-$_revision'),
-        initialValue: value == 0
-            ? ''
-            : (value == value.roundToDouble()
-                ? value.toStringAsFixed(0)
-                : value.toString()),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-        decoration:
-            InputDecoration(labelText: label, isDense: true, suffixText: '%'),
-        onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
-      );
-
-  Widget _calc(String label, double value, {bool strong = false, Color? color}) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: strong ? AppFont.body : AppFont.label,
-                  fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
-                  color: strong ? (color ?? AppColors.textPrimary) : AppColors.textSecondary)),
-          Text('${Won.compact(value)}원',
-              style: TextStyle(
-                  fontSize: strong ? AppFont.section : AppFont.body,
-                  fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-                  color: strong ? (color ?? AppColors.textPrimary) : AppColors.textPrimary)),
-        ]),
-      );
 }
