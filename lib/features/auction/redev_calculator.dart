@@ -187,13 +187,15 @@ class _RedevCalculatorState extends ConsumerState<RedevCalculator> {
       GlassCard(
         accent: _input,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          calcNumRow2('평형신청', size, (v) => size = v, suffix: 'm²', blue: false),
-          calcMoneyRow2('조합원분양가', memberPrice, (v) => memberPrice = v,
-              note: '조합에서 발표한 조합원 대상 분양가격'),
-          calcMoneyRow2('감정가', appraisal, (v) => appraisal = v,
-              note: '조합에서 발표한 부동산 감정가격'),
-          calcNumRow2('비례율', propRate, (v) => propRate = v, suffix: '%',
-              note: '확정이 안 됐으면 100 그대로 둔다'),
+          calcGrid([
+            calcNumRow2('평형신청', size, (v) => size = v, suffix: 'm²', blue: false),
+            calcMoneyRow2('조합원분양가', memberPrice, (v) => memberPrice = v,
+                note: '조합에서 발표한 조합원 대상 분양가격'),
+            calcMoneyRow2('감정가', appraisal, (v) => appraisal = v,
+                note: '조합에서 발표한 부동산 감정가격'),
+            calcNumRow2('비례율', propRate, (v) => propRate = v, suffix: '%',
+                note: '확정이 안 됐으면 100 그대로 둔다'),
+          ]),
 
           calcDivider(),
           calcLine(calcRow('권리가액', rightsValue)),
@@ -203,18 +205,22 @@ class _RedevCalculatorState extends ConsumerState<RedevCalculator> {
               color: contribution < 0 ? AppColors.primary : null)),
           calcDivider(),
 
-          calcMoneyRow2('추가분담금', extra, (v) => extra = v, note: '공사비 증액 시 기재'),
-          calcMoneyRow2('전월세가 (또는 이주비대출)', jeonse, (v) => jeonse = v,
-              note: '이주·철거 단계면 이주비대출 금액 · 미정이면 감정가의 60%'),
-          calcMoneyRow2('매매가', price, (v) => price = v, note: '부동산에서 얘기한 가격'),
+          calcGrid([
+            calcMoneyRow2('추가분담금', extra, (v) => extra = v, note: '공사비 증액 시 기재'),
+            calcMoneyRow2('전월세가 (또는 이주비대출)', jeonse, (v) => jeonse = v,
+                note: '이주·철거 단계면 이주비대출 금액 · 미정이면 감정가의 60%'),
+            calcMoneyRow2('매매가', price, (v) => price = v, note: '부동산에서 얘기한 가격'),
+          ]),
 
           calcDivider(),
           calcLine(calcRow('실투자금', netInvest, strong: true, color: AppColors.gold)),
           calcLine(calcRow('총 매매가 (총 투자금)', totalInvest, strong: true, color: AppColors.gold)),
           calcDivider(),
 
-          calcMoneyRow2('예상 시세 (대장아파트)', exitPrice, (v) => exitPrice = v,
-              note: '동호수 추첨 전이면 낮은 층 · 호가와 실거래 차이가 크면 평균'),
+          calcGrid([
+            calcMoneyRow2('예상 시세 (대장아파트)', exitPrice, (v) => exitPrice = v,
+                note: '동호수 추첨 전이면 낮은 층 · 호가와 실거래 차이가 크면 평균'),
+          ]),
 
           calcDivider(),
           calcLine(calcRow('예상수익금', gain)),
@@ -243,12 +249,14 @@ class _RedevCalculatorState extends ConsumerState<RedevCalculator> {
           ),
           if (precise) ...[
             const Gap(6),
-            calcNumRow2('취득세율', acqPct, (v) => acqPct = v, suffix: '%', blue: false),
-            calcMoneyRow2('법무비용', legal, (v) => legal = v, blue: false),
-            calcMoneyRow2('중개비', agent, (v) => agent = v, blue: false),
-            calcMoneyRow2('기타비용', etc, (v) => etc = v, blue: false),
-            calcNumRow2('양도세율 (법인세 포함)', taxPct, (v) => taxPct = v,
-                suffix: '%', blue: false),
+            calcGrid([
+              calcNumRow2('취득세율', acqPct, (v) => acqPct = v, suffix: '%', blue: false),
+              calcMoneyRow2('법무비용', legal, (v) => legal = v, blue: false),
+              calcMoneyRow2('중개비', agent, (v) => agent = v, blue: false),
+              calcMoneyRow2('기타비용', etc, (v) => etc = v, blue: false),
+              calcNumRow2('양도세율 (법인세 포함)', taxPct, (v) => taxPct = v,
+                  suffix: '%', blue: false),
+            ]),
             const Gap(6),
             calcRow('취득세', acqTax),
             calcRow('취득비용 합계', costTotal),

@@ -164,3 +164,37 @@ Widget calcNumRow(String label, double value, ValueChanged<double> onChanged,
 
 /// 입력 묶음과 계산 묶음 사이 구분선.
 Widget calcDivider() => const Divider(height: 20, color: AppColors.border);
+
+/// 입력칸 격자.
+///
+/// 열 수는 «화면 폭»으로만 정한다. ResponsiveGrid 는 칸이 열 수보다 적으면
+/// 열을 줄여서 꽉 채우는데, 그러면 입력이 9개인 카드와 2개인 카드의 칸 폭이
+/// 달라진다 — 같은 화면에서 칸 크기가 제각각으로 보이던 원인이다.
+/// 여기서는 칸이 하나뿐이어도 다른 카드와 «같은 폭»을 유지한다.
+///
+/// 한 행은 IntrinsicHeight 로 높이를 맞춘다. 설명이 붙은 칸과 안 붙은 칸이
+/// 나란히 오면 왼쪽 파란 띠 길이가 들쭉날쭉해지기 때문이다.
+Widget calcGrid(List<Widget> children, {double tile = 280, int maxCols = 4}) {
+  const gap = 10.0;
+  return LayoutBuilder(builder: (context, c) {
+    final cols = (c.maxWidth / tile).floor().clamp(1, maxCols);
+    final w = (c.maxWidth - gap * (cols - 1)) / cols;
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += cols) {
+      final end = (i + cols) > children.length ? children.length : i + cols;
+      final slice = children.sublist(i, end);
+      rows.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var j = 0; j < slice.length; j++) ...[
+              if (j > 0) const SizedBox(width: gap),
+              SizedBox(width: w, child: slice[j]),
+            ],
+          ],
+        ),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
+  });
+}
