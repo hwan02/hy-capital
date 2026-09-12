@@ -6,7 +6,6 @@ import '../../core/edit/plain_controller.dart';
 import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
-import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import 'calc_fields.dart';
 import 'calc_history.dart';
@@ -131,7 +130,7 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
         Text(
             _editingId != null
                 ? '이력 수정 중 — 저장하면 갱신됩니다'
-                : '노란칸만 채우면 자동 계산 · 저장하면 아래 이력에 남습니다',
+                : '파란 띠가 붙은 칸만 채우면 자동 계산 · 저장하면 아래 이력에 남습니다',
             style: const TextStyle(
                 fontSize: AppFont.caption, color: AppColors.textFaint)),
         const Gap(14),
@@ -164,43 +163,41 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SectionHeader('초기투자비'),
             const Gap(14),
-            ResponsiveGrid(minTileWidth: 150, spacing: 10, children: [
-              calcMoney('낙찰가', bid, (v) => setState(() => bid = v), _revision),
-              calcPct('은행대출 비율', loanPct, (v) => setState(() => loanPct = v), _revision),
-              calcPct('취득세율', acqPct, (v) => setState(() => acqPct = v), _revision),
-              calcMoney('법무비용', legal, (v) => setState(() => legal = v), _revision),
-              calcMoney('인수 보증금', takeover, (v) => setState(() => takeover = v), _revision),
-              calcMoney('이사비(도비)', moving, (v) => setState(() => moving = v), _revision),
-              calcMoney('미납관리비', unpaid, (v) => setState(() => unpaid = v), _revision),
-              calcMoney('수리비', repair, (v) => setState(() => repair = v), _revision),
-              calcMoney('중개비', agent, (v) => setState(() => agent = v), _revision),
-            ]),
-            const Gap(14),
-            calcRow('입찰보증금 (낙찰가 10%)', bid * 0.1),
-            calcRow('은행대출', loan),
-            calcRow('취득세', acqTax),
-            calcRow('총비용', costTotal),
-            const Divider(height: 20, color: AppColors.border),
-            calcRow('총자기자본', ownCapital, strong: true, color: AppColors.gold),
-            calcRow('총투자금액', totalInvest, strong: true, color: AppColors.gold),
+            _money('낙찰가', bid, (v) => bid = v),
+            _num('은행대출 비율', loanPct, (v) => loanPct = v, suffix: '%'),
+            _num('취득세율', acqPct, (v) => acqPct = v, suffix: '%'),
+            _money('법무비용', legal, (v) => legal = v),
+            _money('인수 보증금', takeover, (v) => takeover = v),
+            _money('이사비(도비)', moving, (v) => moving = v),
+            _money('미납관리비', unpaid, (v) => unpaid = v),
+            _money('수리비', repair, (v) => repair = v),
+            _money('중개비', agent, (v) => agent = v),
+            calcDivider(),
+            calcLine(calcRow('입찰보증금 (낙찰가 10%)', bid * 0.1)),
+            calcLine(calcRow('은행대출', loan)),
+            calcLine(calcRow('취득세', acqTax)),
+            calcLine(calcRow('총비용', costTotal)),
+            calcDivider(),
+            calcLine(calcRow('총자기자본', ownCapital, strong: true, color: AppColors.gold)),
+            calcLine(calcRow('총투자금액', totalInvest, strong: true, color: AppColors.gold)),
           ]),
         ),
         const Gap(14),
 
         _scenario('월세', Icons.calendar_view_month_rounded, AppColors.sky,
           inputs: [
-            calcMoney('월세 보증금', wolDeposit, (v) => setState(() => wolDeposit = v), _revision),
-            calcMoney('월세(월)', wolMonthly, (v) => setState(() => wolMonthly = v), _revision),
-            calcPct('대출이자(연)', loanRate, (v) => setState(() => loanRate = v), _revision),
-            calcMoney('관리·운영비', mgmt, (v) => setState(() => mgmt = v), _revision),
-            calcMoney('기타지출', etc, (v) => setState(() => etc = v), _revision),
+            _money('월세 보증금', wolDeposit, (v) => wolDeposit = v),
+            _money('월세(월)', wolMonthly, (v) => wolMonthly = v),
+            _num('대출이자(연)', loanRate, (v) => loanRate = v, suffix: '%'),
+            _money('관리·운영비', mgmt, (v) => mgmt = v),
+            _money('기타지출', etc, (v) => etc = v),
           ],
           rows: [('실투자금', netWol, false), ('연 임대수입', incomeWol, false), ('대출이자(연)', loanInterest, false), ('연 순수익', profitWol, true)],
           tailLabel: '연 수익률', tailValue: '${yieldWol.toStringAsFixed(1)}%'),
         const Gap(14),
 
         _scenario('전세 (플피)', Icons.account_balance_wallet_rounded, AppColors.violet,
-          inputs: [calcMoney('전세 보증금', jeonse, (v) => setState(() => jeonse = v), _revision)],
+          inputs: [_money('전세 보증금', jeonse, (v) => jeonse = v)],
           rows: [('총투자금액', totalInvest, false), ('전세 보증금', jeonse, false), (netJeonse <= 0 ? '플피 (남는 돈)' : '실투자금', netJeonse.abs(), true)],
           extra: bid > 0 ? calcTextRow('전세가율 (낙찰가 대비)', '${jeonseRate.toStringAsFixed(1)}%') : null,
           tailLabel: netJeonse <= 0 ? '판정' : '실투자금',
@@ -210,8 +207,8 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
 
         _scenario('매도 (차익)', Icons.sell_rounded, AppColors.primary,
           inputs: [
-            calcMoney('매도 가격', sale, (v) => setState(() => sale = v), _revision),
-            calcPct('양도세율', capGainPct, (v) => setState(() => capGainPct = v), _revision),
+            _money('매도 가격', sale, (v) => sale = v),
+            _num('양도세율', capGainPct, (v) => capGainPct = v, suffix: '%'),
           ],
           rows: [('총투자금액', totalInvest, false), ('시세차익(과표)', capGain, false), ('양도소득세', capTax, false), ('세후 시세차익', profitSale, true)],
           extra: calcTextRow('세후 수익률 (실투자금 대비)',
@@ -233,6 +230,15 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
       ],
     );
   }
+
+  // 한 줄짜리 입력 — 모양은 calc_fields 가 정한다(왼쪽 파란 띠 = 내가 넣는 칸).
+  Widget _money(String label, double value, ValueChanged<double> set) =>
+      calcMoneyRow(label, value, (v) => setState(() => set(v)), _revision);
+
+  Widget _num(String label, double value, ValueChanged<double> set,
+          {required String suffix}) =>
+      calcNumRow(label, value, (v) => setState(() => set(v)), _revision,
+          suffix: suffix);
 
   String _summary(CalcRecord r) {
     final bidV = r.num_('bid');
@@ -260,10 +266,11 @@ class _AuctionCalculatorState extends ConsumerState<AuctionCalculator> {
           Text(title, style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
         ]),
         const Gap(12),
-        ResponsiveGrid(minTileWidth: 150, spacing: 10, children: inputs),
-        const Gap(12),
-        for (final (l, v, s) in rows) calcRow(l, v, strong: s, color: s ? color : null),
-        ?extra,
+        ...inputs,
+        calcDivider(),
+        for (final (l, v, s) in rows)
+          calcLine(calcRow(l, v, strong: s, color: s ? color : null)),
+        if (extra != null) calcLine(extra),
         const Gap(6),
         calcTail(tailLabel, tailValue, tailColor ?? color),
       ]),

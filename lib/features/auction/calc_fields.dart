@@ -38,8 +38,21 @@ Widget calcNumber(String label, double value, ValueChanged<double> onChanged,
               : value.toString()),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-      decoration:
-          InputDecoration(labelText: label, isDense: true, suffixText: suffix),
+      // 금액칸(MoneyField)과 «생김새가 같아야» 한 줄에 섞여도 높이가 맞는다.
+      style: const TextStyle(fontSize: AppFont.section),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: AppFont.label),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        suffixText: suffix,
+        suffixStyle: const TextStyle(
+            color: AppColors.textFaint, fontSize: AppFont.label),
+        filled: true,
+        fillColor: AppColors.surfaceAlt,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none),
+      ),
       onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
     );
 
@@ -86,3 +99,68 @@ Widget calcTail(String label, String value, Color color) => Container(
                 fontSize: AppFont.display, fontWeight: FontWeight.w900, color: color)),
       ]),
     );
+
+// ── 한 줄짜리 입력/계산 줄 ─────────────────────────────────
+// 계산기는 «내가 넣는 칸»과 «자동으로 나오는 줄»이 한눈에 갈려야 한다.
+// 엑셀 원본이 입력칸을 파란 숫자로 칠해둔 것과 같은 규칙이다:
+//   왼쪽에 파란 띠가 있으면 내가 넣는 칸, 없으면 계산된 값.
+// 띠가 없는 줄도 «같은 만큼 들여써서» 줄이 어긋나지 않게 한다.
+//
+// 한 줄에 «하나»씩 세로로 쌓는다. 격자로 2~3개씩 늘어놓으면 카드마다
+// 칸 개수가 달라 폭이 제각각이 되고, 어디를 채워야 하는지 눈이 헤맨다.
+
+/// 입력칸 색 — 엑셀의 파란 숫자(0070C0)에 대응.
+const calcInputAccent = AppColors.sky;
+
+/// 한 줄을 감싼다. [blue] 면 왼쪽에 파란 띠.
+Widget calcLine(Widget child, {bool blue = false}) => Container(
+      padding: const EdgeInsets.only(left: 11),
+      decoration: BoxDecoration(
+        border: Border(
+            left: BorderSide(
+                color: blue ? calcInputAccent : Colors.transparent, width: 3)),
+      ),
+      child: child,
+    );
+
+Widget _note(String? note) => note == null
+    ? const SizedBox.shrink()
+    : Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(note,
+            style: const TextStyle(
+                fontSize: AppFont.caption, color: AppColors.textFaint)),
+      );
+
+/// 금액 입력 한 줄 (라벨 + 설명).
+Widget calcMoneyRow(String label, double value, ValueChanged<double> onChanged,
+        int revision, {String? note, bool blue = true}) =>
+    calcLine(
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          calcMoney(label, value, onChanged, revision,
+              accent: blue ? calcInputAccent : AppColors.gold),
+          _note(note),
+        ]),
+      ),
+      blue: blue,
+    );
+
+/// 숫자(%·면적 등) 입력 한 줄.
+Widget calcNumRow(String label, double value, ValueChanged<double> onChanged,
+        int revision,
+        {required String suffix, String? note, bool blue = true}) =>
+    calcLine(
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          calcNumber(label, value, onChanged, revision, suffix: suffix),
+          _note(note),
+        ]),
+      ),
+      blue: blue,
+    );
+
+/// 입력 묶음과 계산 묶음 사이 구분선.
+Widget calcDivider() => const Divider(height: 20, color: AppColors.border);

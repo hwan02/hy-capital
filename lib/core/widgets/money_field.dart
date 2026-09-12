@@ -107,18 +107,35 @@ class _MoneyFieldState extends State<MoneyField> {
         hintText: widget.hint,
         labelStyle: TextStyle(
             fontSize: widget.dense ? AppFont.caption : AppFont.label),
+        // 라벨을 «항상» 위에 띄운다. 기본값이면 빈 칸은 라벨이 가운데,
+        // 값이 있는 칸은 위로 떠서 «같은 줄인데 높이가 다르게» 보인다.
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         isDense: widget.dense,
         contentPadding: widget.dense
             ? const EdgeInsets.fromLTRB(10, 12, 8, 8)
             : null,
-        suffixText: n > 0 ? '${Won.compact(n)}원' : '원',
-        suffixStyle: n > 0
-            ? TextStyle(
-                color: widget.accent,
-                fontWeight: FontWeight.w800,
-                fontSize: widget.dense ? AppFont.caption : AppFont.body)
-            : const TextStyle(
-                color: AppColors.textFaint, fontSize: AppFont.label),
+        // 환산 표시는 «폭도 글자크기도 고정»이다. 예전엔 값이 들어가면
+        // 글자가 커지고(12.5→14) 폭이 늘어 칸 높이와 입력 영역이 같이
+        // 흔들렸다 — 타이핑할 때마다 줄이 밀려 보였다.
+        suffix: SizedBox(
+          width: widget.dense ? 62 : 76,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                n > 0 ? '${Won.compact(n)}원' : '원',
+                maxLines: 1,
+                style: TextStyle(
+                  color: n > 0 ? widget.accent : AppColors.textFaint,
+                  fontWeight: FontWeight.w800,
+                  fontSize: widget.dense ? AppFont.caption : AppFont.label,
+                ),
+              ),
+            ),
+          ),
+        ),
         filled: true,
         fillColor: AppColors.surfaceAlt,
         border: OutlineInputBorder(
