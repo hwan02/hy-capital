@@ -9,6 +9,11 @@
         모아타운  {"bsnsCdList":["BZ201"]}   107곳
         신통기획  {"bsnsCdList":["BZ101"]}   231곳
 
+【권리산정기준일은 «여기서 안 가져온다»】
+포털의 rfencDt 는 권리산정기준일이 «아니다» — 107곳 중 73곳이 값이 똑같이
+2025-11-30 이다(갱신일자). 진짜 기준일은 서울시 「모아타운 추진현황」 표에
+있고, scripts/import_moa_pdf.py 가 그걸 넣는다. 여기서 덮어쓰면 안 된다.
+
 【추진단계 → 앱 stage 매핑】 「후계공통승」 순서 그대로.
   수립범위 자문 · 대상지선정 · 사전자문 · 위원회심의  → 1 (관리계획 «수립» 중 = 매수 A)
   관리지역고시                                      → 2 (동의서 «징구» 중 = 매수 B)
@@ -130,6 +135,7 @@ def main():
                 'doing': doing,
                 'raw': c.get('propelCdNm'),
                 'dt': (c.get('propelDt') or '')[:10],
+                # rfenc 는 «권리산정기준일이 아니다» — 참고로만 둔다.
                 'rfenc': (c.get('rfencDt') or '')[:10],
             })
         print(f'{kind} {len(rows)}곳 → 매핑 {len(mine)}곳')
@@ -164,45 +170,40 @@ def main():
     added = updated = same = 0
     for w in want:
         src = (f"서울도시공간포털 «{w['kind']} · {w['raw']}» · {w['name']} · {w['addr']} · "
-               f"{w['area']:,}㎡ · 추진일 {w['dt']} · 권리산정기준일 «{w['rfenc']}» "
-               f"(동기화 2026-09-02)")
+               f"{w['area']:,}㎡ · 추진일 {w['dt']} (동기화 2026-09-12)")
         k = key(w['name'])
         z = by.get(k)
         if z is None:
             sb("/rest/v1/zones", "POST", [{
                 'user_id': uid, 'name': w['name'], 'kind': w['kind'],
                 'district': w['district'], 'stage': w['stage'],
-                'stage_source': src, 'stage_checked_at': '2026-09-02T00:00:00Z',
-                'rights_date': w['rfenc'] or None,
+                'stage_source': src, 'stage_checked_at': '2026-09-12T00:00:00Z',
                 'propel_dt': w['dt'] or None,
                 'memo': f"지금 진행 중 — {w['doing']}",
             }], token=tok)
             added += 1
             print(f"  ＋ [{w['stage']}] {w['district']:6} {w['name'][:30]}")
-        elif z['stage'] >= 9:
-            # 단계·출처는 안 건드리되 «권리산정기준일»은 채운다 — 그 날짜는
-            # 지정 절차에서 확정되므로 조합설립 뒤에도 그대로다.
-            if w['rfenc'] and not z.get('rights_date'):
-                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
-                   {'rights_date': w['rfenc']}, token=tok)
+        elif z['stage'] >= 8:
             # 이 API 는 모아타운 «지정» 절차까지만 안다. 조합설립(3) 이후는
             # 정비몽땅·조합에서 따로 확인한 값이므로 «아무것도 건드리지 않는다».
             # stage 만 지키고 stage_source 를 덮으면, 카드에는 「관리지역고시」가
             # 적혀 조합설립인가가 사라진 것처럼 보인다 (2026-09-02 실제로 겪었다).
             same += 1
-        elif z['stage'] != w['stage']:
+        elif z['stage'] > w['stage']:
+            # «내리지 않는다». 포털 단계코드는 서울시 표보다 뒤처져 있는 곳이
+            # 있어(대상지선정에 멈춰 있음), 내리면 이미 오른 구역이 저점으로
+            # 보인다. import_moa_pdf.py 가 올려둔 단계를 되돌리지 않는다.
+            same += 1
+        elif z['stage'] < w['stage']:
             sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", {
                 'stage': w['stage'], 'stage_source': src,
-                'stage_checked_at': '2026-09-02T00:00:00Z',
-                'rights_date': w['rfenc'] or None,
+                'stage_checked_at': '2026-09-12T00:00:00Z',
                 'propel_dt': w['dt'] or None,
             }, token=tok)
             updated += 1
             print(f"  ↻ [{z['stage']}→{w['stage']}] {w['name'][:30]}")
         else:
             patch = {}
-            if w['rfenc'] and not z.get('rights_date'):
-                patch['rights_date'] = w['rfenc']
             if w['dt'] and z.get('propel_dt') != w['dt']:
                 patch['propel_dt'] = w['dt']
             if patch:
