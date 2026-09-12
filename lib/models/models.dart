@@ -284,8 +284,19 @@ class AuctionProperty {
   final DateTime? wonDate; // 낙찰일
   final DateTime? balanceDue; // 잔금 납부 기한 — 넘기면 보증금 몰수
   final DateTime? evictDue; // 명도 목표일 / 합의 이사일
-  /// 건축물대장 사용승인일. 구역 권리산정기준일보다 늦으면 입주권이 없다.
+  /// 건축물대장 사용승인일. «단독 판정 기준이 아니다» — 한 방향 추론에만 쓴다.
+  /// 판정은 모아=허가·착공신고, 신통=보존등기 접수일로 한다(rightsCheck 참조).
   final DateTime? approvedOn;
+
+  /// 건축허가일 — 모아타운(빈집법) 판정.
+  final DateTime? permitOn;
+
+  /// 착공신고일 — 모아타운(빈집법) 판정. 기준일«까지» 득했어야 분양대상.
+  final DateTime? startOn;
+
+  /// 소유권 보존등기 접수일 — 신통기획(도정법) 판정.
+  /// 기준일 «다음 날까지» 접수됐으면 구분소유권 확보로 본다.
+  final DateTime? registOn;
   final DateTime? repairDue; // 수리 완료 목표일
   final DateTime? exitDue; // 매도·전세 세팅 목표일
   final DateTime? soldDate; // 매도·전세 세팅 완료일
@@ -341,6 +352,9 @@ class AuctionProperty {
     this.balanceDue,
     this.evictDue,
     this.approvedOn,
+    this.permitOn,
+    this.startOn,
+    this.registOn,
     this.repairDue,
     this.exitDue,
     this.soldDate,
@@ -484,6 +498,9 @@ class AuctionProperty {
         balanceDue: _date(m['balance_due']),
         evictDue: _date(m['evict_due']),
         approvedOn: _date(m['approved_on']),
+        permitOn: _date(m['permit_on']),
+        startOn: _date(m['start_on']),
+        registOn: _date(m['regist_on']),
         repairDue: _date(m['repair_due']),
         exitDue: _date(m['exit_due']),
         soldDate: _date(m['sold_date']),

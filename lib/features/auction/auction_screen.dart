@@ -734,6 +734,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                     p: p,
                     band: bandOf(p),
                     rights: rightsCheck(p, zoneOf(p)),
+                    zone: zoneOf(p),
                     zoneRightsDate: zoneOf(p)?.rightsDate,
                     onFill: (col, val) async {
                       await ref
@@ -870,7 +871,8 @@ class _Chip extends StatelessWidget {
 class _AuctionCard extends StatefulWidget {
   final AuctionProperty p;
   final BuyBand band; // 구역 단계로 판정한 매수 구간
-  final RightsCheck rights; // 사용승인일 vs 권리산정기준일
+  final RightsCheck rights; // 권리산정기준일 판정 (모아=허가·착공 / 신통=보존등기)
+  final Zone? zone; // 판정 기준이 «구역 종류»에 따라 갈린다
   final DateTime? zoneRightsDate; // 구역의 권리산정기준일
   /// 「다음에 채울 것」을 카드에서 바로 저장한다.
   final Future<void> Function(String col, Object? val) onFill;
@@ -885,6 +887,7 @@ class _AuctionCard extends StatefulWidget {
       {required this.p,
       required this.band,
       required this.rights,
+      required this.zone,
       required this.zoneRightsDate,
       required this.onFill,
       required this.price,
@@ -900,6 +903,24 @@ class _AuctionCard extends StatefulWidget {
 }
 
 class _AuctionCardState extends State<_AuctionCard> {
+  /// 판정에 «실제로 쓰인» 날짜를 붙인다. 모아는 허가·착공신고, 신통은
+  /// 보존등기 접수일이다 — 사용승인일은 그게 판정을 가른 경우에만 보인다.
+  String _judgedBy() {
+    final p = widget.p;
+    final sin = widget.zone?.isSin ?? false;
+    String d(DateTime v) => Dates.ymd(v);
+    if (sin) {
+      if (p.registOn != null) return ' · 보존등기 ${d(p.registOn!)}';
+    } else {
+      if (p.permitOn != null && p.startOn != null) {
+        return ' · 허가 ${d(p.permitOn!)} · 착공 ${d(p.startOn!)}';
+      }
+      if (p.startOn != null) return ' · 착공 ${d(p.startOn!)}';
+      if (p.permitOn != null) return ' · 허가 ${d(p.permitOn!)}';
+    }
+    return p.approvedOn == null ? '' : ' · 사용승인 ${d(p.approvedOn!)}';
+  }
+
   /// 「다음에 채울 것」 하나만 묻는 작은 창. 상세로 안 들어가게 한다.
   Future<void> _fill(BuildContext context, MissingField f) async {
     Object? val;
@@ -910,7 +931,7 @@ class _AuctionCardState extends State<_AuctionCard> {
         initialDate: DateTime(1995),
         firstDate: DateTime(1960),
         lastDate: now,
-        helpText: '건축물대장 ${f.label}',
+        helpText: f.label,
       );
       if (d == null) return;
       val = d.toIso8601String().substring(0, 10);
@@ -1078,7 +1099,7 @@ class _AuctionCardState extends State<_AuctionCard> {
                         widget.zoneRightsDate == null
                             ? ''
                             : '권리산정 ${Dates.ymd(widget.zoneRightsDate!)}'
-                                '${widget.p.approvedOn == null ? '' : ' · 사용승인 ${Dates.ymd(widget.p.approvedOn!)}'}',
+                                '${_judgedBy()}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1100,8 +1121,8 @@ class _AuctionCardState extends State<_AuctionCard> {
             if (!widget.rights.isBlocking &&
                 widget.band != BuyBand.blocked) ...[
               Builder(builder: (context) {
-                final need = nextMissing(p);
-                final (done, total) = filledCount(p);
+                final need = nextMissing(p, widget.zone);
+                final (done, total) = filledCount(p, widget.zone);
                 if (need == null) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 7),
@@ -1135,22 +1156,27 @@ class _AuctionCardState extends State<_AuctionCard> {
                         const Icon(Icons.edit_note_rounded,
                             size: 15, color: _teal),
                         const Gap(8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('다음에 채울 것 — ${need.label}',
-                                style: const TextStyle(
-                                    fontSize: AppFont.label,
-                                    fontWeight: FontWeight.w800,
-                                    color: _teal)),
-                            const Gap(2),
-                            Text(need.why,
-                                style: const TextStyle(
-                                    fontSize: AppFont.micro,
-                                    color: AppColors.textSecondary)),
-                          ],
+                        // 설명이 길어질 수 있다(허가·착공신고로 넘기는 안내).
+                        // Expanded 로 감싸지 않으면 가로로 터진다.
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('다음에 채울 것 — ${need.label}',
+                                  style: const TextStyle(
+                                      fontSize: AppFont.label,
+                                      fontWeight: FontWeight.w800,
+                                      color: _teal)),
+                              const Gap(2),
+                              Text(need.why,
+                                  style: const TextStyle(
+                                      fontSize: AppFont.micro,
+                                      height: 1.45,
+                                      color: AppColors.textSecondary)),
+                            ],
+                          ),
                         ),
-                        const Spacer(),
+                        const Gap(8),
                         Text('$done/$total',
                             style: const TextStyle(
                                 fontSize: AppFont.caption,

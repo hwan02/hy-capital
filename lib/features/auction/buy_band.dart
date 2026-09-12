@@ -229,13 +229,13 @@ const kSinNextRise = <int, String>{
 
 /// 권리산정기준일 판정 결과.
 enum RightsCheck {
-  /// 사용승인일이 기준일보다 «빠르다» — 입주권 나온다.
+  /// 기준을 충족한다 — 입주권(분양대상) 나온다.
   ok,
 
-  /// 사용승인일이 기준일보다 «늦다» — 현금청산 대상.
+  /// 기준일을 넘겼다 — 현금청산 대상.
   cashOut,
 
-  /// 사용승인일을 안 적었다. 건축물대장에서 보고 넣어야 한다.
+  /// 판정할 날짜를 아직 안 적었다. 어느 날짜가 필요한지는 종류마다 다르다.
   needBuildDate,
 
   /// 구역에 기준일이 없다(포털 미제공·구역 미매칭).
@@ -246,18 +246,18 @@ extension RightsCheckInfo on RightsCheck {
   String get label => switch (this) {
         RightsCheck.ok => '입주권 OK',
         RightsCheck.cashOut => '입주권 없음',
-        RightsCheck.needBuildDate => '사용승인일 확인',
+        RightsCheck.needBuildDate => '판정일 확인',
         RightsCheck.unknown => '기준일 미확인',
       };
 
   String get why => switch (this) {
-        RightsCheck.ok =>
-          '사용승인일이 권리산정기준일보다 «앞선다» — 입주권 대상이다.',
+        RightsCheck.ok => '권리산정기준일 요건을 충족한다 — 분양대상(입주권)이다.',
         RightsCheck.cashOut =>
-          '사용승인일이 권리산정기준일보다 «늦다». 이 날 다음날부터 분할·신축된 '
-              '물건은 입주권이 안 나오고 «현금청산»된다. 사면 안 된다.',
+          '권리산정기준일을 넘겼다. 이 날 다음날부터 분할·신축·전환된 물건은 '
+              '입주권이 안 나오고 «현금청산»된다. 사면 안 된다.',
         RightsCheck.needBuildDate =>
-          '«건축물대장»의 사용승인일을 넣어야 판정된다. 찾기 단계에서 어차피 보는 서류다.',
+          '판정할 날짜가 비어 있다. 모아타운은 «건축허가일·착공신고일», '
+              '신통기획은 «소유권 보존등기 접수일»이다 — 사용승인일이 아니다.',
         RightsCheck.unknown => '구역의 권리산정기준일을 못 찾았다.',
       };
 
@@ -279,14 +279,67 @@ extension RightsCheckInfo on RightsCheck {
   bool get isBlocking => this == RightsCheck.cashOut;
 }
 
-/// 물건의 사용승인일과 구역의 권리산정기준일을 대조한다.
+/// ★ 사업 방식에 따라 «보는 날짜가 다르다».
+/// (자료실 교안 — 「사업 방식 별로 권리산정기준일의 해석이 다르므로 주의하자」)
+///
+///   신통기획(도시정비법) — 권리산정기준일 «다음 날까지» «소유권 보존등기»가
+///     접수됐으면 구분소유권 확보로 보고 분양대상. 소유권 «이전»등기는 무관하다.
+///     (§77① — 기준일 «다음 날»을 기준으로 분양받을 권리를 산정한다)
+///
+///   모아타운(빈집법)     — 권리산정기준일«까지» «건축허가»를 받고
+///     «착공신고»를 득했으면 분양대상으로 인정한다. 둘 다 있어야 한다.
+///
+/// 사용승인일은 셋 중 «무엇도 아니다». 착공신고보다 한참 뒤고 보존등기보다
+/// 앞이라, 사용승인일로 재면 모아타운에서 «살 수 있는 물건을 못 산다»고
+/// 판정해 버린다. 다만 한 방향으로는 확실히 쓸 수 있다 —
+///   모아: 사용승인일 ≤ 기준일 ⇒ 착공은 더 앞이니 «확실히 OK»
+///         (사용승인일이 늦다고 청산은 «아니다». 착공신고일을 봐야 한다)
+///   신통: 사용승인일 > 기준일+1 ⇒ 보존등기는 더 뒤니 «확실히 청산»
+///         (사용승인일이 이르다고 OK 는 «아니다». 보존등기일을 봐야 한다)
+/// 그 한 방향만 쓰고, 나머지는 needBuildDate 로 두어 «직접 넣게» 한다.
 RightsCheck rightsCheck(AuctionProperty p, Zone? z) {
   final base = z?.rightsDate;
   if (base == null) return RightsCheck.unknown;
   final built = p.approvedOn;
-  if (built == null) return RightsCheck.needBuildDate;
-  // 기준일 «다음날»부터가 청산 대상이므로, 같은 날은 통과.
-  return built.isAfter(base) ? RightsCheck.cashOut : RightsCheck.ok;
+
+  if (z!.isSin) {
+    // 도정법 — 기준일 «다음 날»까지 보존등기 접수.
+    final last = base.add(const Duration(days: 1));
+    final reg = p.registOn;
+    if (reg != null) return reg.isAfter(last) ? RightsCheck.cashOut : RightsCheck.ok;
+    // 보존등기는 사용승인 «뒤»에 한다 → 사용승인이 이미 늦으면 볼 것도 없다.
+    if (built != null && built.isAfter(last)) return RightsCheck.cashOut;
+    return RightsCheck.needBuildDate;
+  }
+
+  // 빈집법(모아타운) — 기준일 «까지» 건축허가 + 착공신고. 같은 날은 통과.
+  final permit = p.permitOn;
+  final start = p.startOn;
+  if (permit != null && permit.isAfter(base)) return RightsCheck.cashOut;
+  if (start != null && start.isAfter(base)) return RightsCheck.cashOut;
+  if (permit != null && start != null) return RightsCheck.ok;
+  // 착공신고는 사용승인 «앞»에 한다 → 사용승인이 기준일 안이면 착공도 안이다.
+  if (built != null && !built.isAfter(base)) return RightsCheck.ok;
+  return RightsCheck.needBuildDate;
+}
+
+/// 판정이 안 될 때 «다음에 뗄 서류» 한 줄. 사용승인일이 먼저다.
+String rightsNeedLabel(AuctionProperty p, Zone? z) {
+  if (p.approvedOn == null) return '사용승인일 (건축물대장)';
+  return (z?.isSin ?? false)
+      ? '소유권 보존등기 접수일 (등기부등본 갑구)'
+      : '건축허가일 · 착공신고일 (건축물대장 · 구청 건축과)';
+}
+
+/// 왜 그 서류가 더 필요한가 — 사용승인일로 안 갈리는 이유를 한 줄로.
+String rightsNeedWhy(AuctionProperty p, Zone? z) {
+  if (p.approvedOn == null) return '사용승인일부터 넣으면 대부분 여기서 갈린다.';
+  return (z?.isSin ?? false)
+      ? '사용승인일은 기준일 안이지만, 신통(도정법)은 «보존등기 접수일»로 '
+          '본다 — 사용승인 뒤에 하는 등기라 늦었을 수 있다.'
+      : '사용승인일이 기준일보다 늦다. 그런데 모아(빈집법)는 기준일«까지» '
+          '허가를 받고 착공신고를 득했으면 «분양대상»이다 — 여기서 버리면 '
+          '살 수 있는 물건을 놓친다.';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -329,53 +382,84 @@ class MissingField {
   const MissingField(this.column, this.label, this.why, this.kind);
 }
 
+/// G4 에서 물을 날짜.
+///
+/// «사용승인일을 먼저 묻는다» — 건축물대장 한 장이면 나오는 값이고, 이것만으로
+/// 판정이 끝나는 경우가 많다(모아에서 기준일 안이면 그걸로 OK, 신통에서 기준일을
+/// 한참 넘겼으면 그걸로 청산). 그걸로 «안 갈리는 때»에만 다음 서류로 넘긴다:
+///   모아 — 사용승인일이 기준일보다 «늦다» → 허가일·착공신고일을 봐야 한다
+///   신통 — 사용승인일이 기준일 안이다   → 보존등기 접수일을 봐야 한다
+MissingField _g4(AuctionProperty p, Zone? z) {
+  const approved = MissingField('approved_on', '사용승인일',
+      'G4 — 건축물대장 한 장이면 나온다. 여기서 대부분 갈린다', FieldKind.date);
+  if (p.approvedOn == null) return approved;
+
+  if (z?.isSin ?? false) {
+    return const MissingField('regist_on', '소유권 보존등기 접수일',
+        'G4 — 사용승인일만으론 부족하다. 기준일 «다음 날»까지 보존등기가 '
+        '접수됐어야 분양대상이다 (도정법)', FieldKind.date);
+  }
+  // 모아 — 사용승인일이 기준일을 넘겼다고 끝이 아니다. 허가·착공이 기준일
+  // 안이면 «분양대상»이다. 여기서 멈추면 살 수 있는 물건을 버린다.
+  return p.permitOn == null
+      ? const MissingField('permit_on', '건축허가일',
+          'G4 — 사용승인일이 기준일보다 늦다. 빈집법은 기준일«까지» 허가를 받고 '
+          '착공신고를 득했으면 분양대상이다 — 허가일부터 확인한다', FieldKind.date)
+      : const MissingField('start_on', '착공신고일',
+          'G4 — 허가만으론 부족하다. 기준일«까지» 착공신고를 득했어야 한다',
+          FieldKind.date);
+}
+
 /// 판정 순서대로. 게이트 G1~G6 순서를 그대로 따른다.
-const _order = <MissingField>[
-  MissingField('current_price', '현재시세', 'G1 갭 판정 — 시세 없이는 갭이 안 나온다',
-      FieldKind.money),
-  MissingField('jeonse_price', '전세가', 'G1 갭 판정 — 플피의 생명줄. 임장에서 들은 값',
-      FieldKind.money),
-  MissingField('official_price', '공시가', 'G2 — 1억 이하면 법인 취득세 기본세율(1%)',
-      FieldKind.money),
-  MissingField('project_zone', '사업시행구역 해당 여부', 'G3 — 해당되면 이미 늦었다',
-      FieldKind.zone),
-  MissingField('approved_on', '사용승인일', 'G4 — 권리산정기준일과 대조해 입주권 판정',
-      FieldKind.date),
-  MissingField('recent_deals', '최근 실거래 건수', 'G5 환금성 — 안 팔리면 단타가 아니다',
-      FieldKind.count),
-  MissingField('expected_sale_price', '예상 매도가', 'G6 — 얼마에 팔 건지가 없으면 수익이 없다',
-      FieldKind.money),
-];
+List<MissingField> _gates(AuctionProperty p, Zone? z) => [
+      const MissingField('current_price', '현재시세',
+          'G1 갭 판정 — 시세 없이는 갭이 안 나온다', FieldKind.money),
+      const MissingField('jeonse_price', '전세가',
+          'G1 갭 판정 — 플피의 생명줄. 임장에서 들은 값', FieldKind.money),
+      const MissingField('official_price', '공시가',
+          'G2 — 1억 이하면 법인 취득세 기본세율(1%)', FieldKind.money),
+      const MissingField('project_zone', '사업시행구역 해당 여부',
+          'G3 — 해당되면 이미 늦었다', FieldKind.zone),
+      _g4(p, z),
+      const MissingField('recent_deals', '최근 실거래 건수',
+          'G5 환금성 — 안 팔리면 단타가 아니다', FieldKind.count),
+      const MissingField('expected_sale_price', '예상 매도가',
+          'G6 — 얼마에 팔 건지가 없으면 수익이 없다', FieldKind.money),
+    ];
 
 /// 이 물건에서 «다음에 채울 것» 하나. 다 채웠으면 null.
-MissingField? nextMissing(AuctionProperty p) {
+MissingField? nextMissing(AuctionProperty p, [Zone? z]) {
   bool empty(String col) => switch (col) {
         'current_price' => p.currentPrice <= 0,
         'jeonse_price' => p.jeonsePrice <= 0,
         'official_price' => p.officialPrice <= 0,
         'project_zone' => (p.projectZone ?? '').isEmpty ||
             p.projectZone == 'unknown',
-        'approved_on' => p.approvedOn == null,
+        // 날짜 칸을 다 채우라는 게 아니라 «판정이 되면» 끝이다.
+        // 모아에서 사용승인일이 기준일 안이면 허가·착공을 안 물어도 OK 다.
+        'approved_on' || 'permit_on' || 'start_on' || 'regist_on' =>
+          rightsCheck(p, z) == RightsCheck.needBuildDate,
         'recent_deals' => p.recentDeals <= 0,
         'expected_sale_price' => p.expectedSalePrice <= 0,
         _ => false,
       };
-  for (final f in _order) {
+  for (final f in _gates(p, z)) {
     if (empty(f.column)) return f;
   }
   return null;
 }
 
 /// 몇 개 중 몇 개를 채웠나.
-(int, int) filledCount(AuctionProperty p) {
+(int, int) filledCount(AuctionProperty p, [Zone? z]) {
+  final gates = _gates(p, z);
+  final was = nextMissing(p, z);
+  if (was == null) return (gates.length, gates.length);
   var done = 0;
-  for (final f in _order) {
-    final was = nextMissing(p);
-    if (was == null) return (_order.length, _order.length);
+  for (final f in gates) {
     if (f.column == was.column) break;
     done++;
   }
-  return (done, _order.length);
+  return (done, gates.length);
 }
 
 // ══════════════════════════════════════════════════════════
