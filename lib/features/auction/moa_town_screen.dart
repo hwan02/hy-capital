@@ -1416,10 +1416,11 @@ class _StageLadder extends StatelessWidget {
           // 「후계공통승」은 칸마다 글자로 얹혀 있다(후 3 · 계 4 · 공 5 …).
           // 위에 줄을 하나 더 깔면 같은 걸 두 번 읽게 돼서 뺐다.
           const Gap(12),
-          // 축이 모아 12칸 · 신통 11칸이라 한 줄에 안 들어간다.
+          // 축이 모아 14칸 · 신통 12칸이라 한 줄에 안 들어간다.
           // 가로 스크롤은 브라우저 뒤로가기와 충돌하므로 «줄바꿈»으로 간다.
           LayoutBuilder(builder: (context, c) {
-            final last = sin ? 11 : 13;
+            // 라벨 맵에서 바로 뽑는다 — 숫자를 박아 두면 칸을 늘릴 때 안 따라온다.
+            final last = sin ? Zone.lastSinStage : Zone.lastMoaStage;
             const gap = 6.0;
             // 한 줄에 6칸씩 — 라벨이 두 줄까지 들어가는 너비.
             // 칸이 넓어야 글씨를 키울 수 있다. 넓은 화면도 4칸까지만.

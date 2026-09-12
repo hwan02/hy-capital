@@ -1361,8 +1361,9 @@ class Zone {
     9: '조합설립인가',
     10: '건축심의·시공자선정',
     11: '사업시행인가',
-    12: '이주·착공',
-    13: '준공',
+    12: '관리처분인가',
+    13: '이주·착공',
+    14: '준공',
   };
 
   /// 신속통합기획 진행 단계. 교안 「단계별 시세 그래프(신속통합기획)」 x축 그대로.
@@ -1380,14 +1381,21 @@ class Zone {
     7: '동의서 징구',
     8: '조합설립인가',
     9: '사업시행인가',
-    10: '이주·착공',
-    11: '준공',
+    10: '관리처분인가',
+    11: '이주·착공',
+    12: '준공',
   };
 
   bool get isSin => kind == '신통기획';
 
+  /// 축의 마지막 칸. 라벨 맵에서 바로 뽑는다 — 칸을 늘릴 때 여기를 고치는 걸
+  /// 잊어 «준공»이 안 그려진 적이 있다(관리처분인가를 끼우기 전 12 로 굳어 있었다).
+  static final int lastMoaStage = stageLabels.keys.reduce((a, b) => a > b ? a : b);
+  static final int lastSinStage =
+      sinStageLabels.keys.reduce((a, b) => a > b ? a : b);
+
   /// 이 구역 종류의 마지막 단계 번호.
-  int get lastStage => isSin ? 11 : 12;
+  int get lastStage => isSin ? lastSinStage : lastMoaStage;
 
   /// 이 단계에 머문 «개월». 추진일이 없으면 null.
   int? get stalledMonths => propelDt == null
