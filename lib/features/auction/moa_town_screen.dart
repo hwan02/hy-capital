@@ -821,33 +821,32 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(children: [
+                      // 칩은 «Wrap» 이다 — 가로 스크롤은 브라우저 뒤로가기와
+                      // 충돌하고, Row 로 두면 칩이 하나 늘 때마다 터진다.
+                      Wrap(spacing: 6, runSpacing: 4, children: [
                         Pill(z.kind, color: c),
-                        const Gap(6),
                         // 세부구역이 있으면 뭉뚱그린 단계 대신 세부 판정을 앞세운다.
                         if (z.subs.isEmpty)
                           Pill('단계 ${z.stage} · ${z.stageLabel}',
                               color: z.stage >= 3
                                   ? AppColors.gold
                                   : AppColors.sky),
-                        if (mine.isNotEmpty) ...[
-                          const Gap(6),
+                        if (mine.isNotEmpty)
                           Pill('물건 ${mine.length}', color: AppColors.primary),
-                        ],
-                        const Gap(6),
                         Pill('입지 ${_locDone(z)}/${_locItems.length}',
                             color: _locDone(z) == _locItems.length
                                 ? AppColors.primary
                                 : _locDone(z) == 0
                                     ? AppColors.textFaint
                                     : AppColors.gold),
-                        if (z.subs.isNotEmpty) ...[
-                          const Gap(6),
+                        if (z.subs.isNotEmpty)
                           Pill('매수가능 ${_buySubs(z)}/${z.subs.length}',
                               color: _buySubs(z) > 0
                                   ? AppColors.primary
                                   : AppColors.textFaint),
-                        ],
+                        // 해제 위험은 «칩 하나»로만 — 설명은 위 사다리 카드에
+                        // 한 번만 적는다. 구역마다 같은 문단을 붙이면 못 읽는다.
+                        if (hasDropRisk(z)) const Pill('해제 위험', color: AppColors.gold),
                       ]),
                       const Gap(8),
                       Text(unknown ? '동·번지 확인 전' : z.name,
@@ -999,32 +998,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                           ]),
                         ),
                       ),
-                      // 초기 단계 해제 위험 — 자양2동 681은 4개월 만에 빠졌다.
-                      if (hasDropRisk(z)) ...[
-                        const Gap(8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.warning_amber_rounded,
-                                    size: 14, color: AppColors.gold),
-                                const Gap(8),
-                                const Expanded(
-                                  child: Text(kDropRiskNote,
-                                      style: TextStyle(
-                                          fontSize: AppFont.label,
-                                          color: AppColors.gold,
-                                          height: 1.6)),
-                                ),
-                              ]),
-                        ),
-                      ],
                       if (z.aliases.isNotEmpty) ...[
                         const Gap(4),
                         Text('포함 번지: ${z.aliases.join(', ')}',
@@ -1483,6 +1456,29 @@ class _StageLadder extends StatelessWidget {
                   color: AppColors.primary,
                   height: 1.55,
                   fontWeight: FontWeight.w600)),
+          // 초기 단계 «해제 위험» — 이 설명은 «여기 한 번만» 적는다.
+          // 구역 카드마다 같은 문단을 붙였더니 화면이 이 글로 덮여 안 읽혔다.
+          // 카드에는 「해제 위험」 칩 하나만 달고, 뜻은 여기서 읽는다.
+          const Gap(10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 14, color: AppColors.gold),
+              const Gap(8),
+              const Expanded(
+                child: Text('「해제 위험」 칩이 붙은 구역 — $kDropRiskNote',
+                    style: TextStyle(
+                        fontSize: AppFont.label,
+                        color: AppColors.gold,
+                        height: 1.6)),
+              ),
+            ]),
+          ),
         ],
       ),
     );
