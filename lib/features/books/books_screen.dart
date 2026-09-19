@@ -163,20 +163,27 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                 for (var i = 0; i < _branches.length; i++)
                   Builder(builder: (context) {
                     final br = _branches[i];
-                    var mine = books.where((b) => b.branch == br.key).toList()
-                      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-                    if (mine.isEmpty) return const SizedBox.shrink();
+                    // 번호가 겹치면 정렬이 흔들린다 — 제목으로 한 번 더 갈라
+                    // 「번호 정리」 전후로 순서가 튀지 않게 한다.
+                    final all = books.where((b) => b.branch == br.key).toList()
+                      ..sort((a, b) => a.sortOrder != b.sortOrder
+                          ? a.sortOrder.compareTo(b.sortOrder)
+                          : a.title.compareTo(b.title));
+                    if (all.isEmpty) return const SizedBox.shrink();
+                    var mine = all;
                     if (_todoOnly) {
-                      mine = mine.where((b) => !b.isDone).toList();
+                      mine = all.where((b) => !b.isDone).toList();
                       if (mine.isEmpty) return const SizedBox.shrink();
                     }
                     return _BranchBlock(
                       branch: br,
                       books: mine,
+                      branchAll: all,
                       last: i == _branches.length - 1,
                       onCycle: _cycle,
                       onCover: _pickCover,
                       onEdit: (b) => _editBook(b),
+                      onRenumber: _renumber,
                     );
                   }),
 
@@ -196,10 +203,30 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
   }
 
   // ── 추가 / 수정 ──────────────────────────────────────────
+
+  /// 지금 카테고리의 책들 — 새 책 번호를 «마지막 다음»으로 매기는 데 쓴다.
+  List<Book> _siblings() =>
+      (ref.read(booksProvider).value ?? const <Book>[])
+          .where((b) => b.category == _category)
+          .toList();
+
+  /// 줄기 번호를 보이는 순서 그대로 1..N 으로 다시 매긴다.
+  /// 새 책이 전부 1 번으로 들어가 겹쳐 버린 것을 여기서 편다.
+  Future<void> _renumber(List<Book> branchBooks) async {
+    final sb = ref.read(supabaseProvider);
+    for (var i = 0; i < branchBooks.length; i++) {
+      final want = i + 1;
+      if (branchBooks[i].sortOrder == want) continue;
+      await sb.from('books').update({'sort_order': want})
+          .eq('id', branchBooks[i].id);
+    }
+    ref.invalidate(booksProvider);
+  }
+
   Future<void> _addBook() async {
     final res = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => const _BookDialog(),
+      builder: (_) => _BookDialog(siblings: _siblings()),
     );
     if (res == null) return;
     final sb = ref.read(supabaseProvider);
@@ -214,7 +241,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
   Future<void> _editBook(Book b) async {
     final res = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _BookDialog(book: b),
+      builder: (_) => _BookDialog(book: b, siblings: _siblings()),
     );
     if (res == null) return;
     if (res['__delete'] == true) {
@@ -339,6 +366,14 @@ class _BranchBlock extends StatelessWidget {
   final Future<void> Function(Book) onCover;
   final void Function(Book) onEdit;
 
+  /// 이 줄기의 «전부». books 는 「읽을 것만」 필터가 걸려 있을 수 있어서,
+  /// 번호 판정·정리는 반드시 이쪽으로 한다 — 필터된 목록으로 매기면
+  /// 다 읽은 책이 빠진 채 번호가 다시 밀린다.
+  final List<Book> branchAll;
+
+  /// 이 줄기의 번호를 순서대로 1..N 으로 다시 매긴다.
+  final Future<void> Function(List<Book>) onRenumber;
+
   const _BranchBlock({
     required this.branch,
     required this.books,
@@ -346,7 +381,13 @@ class _BranchBlock extends StatelessWidget {
     required this.onCycle,
     required this.onCover,
     required this.onEdit,
+    required this.branchAll,
+    required this.onRenumber,
   });
+
+  /// 번호가 «겹치는» 줄기인가. 겹칠 때만 정리 버튼을 띄운다.
+  bool get _dup =>
+      branchAll.map((b) => b.sortOrder).toSet().length != branchAll.length;
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +437,22 @@ class _BranchBlock extends StatelessWidget {
                     const Gap(9),
                     Pill(branch.role, color: branch.color),
                     const Spacer(),
+                    // 같은 번호가 둘 이상인 줄기에만 — 평소엔 안 보인다.
+                    if (_dup)
+                      TextButton.icon(
+                        onPressed: () => onRenumber(branchAll),
+                        style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            foregroundColor: branch.color),
+                        icon: const Icon(Icons.low_priority_rounded, size: 14),
+                        label: const Text('번호 정리',
+                            style: TextStyle(
+                                fontSize: AppFont.caption,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                    const Gap(6),
                     Text('$done/${books.length}',
                         style: const TextStyle(
                             fontSize: AppFont.caption,
@@ -715,8 +772,19 @@ class _Level extends StatelessWidget {
 // ══════════════════════════════════════════════════════════
 
 class _BookDialog extends StatefulWidget {
+  /// 같은 카테고리의 책 전부. «새 책»의 순서를 그 줄기의 마지막 다음으로
+  /// 잡으려고 받는다 — 안 주면 전부 1 로 들어가 번호가 겹친다.
+  final List<Book> siblings;
   final Book? book;
-  const _BookDialog({this.book});
+  const _BookDialog({this.book, this.siblings = const []});
+
+  /// [branch] 줄기에서 «다음 순서». 비어 있으면 1.
+  int nextOrder(String branch) {
+    final n = siblings
+        .where((b) => b.branch == branch)
+        .fold<int>(0, (m, b) => b.sortOrder > m ? b.sortOrder : m);
+    return n + 1;
+  }
 
   @override
   State<_BookDialog> createState() => _BookDialogState();
@@ -730,9 +798,9 @@ class _BookDialogState extends State<_BookDialog> {
   late final _why = PlainController(text: widget.book?.why ?? '');
   late final _memo = PlainController(text: widget.book?.memo ?? '');
   late final _link = PlainController(text: widget.book?.link ?? '');
-  late final _order =
-      PlainController(text: '${widget.book?.sortOrder ?? 1}');
   late String _branch = widget.book?.branch ?? '입문';
+  late final _order = PlainController(
+      text: '${widget.book?.sortOrder ?? widget.nextOrder(_branch)}');
   late int _level = widget.book?.level ?? 1;
   late int _rating = widget.book?.rating ?? 0;
 
@@ -793,7 +861,14 @@ class _BookDialogState extends State<_BookDialog> {
                     for (final b in _branches)
                       DropdownMenuItem(value: b.key, child: Text(b.label)),
                   ],
-                  onChanged: (v) => setState(() => _branch = v ?? '입문'),
+                  onChanged: (v) => setState(() {
+                    _branch = v ?? '입문';
+                    // 줄기를 옮기면 번호도 그 줄기 끝으로. 이미 있는 책은
+                    // 사용자가 정한 번호라 건드리지 않는다.
+                    if (widget.book == null) {
+                      _order.text = '${widget.nextOrder(_branch)}';
+                    }
+                  }),
                 ),
               ),
               const Gap(10),

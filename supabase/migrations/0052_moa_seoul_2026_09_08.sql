@@ -4,7 +4,7 @@
 --
 -- 【왜】
 -- ① 서울도시공간포털 API(BZ201)가 «주민제안» 구역을 거의 안 준다.
---    포털 107곳 ↔ 표 133행 — 26곳이 앱에 통째로 없었고, 그중 19곳이
+--    포털 107곳 ↔ 표 133행 — 26곳이 앱에 통째로 없었고, 그중 20곳이
 --    「관리계획 수립 중」 = «매수 A(저점)» 구간이다.
 -- ② «권리산정기준일»이 전부 틀려 있었다. 포털 rfencDt 를 그대로 넣어 왔는데
 --    107곳 중 73곳이 값이 똑같이 2025-11-30 이다 — 갱신일자지 기준일이 아니다.
@@ -295,7 +295,7 @@ where z.id = p.zone_id
   and coalesce(z.stage, 0) < 7
   and coalesce(z.memo, '') not like '%서울시 표(2026-09-08)는%';
 
--- 4. 앱에 없는 구역 추가 (26곳이 주민제안 · 19곳이 매수 A 구간)
+-- 4. 앱에 없는 구역 추가 (26곳이 주민제안 · 20곳이 매수 A 구간)
 insert into public.zones (user_id, name, kind, district, stage, stage_source,
                           stage_checked_at, rights_date, memo)
 select m.user_id, p.name, '모아타운', p.district, p.stage, p.src, now(),
