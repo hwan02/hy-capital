@@ -507,8 +507,15 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       final d = (z.district == null || z.district!.isEmpty) ? '기타' : z.district!;
       byDist.putIfAbsent(d, () => []).add(z);
     }
+    // 가나다순. 곳 수 순으로 세우면 «관악구» 처럼 6곳짜리가 중랑(18)·성북(10)
+    // 뒤로 밀려서, 있는데도 없는 것처럼 보인다(2026-09-19 실제로 겪었다).
+    // 자치구 이름은 완성형 한글이라 compareTo 가 곧 가나다순이다.
     final dists = byDist.keys.toList()
-      ..sort((a, b) => byDist[b]!.length.compareTo(byDist[a]!.length));
+      ..sort((a, b) {
+        if (a == '기타') return 1; // 기타는 항상 맨 뒤
+        if (b == '기타') return -1;
+        return a.compareTo(b);
+      });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
