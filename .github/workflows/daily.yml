@@ -37,6 +37,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # 세 스크립트가 다 같은 앱 계정을 쓴다 — 잡 단위로 한 번만 준다.
+    env:
+      AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
+      AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,24 +52,16 @@ jobs:
       # 포털은 «관리지역고시»까지, 정비몽땅은 그 뒤(조합설립인가~)를 안다.
       # 둘 다 돌려야 「매수 가능」 판정이 맞는다.
       - name: 서울도시공간포털 — 구역 단계
-        env:
-          AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
-          AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
         run: python3 scripts/sync_moa_zones.py
 
       - name: 정비몽땅 — 조합 단계
-        env:
-          AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
-          AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
         run: python3 scripts/sync_cleanup.py
 
       # ── 알림 ─────────────────────────────────────────────
       # 동기화 «뒤»에 보내야 오늘 바뀐 단계가 반영된 알림이 간다.
       # 웹훅이 없으면 보낼 곳이 없다. 배치를 «빨갛게» 만들지 않고 건너뛴다.
+      # step 의 if 에서는 secrets 를 못 읽는다(Unrecognized named-value).
+      # 잡 env 로 올려놓고 env 로 본다.
       - name: 슬랙 — 오늘 할 일
-        if: ${{ secrets.SLACK_WEBHOOK != '' }}
-        env:
-          AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
-          AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
         run: python3 scripts/daily_slack.py
