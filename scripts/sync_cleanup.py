@@ -84,11 +84,28 @@ def fetch():
     return out
 
 
-def zone_lot(district, name):
-    """구역 이름에서 매칭용 번지. import_moa_pdf 의 규칙을 그대로 쓴다."""
+def zone_key(district, name):
+    """구역 이름 → (동, 번지). import_moa_pdf 의 규칙을 그대로 쓴다."""
     d, l = _parts(name)
-    d, l = ALIAS.get((district or '', d, l), (d, l))
-    return l
+    return ALIAS.get((district or '', d, l), (d, l))
+
+
+def matches(row, dong, lot):
+    """이 사업장이 (동, 번지) 구역 것인가.
+
+    두 가지로 본다 —
+      ① 사업장명에 번지가 박혀 있다: 「화곡1동 354 일대 모아타운 A2-4구역」
+      ② «대표지번»이 구역 대표지번과 같다: 「면목역2의5구역」 → 면목동 127-26
+
+    ②를 빼먹었더니 이름에 번지가 없는 조합을 통째로 놓쳤다. 면목역·중화역·
+    장위N구역처럼 «역 이름 + 번호»로 등록된 것들이 그렇다. 하필 그중에
+    내가 매수 후보로 꼽았던 구역(면목동 127-26 · 하월곡동 40-107 ·
+    장위동 65-107)이 이미 조합설립인가 난 채로 들어 있었다.
+    """
+    if lot and lot in set(LOT.findall(row['name'])):
+        return True
+    rd, rl = _parts(row['lot'])          # 「면목동 127-26」
+    return bool(lot) and rd == dong and rl == lot
 
 
 def main():
@@ -110,11 +127,11 @@ def main():
 
     raised = subbed = added = same = 0
     for z in zones:
-        lot = zone_lot(z['district'], z['name'])
+        dong, lot = zone_key(z['district'], z['name'])
         if not lot:
             continue
         mine = [r for r in rows
-                if r['gu'] == z['district'] and lot in set(LOT.findall(r['name']))]
+                if r['gu'] == z['district'] and matches(r, dong, lot)]
         if not mine:
             continue
 
