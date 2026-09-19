@@ -143,6 +143,13 @@ def login():
         tok = sb("/auth/v1/token?grant_type=password", "POST",
                  {"email": email, "password": pw})["access_token"]
     except urllib.error.HTTPError as e:
+        # Supabase 가 «왜» 거절했는지는 본문에 있다(Invalid login credentials /
+        # Email not confirmed …). 비밀번호는 안 들어 있으므로 찍어도 된다.
+        try:
+            detail = e.read().decode()[:200]
+        except Exception:  # noqa: BLE001
+            detail = ''
+        print(f"  [auth {e.code}] {detail}", file=sys.stderr)
         if e.code == 400:
             where = ("키체인" if keychain_password()
                      else "HY_PASSWORD" if os.environ.get("HY_PASSWORD")
