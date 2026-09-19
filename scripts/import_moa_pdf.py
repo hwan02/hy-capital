@@ -122,7 +122,11 @@ def login():
     손으로 돌리는 스크립트라 «왜 안 되는지»가 한 줄로 보여야 한다 —
     예전엔 비밀번호가 틀리면 urllib 트레이스백만 20줄 떴다.
     """
-    pw = keychain_password() or os.environ.get("HY_PASSWORD", "")
+    # 앱이 쓰는 계정과 «같은» 계정이다. Vercel·Actions 에 이미 AUTO_* 로
+    # 들어 있으므로 그걸 그대로 받아쓴다 — 시크릿을 두 벌 관리하지 않는다.
+    pw = (keychain_password()
+          or os.environ.get("HY_PASSWORD")
+          or os.environ.get("AUTO_PASSWORD", ""))
     if not pw:
         sys.exit(
             "앱 비밀번호를 못 찾았다. 둘 중 하나로 준다 —\n\n"
@@ -130,18 +134,27 @@ def login():
             f'     security add-generic-password -a "$USER" -s {KEYCHAIN} -w\n'
             "     (입력한 글자는 화면에 안 보인다. 그 뒤로는 그냥 돌리면 된다)\n\n"
             "  ② 이번 한 번만 환경변수로\n"
-            f"     HY_PASSWORD='...' python3 {os.path.basename(sys.argv[0])}")
-    email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
+            f"     HY_PASSWORD='...' python3 {os.path.basename(sys.argv[0])}\n\n"
+            "  (GitHub Actions 에서는 AUTO_EMAIL·AUTO_PASSWORD 를 그대로 쓴다)")
+    email = (os.environ.get("HY_EMAIL")
+             or os.environ.get("AUTO_EMAIL")
+             or "demo@hycapital.app")
     try:
         tok = sb("/auth/v1/token?grant_type=password", "POST",
                  {"email": email, "password": pw})["access_token"]
     except urllib.error.HTTPError as e:
         if e.code == 400:
+            where = ("키체인" if keychain_password()
+                     else "HY_PASSWORD" if os.environ.get("HY_PASSWORD")
+                     else "AUTO_PASSWORD")
             sys.exit(
-                f"로그인 실패 — 이메일/비밀번호를 확인해주세요 ({email}).\n"
-                "  키체인 값을 고치려면:\n"
-                f"    security delete-generic-password -s {KEYCHAIN}\n"
-                f'    security add-generic-password -a "$USER" -s {KEYCHAIN} -w')
+                f"로그인 실패 — {email} / «{where}» 의 비밀번호가 맞지 않는다.\n"
+                + (f"  키체인 값을 고치려면:\n"
+                   f"    security delete-generic-password -s {KEYCHAIN}\n"
+                   f'    security add-generic-password -a "$USER" -s {KEYCHAIN} -w'
+                   if where == "키체인" else
+                   "  GitHub Actions 라면 Settings → Secrets → Actions 에서 "
+                   "AUTO_EMAIL·AUTO_PASSWORD 를 확인한다."))
         raise
     return tok, sb("/auth/v1/user", token=tok)["id"]
 
