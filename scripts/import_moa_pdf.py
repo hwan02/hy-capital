@@ -96,26 +96,52 @@ def lot(name):
     return _parts(name)[1]
 
 
+KEYCHAIN = "hy-capital-app"
+
+
+def keychain_password():
+    """macOS 키체인에서 앱 비밀번호를 꺼낸다. 없으면 빈 문자열.
+
+    자료실 PDF 암호(unlock_pdf.py)와 같은 방식이다 — 한 번 넣어두면
+    비밀번호가 «명령줄에도 셸 기록에도 대화에도» 남지 않는다.
+    """
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["security", "find-generic-password", "-s", KEYCHAIN, "-w"],
+            capture_output=True, text=True, timeout=10)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
 def login():
     """앱 계정으로 로그인해 (토큰, uid) 를 준다.
 
-    손으로 돌리는 스크립트라 «왜 안 되는지»가 한 줄로 보여야 한다.
+    비밀번호는 «키체인 → 환경변수» 순으로 찾는다.
+    손으로 돌리는 스크립트라 «왜 안 되는지»가 한 줄로 보여야 한다 —
     예전엔 비밀번호가 틀리면 urllib 트레이스백만 20줄 떴다.
     """
-    pw = os.environ.get("HY_PASSWORD", "")
+    pw = keychain_password() or os.environ.get("HY_PASSWORD", "")
     if not pw:
-        sys.exit("HY_PASSWORD 를 설정해주세요.\n"
-                 "  HY_PASSWORD='실제_비밀번호' python3 " +
-                 os.path.basename(sys.argv[0]))
+        sys.exit(
+            "앱 비밀번호를 못 찾았다. 둘 중 하나로 준다 —\n\n"
+            "  ① 키체인에 «한 번만» 넣어두기 (권장 · 기록에 안 남는다)\n"
+            f'     security add-generic-password -a "$USER" -s {KEYCHAIN} -w\n'
+            "     (입력한 글자는 화면에 안 보인다. 그 뒤로는 그냥 돌리면 된다)\n\n"
+            "  ② 이번 한 번만 환경변수로\n"
+            f"     HY_PASSWORD='...' python3 {os.path.basename(sys.argv[0])}")
     email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
     try:
         tok = sb("/auth/v1/token?grant_type=password", "POST",
                  {"email": email, "password": pw})["access_token"]
     except urllib.error.HTTPError as e:
         if e.code == 400:
-            sys.exit(f"로그인 실패 — 이메일/비밀번호를 확인해주세요 ({email}).\n"
-                     "  HY_PASSWORD 에 «실제» 비밀번호를 넣었는지 보세요 "
-                     "(따옴표 안의 «앱_비밀번호» 를 그대로 두면 이 오류가 납니다).")
+            sys.exit(
+                f"로그인 실패 — 이메일/비밀번호를 확인해주세요 ({email}).\n"
+                "  키체인 값을 고치려면:\n"
+                f"    security delete-generic-password -s {KEYCHAIN}\n"
+                f'    security add-generic-password -a "$USER" -s {KEYCHAIN} -w')
         raise
     return tok, sb("/auth/v1/user", token=tok)["id"]
 

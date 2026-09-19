@@ -27,6 +27,23 @@
 > 짧은 메모는 파일 만들 필요 없이 앱 자료실 탭에서 **＋메모** 로 바로 추가.
 > 스크린샷 PDF(카페 글 캡처 등)도 그대로 주면 파싱해서 넣는다.
 
+## 앱 비밀번호 — 키체인에 한 번만
+
+`scripts/*.py`(구역 동기화 등)는 앱 계정으로 로그인한다. 매번 `HY_PASSWORD=...`를
+치면 **셸 기록에 비밀번호가 남는다.** 키체인에 한 번 넣어두면 그 뒤로는 그냥 돌리면 된다.
+
+```bash
+# 한 번만 — 입력한 글자는 화면에 보이지 않는다
+security add-generic-password -a "$USER" -s hy-capital-app -w
+```
+
+```bash
+# 그 다음부터는 이것만
+python3 scripts/sync_cleanup.py --dry
+```
+
+비밀번호를 바꿨으면 `security delete-generic-password -s hy-capital-app` 후 다시 넣는다.
+
 ## 암호 걸린 PDF
 
 강의 자료 PDF에 암호가 걸려 있으면 내용을 읽을 수 없다. 암호를 **키체인에 한 번만** 넣어두면
