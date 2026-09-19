@@ -37,7 +37,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from import_moa_pdf import ALIAS, _parts, sb  # noqa: E402  같은 매칭 규칙을 쓴다
+from import_moa_pdf import ALIAS, _parts, login, sb  # noqa: E402  같은 규칙을 쓴다
 
 LIST = ("https://cleanup.seoul.go.kr/cleanup/bsnssttus/"
         "lsubBsnsSttus.do?cpage=1&pageSize=3000")
@@ -103,12 +103,7 @@ def main():
         print("\n(구역 대조는 HY_PASSWORD 를 줘야 한다.)")
         return
 
-    pw = os.environ.get("HY_PASSWORD", "")
-    if not pw:
-        sys.exit("HY_PASSWORD 를 설정해주세요.")
-    email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
-    tok = sb("/auth/v1/token?grant_type=password", "POST",
-             {"email": email, "password": pw})["access_token"]
+    tok, _ = login()
 
     zones = sb("/rest/v1/zones?select=id,name,kind,district,stage,subs,memo,"
                "stage_source&kind=eq.모아타운", token=tok)

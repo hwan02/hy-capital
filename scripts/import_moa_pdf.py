@@ -96,6 +96,30 @@ def lot(name):
     return _parts(name)[1]
 
 
+def login():
+    """앱 계정으로 로그인해 (토큰, uid) 를 준다.
+
+    손으로 돌리는 스크립트라 «왜 안 되는지»가 한 줄로 보여야 한다.
+    예전엔 비밀번호가 틀리면 urllib 트레이스백만 20줄 떴다.
+    """
+    pw = os.environ.get("HY_PASSWORD", "")
+    if not pw:
+        sys.exit("HY_PASSWORD 를 설정해주세요.\n"
+                 "  HY_PASSWORD='실제_비밀번호' python3 " +
+                 os.path.basename(sys.argv[0]))
+    email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
+    try:
+        tok = sb("/auth/v1/token?grant_type=password", "POST",
+                 {"email": email, "password": pw})["access_token"]
+    except urllib.error.HTTPError as e:
+        if e.code == 400:
+            sys.exit(f"로그인 실패 — 이메일/비밀번호를 확인해주세요 ({email}).\n"
+                     "  HY_PASSWORD 에 «실제» 비밀번호를 넣었는지 보세요 "
+                     "(따옴표 안의 «앱_비밀번호» 를 그대로 두면 이 오류가 납니다).")
+        raise
+    return tok, sb("/auth/v1/user", token=tok)["id"]
+
+
 def key(district, name):
     d, l = _parts(name)
     d, l = ALIAS.get((district or '', d, l), (d, l))
@@ -118,13 +142,7 @@ def main():
         print("\n(로그인 없이 표만 보여준 것이다. 대조하려면 HY_PASSWORD 를 준다.)")
         return
 
-    pw = os.environ.get("HY_PASSWORD", "")
-    if not pw:
-        sys.exit("HY_PASSWORD 를 설정해주세요.")
-    email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
-    tok = sb("/auth/v1/token?grant_type=password", "POST",
-             {"email": email, "password": pw})["access_token"]
-    uid = sb("/auth/v1/user", token=tok)["id"]
+    tok, uid = login()
 
     have = sb("/rest/v1/zones?select=id,name,kind,district,stage,stage_source,"
               "memo,rights_date&kind=eq.모아타운", token=tok)
