@@ -150,6 +150,13 @@ def login():
         except Exception:  # noqa: BLE001
             detail = ''
         print(f"  [auth {e.code}] {detail}", file=sys.stderr)
+        # 값은 절대 찍지 않는다. «길이»와 «앞뒤 공백»만 본다 —
+        # 시크릿에 줄바꿈·공백이 섞였는지, 아예 다른 값이 들어갔는지는
+        # 이것만으로 갈린다(붙여넣기 사고가 제일 흔하다).
+        print(f"  [확인] 이메일 {len(email)}자"
+              f"{' ·앞뒤공백!' if email != email.strip() else ''}"
+              f" · 비밀번호 {len(pw)}자"
+              f"{' ·앞뒤공백!' if pw != pw.strip() else ''}", file=sys.stderr)
         if e.code == 400:
             where = ("키체인" if keychain_password()
                      else "HY_PASSWORD" if os.environ.get("HY_PASSWORD")
