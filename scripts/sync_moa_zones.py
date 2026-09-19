@@ -38,6 +38,8 @@ import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from import_moa_pdf import login  # noqa: E402  키체인·환경변수 로그인을 함께 쓴다
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs"
@@ -155,13 +157,7 @@ def main():
                       f"{w['name'][:30]:32} {w['raw']}")
         return
 
-    pw = os.environ.get("HY_PASSWORD", "")
-    if not pw:
-        sys.exit("HY_PASSWORD 를 설정해주세요.")
-    email = os.environ.get("HY_EMAIL", "demo@hycapital.app")
-    tok = sb("/auth/v1/token?grant_type=password", "POST",
-             {"email": email, "password": pw})["access_token"]
-    uid = sb("/auth/v1/user", token=tok)["id"]
+    tok, uid = login()
 
     have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date,propel_dt",
                   token=tok)

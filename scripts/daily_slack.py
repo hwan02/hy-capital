@@ -39,8 +39,25 @@ SECTIONS = {'ipo': True, 'shorts': False, 'realestate': False,
 
 
 def env():
-    with open(os.path.join(HERE, 'env.local.json')) as f:
-        return json.load(f)
+    """시크릿을 «환경변수 → env.local.json» 순으로 읽는다.
+
+    내 맥에서는 env.local.json 이 편하지만, GitHub Actions 에는 그 파일이
+    없다(gitignore). 배치가 거기서 돌아야 «매일» 도는 것이므로 환경변수를
+    먼저 본다 — Actions 에서는 리포지터리 시크릿으로 넣는다.
+    """
+    e = {}
+    path = os.path.join(HERE, 'env.local.json')
+    if os.path.exists(path):
+        with open(path) as f:
+            e = json.load(f)
+    for k in ('AUTO_EMAIL', 'AUTO_PASSWORD', 'SLACK_WEBHOOK'):
+        if os.environ.get(k):
+            e[k] = os.environ[k]
+    missing = [k for k in ('AUTO_EMAIL', 'AUTO_PASSWORD') if not e.get(k)]
+    if missing:
+        sys.exit(f"{', '.join(missing)} 가 없다 — "
+                 "env.local.json 이나 환경변수로 준다.")
+    return e
 
 
 def login(e):
@@ -48,7 +65,14 @@ def login(e):
                     data=json.dumps({'email': e['AUTO_EMAIL'],
                                      'password': e['AUTO_PASSWORD']}).encode(),
                     headers={'apikey': ANON, 'Content-Type': 'application/json'})
-    return json.loads(u.urlopen(req).read())['access_token']
+    try:
+        return json.loads(u.urlopen(req).read())['access_token']
+    except Exception as ex:  # noqa: BLE001
+        # 배치가 죽었을 때 «왜» 죽었는지가 로그에 한 줄로 보여야 한다.
+        code = getattr(ex, 'code', None)
+        sys.exit(f"로그인 실패 ({e['AUTO_EMAIL']}) — "
+                 f"AUTO_EMAIL/AUTO_PASSWORD 를 확인해주세요"
+                 f"{f' [HTTP {code}]' if code else ''}")
 
 
 def get(path, token):

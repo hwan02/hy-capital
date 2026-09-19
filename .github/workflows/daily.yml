@@ -1,0 +1,64 @@
+# 매일 아침 배치.
+#
+# 스크립트 주석에는 「매일 배치가 돌린다」고 적혀 있었지만 «그 배치가 없었다».
+# cron 도 Actions 도 없어서 전부 손으로 돌려야 했고, 그래서 구역 단계가
+# 몇 달째 옛날 값으로 남아 있었다(354 세부구역 · 조합설립인가 12곳).
+#
+# 내 맥이 꺼져 있어도 돌아야 하므로 GitHub Actions 에 둔다.
+#
+# 【시크릿 — 저장소가 «공개»라 코드에 절대 넣지 않는다】
+#   Settings → Secrets and variables → Actions → New repository secret
+#     HY_PASSWORD    앱 로그인 비밀번호 (구역 동기화용)
+#     AUTO_EMAIL     배치 계정 이메일
+#     AUTO_PASSWORD  배치 계정 비밀번호
+#     SLACK_WEBHOOK  슬랙 수신 URL
+#
+# 【로그도 공개된다】
+# 공개 저장소는 Actions 로그도 누구나 본다. 그래서 «내 물건·일정»을 화면에
+# 찍는 --dry 는 쓰지 않는다. daily_slack 은 발송 모드로 돌려 결과 한 줄
+# (「슬랙 전송 200 · 섹션 3개」)만 남긴다. 동기화 스크립트가 찍는 구역명·
+# 단계는 서울시 공개 데이터라 남아도 상관없다.
+
+name: 매일 동기화
+
+on:
+  schedule:
+    # UTC 21:00 = KST 06:00. Actions 는 몇 분 늦게 뜰 수 있다(정상).
+    - cron: '0 21 * * *'
+  workflow_dispatch:        # 손으로도 돌릴 수 있게
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── 구역 단계 ────────────────────────────────────────
+      # 포털은 «관리지역고시»까지, 정비몽땅은 그 뒤(조합설립인가~)를 안다.
+      # 둘 다 돌려야 「매수 가능」 판정이 맞는다.
+      - name: 서울도시공간포털 — 구역 단계
+        env:
+          HY_PASSWORD: ${{ secrets.HY_PASSWORD }}
+        run: python3 scripts/sync_moa_zones.py
+
+      - name: 정비몽땅 — 조합 단계
+        env:
+          HY_PASSWORD: ${{ secrets.HY_PASSWORD }}
+        run: python3 scripts/sync_cleanup.py
+
+      # ── 알림 ─────────────────────────────────────────────
+      # 동기화 «뒤»에 보내야 오늘 바뀐 단계가 반영된 알림이 간다.
+      - name: 슬랙 — 오늘 할 일
+        env:
+          AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
+          AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: python3 scripts/daily_slack.py
