@@ -37,7 +37,8 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from import_moa_pdf import ALIAS, _parts, login, sb  # noqa: E402  같은 규칙을 쓴다
+from import_moa_pdf import (ALIAS, _parts, login, open_retry,  # noqa: E402
+                            sb)  # 같은 규칙·재시도를 쓴다
 
 LIST = ("https://cleanup.seoul.go.kr/cleanup/bsnssttus/"
         "lsubBsnsSttus.do?cpage=1&pageSize=3000")
@@ -71,8 +72,7 @@ LOT = re.compile(r'(\d+(?:-\d+)?)(?=\s*(?:번지|일대|일원|$|\s))')
 
 def fetch():
     req = urllib.request.Request(LIST, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        h = r.read().decode('utf-8', 'replace')
+    h = open_retry(req, timeout=180).decode('utf-8', 'replace')
     out = []
     for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', h, re.S):
         c = [html.unescape(re.sub(r'<[^>]+>', '', x)).strip()

@@ -39,7 +39,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from import_moa_pdf import login  # noqa: E402  키체인·환경변수 로그인을 함께 쓴다
+from import_moa_pdf import login, open_retry  # noqa: E402  로그인·재시도를 함께 쓴다
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs"
@@ -86,8 +86,7 @@ def fetch(code):
         API, method="POST",
         data=json.dumps({"bsnsCdList": [code], "pageSize": 1000}).encode(),
         headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read())["content"]
+    return json.loads(open_retry(req))["content"]
 
 
 def sb(path, method="GET", body=None, token=None):

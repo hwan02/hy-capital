@@ -96,6 +96,31 @@ def lot(name):
     return _parts(name)[1]
 
 
+def open_retry(req, timeout=90, tries=4):
+    """서울시 사이트는 «해외 러너»에서 자주 느리다 — 끊기면 다시 건다.
+
+    GitHub Actions(미국)에서 urban.seoul.go.kr 조회가 간헐적으로 타임아웃
+    나면서 배치가 통째로 실패했다. 내 맥에서는 같은 호출이 잘 된다.
+    한 번 실패했다고 그날 동기화를 통째로 버릴 이유가 없다.
+    """
+    import time
+    last = None
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError:
+            raise                      # 4xx·5xx 는 다시 걸어도 같다
+        except Exception as ex:        # noqa: BLE001  타임아웃·연결 끊김
+            last = ex
+            if i < tries - 1:
+                wait = 5 * (i + 1)
+                print(f"  …조회 실패({ex}) — {wait}초 뒤 다시 ({i + 2}/{tries})",
+                      file=sys.stderr)
+                time.sleep(wait)
+    raise last
+
+
 KEYCHAIN = "hy-capital-app"
 
 
