@@ -51,17 +51,47 @@ jobs:
       # ── 구역 단계 ────────────────────────────────────────
       # 포털은 «관리지역고시»까지, 정비몽땅은 그 뒤(조합설립인가~)를 안다.
       # 둘 다 돌려야 「매수 가능」 판정이 맞는다.
+      #
+      # 【한 곳이 죽어도 나머지는 돌린다】
+      # 2026-09-21 배치가 이렇게 통째로 날아갔다: 서울시 포털이 해외 러너에서
+      # 6분 넘게 안 열려 첫 스텝이 죽었고, «그 바람에» 정비몽땅 동기화도
+      # 슬랙 알림도 아예 실행되지 않았다. 셋은 서로 남남이다 — 정비몽땅은
+      # 다른 사이트고, 슬랙은 외부 조회가 필요 없다.
+      # 그래서 실패를 스텝에 «가둬두고»(continue-on-error) 뒤는 always 로
+      # 돌린 다음, 맨 마지막에 잡을 빨갛게 만든다. 알림 메일은 그대로 오되
+      # 그날 할 수 있는 일은 다 하고 죽는다.
       - name: 서울도시공간포털 — 구역 단계
+        id: portal
+        continue-on-error: true
         run: python3 scripts/sync_moa_zones.py
 
       - name: 정비몽땅 — 조합 단계
+        id: cleanup
+        if: always()
+        continue-on-error: true
         run: python3 scripts/sync_cleanup.py
 
       # ── 알림 ─────────────────────────────────────────────
       # 동기화 «뒤»에 보내야 오늘 바뀐 단계가 반영된 알림이 간다.
+      # 동기화가 실패해도 오늘 할 일은 알려줘야 한다 — always.
       # 웹훅이 없으면 보낼 곳이 없다. 배치를 «빨갛게» 만들지 않고 건너뛴다.
       # step 의 if 에서는 secrets 를 못 읽는다(Unrecognized named-value).
       # 잡 env 로 올려놓고 env 로 본다.
       - name: 슬랙 — 오늘 할 일
-        if: env.SLACK_WEBHOOK != ''
+        if: always() && env.SLACK_WEBHOOK != ''
         run: python3 scripts/daily_slack.py
+
+      # ── 결과 판정 ────────────────────────────────────────
+      # 위에서 실패를 삼켰으니 여기서 되살린다. 하나라도 죽었으면
+      # 잡을 실패로 끝내야 알림이 오고, 조용히 썩는 일이 없다.
+      - name: 동기화 결과
+        if: always()
+        run: |
+          p='${{ steps.portal.outcome }}'
+          c='${{ steps.cleanup.outcome }}'
+          echo "서울도시공간포털: $p"
+          echo "정비몽땅:         $c"
+          if [ "$p" != 'success' ] || [ "$c" != 'success' ]; then
+            echo '::error::동기화 실패 — 위 스텝 로그를 본다. 슬랙 알림은 별개로 나갔다.'
+            exit 1
+          fi
