@@ -177,6 +177,18 @@ const taskSpec = BuiltinSpec(
   ],
 );
 
+/// 대시보드 빠른 메모. 제목을 짓게 하면 안 쓰게 된다 — 본문 하나만.
+const memoSpec = BuiltinSpec(
+  table: 'memos',
+  title: '메모',
+  accent: AppColors.gold,
+  fields: [
+    FieldSpec(
+        key: 'body', label: '메모', type: FieldType.longtext, required: true),
+    FieldSpec(key: 'pinned', label: '위에 고정', type: FieldType.boolean),
+  ],
+);
+
 const cashFlowSpec = BuiltinSpec(
   table: 'cash_flows',
   title: '자금 흐름',

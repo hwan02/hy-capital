@@ -75,7 +75,11 @@ class _ShortsCalendarState extends ConsumerState<ShortsCalendar> {
       await ref
           .read(supabaseProvider)
           .from('tasks')
-          .update({'done': !t.done}).eq('id', t.id);
+          .update({
+        'done': !t.done,
+        // 대시보드 「지난 완료」가 이 시각으로 날짜를 묶는다.
+        'done_at': t.done ? null : DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', t.id);
       invalidateAll(ref);
     } catch (_) {}
   }

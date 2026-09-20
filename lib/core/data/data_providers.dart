@@ -122,6 +122,30 @@ final tasksProvider = FutureProvider<List<TodoTask>>((ref) async {
   return rows.map<TodoTask>(TodoTask.fromMap).toList();
 });
 
+/// 「지난 완료」 — 체크해서 목록에서 사라진 할 일.
+/// 최근 것부터. done_at 이 없는 옛 기록(백필 전)도 뒤에 붙는다.
+final doneTasksProvider = FutureProvider<List<TodoTask>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('tasks')
+      .select()
+      .eq('done', true)
+      .order('done_at', ascending: false, nullsFirst: false)
+      .limit(300);
+  return rows.map<TodoTask>(TodoTask.fromMap).toList();
+});
+
+/// 대시보드 빠른 메모. 고정한 것이 위로.
+final memosProvider = FutureProvider<List<Memo>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('memos')
+      .select()
+      .order('pinned', ascending: false)
+      .order('created_at', ascending: false);
+  return rows.map<Memo>(Memo.fromMap).toList();
+});
+
 final weeklyReviewsProvider = FutureProvider<List<WeeklyReview>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb
@@ -558,6 +582,8 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
   ref.invalidate(tasksProvider);
+  ref.invalidate(doneTasksProvider);
+  ref.invalidate(memosProvider);
   ref.invalidate(weeklyReviewsProvider);
   ref.invalidate(aiReportsProvider);
   ref.invalidate(dashboardMetricsProvider);

@@ -660,12 +660,17 @@ class TodoTask {
   final DateTime? dueDate;
   final bool done;
 
+  /// 체크한 시각. 「지난 완료」를 날짜별로 묶는 기준.
+  /// timestamptz 라 UTC 로 들어온다 — 날짜로 묶으려면 로컬이어야 한다.
+  final DateTime? doneAt;
+
   TodoTask({
     required this.id,
     required this.title,
     this.module,
     this.dueDate,
     required this.done,
+    this.doneAt,
   });
 
   factory TodoTask.fromMap(Map<String, dynamic> m) => TodoTask(
@@ -674,7 +679,39 @@ class TodoTask {
         module: m['module'],
         dueDate: _date(m['due_date']),
         done: m['done'] ?? false,
+        doneAt: _date(m['done_at'])?.toLocal(),
       );
+}
+
+/// 대시보드 빠른 메모. 제목 없이 본문 한 덩어리.
+class Memo {
+  final String id;
+  final String body;
+  final bool pinned;
+  final DateTime createdAt;
+
+  Memo({
+    required this.id,
+    required this.body,
+    required this.pinned,
+    required this.createdAt,
+  });
+
+  factory Memo.fromMap(Map<String, dynamic> m) => Memo(
+        id: m['id'],
+        body: m['body'] ?? '',
+        pinned: m['pinned'] ?? false,
+        createdAt: DateTime.parse(m['created_at']).toLocal(),
+      );
+
+  /// 목록에서 한 줄로 보여줄 첫 줄.
+  String get firstLine {
+    final t = body.trim();
+    final i = t.indexOf('\n');
+    return i < 0 ? t : t.substring(0, i);
+  }
+
+  bool get hasMore => body.trim().contains('\n');
 }
 
 class WeeklyReview {

@@ -18,21 +18,34 @@ SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJia3Ntam5"
         "mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMsImV4cCI6MjEwMTMwODM1M30"
         ".v7a-ZkdHr0neEwRuZBveCROrs6J80bVeBFd2jN4LGUI")
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KEYCHAIN = "hy-capital-app"
 
 
-def _local_env():
-    """env.local.json(gitignore) 의 앱 계정. daily_slack.py 와 같은 파일을 쓴다."""
+def keychain_password():
+    """macOS 키체인에서 앱 비밀번호를 꺼낸다. 없으면 빈 문자열.
+
+    scripts/import_moa_pdf.py · unlock_pdf.py 와 «같은» 방식이다 —
+    한 번 넣어두면 비밀번호가 명령줄에도 셸 기록에도 남지 않는다.
+    """
     try:
-        with open(os.path.join(ROOT, "env.local.json")) as f:
-            return json.load(f)
-    except Exception:  # noqa: BLE001 — 없으면 환경변수로 간다
-        return {}
+        import subprocess
+        r = subprocess.run(
+            ["security", "find-generic-password", "-s", KEYCHAIN, "-w"],
+            capture_output=True, text=True, timeout=10)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:  # noqa: BLE001
+        return ""
 
 
-_E = _local_env()
-EMAIL = os.environ.get("HY_EMAIL") or _E.get("AUTO_EMAIL") or "demo@hycapital.app"
-PW = os.environ.get("HY_PASSWORD") or _E.get("AUTO_PASSWORD") or ""
+# 비밀번호는 «키체인 → 환경변수» 순. env.local.json 은 보지 않는다 —
+# 비밀번호가 키체인으로 옮겨간 뒤에도 그 파일엔 옛 값이 남아 있어서,
+# 그걸 읽으면 멀쩡한 키체인을 두고 틀린 값으로 로그인하게 된다.
+EMAIL = (os.environ.get("HY_EMAIL")
+         or os.environ.get("AUTO_EMAIL")
+         or "demo@hycapital.app")
+PW = (keychain_password()
+      or os.environ.get("HY_PASSWORD")
+      or os.environ.get("AUTO_PASSWORD", ""))
 
 
 def api(path, method="GET", body=None, token=None):
@@ -56,8 +69,13 @@ def api(path, method="GET", body=None, token=None):
 
 def login():
     if not PW:
-        sys.exit("계정을 찾을 수 없습니다. env.local.json 에 AUTO_EMAIL/AUTO_PASSWORD 가 있거나\n"
-                 "  HY_PASSWORD=xxx python3 knowledge/import.py 로 넘겨주세요.")
+        sys.exit(
+            "앱 비밀번호를 못 찾았다. 둘 중 하나로 준다 —\n\n"
+            "  ① 키체인에 «한 번만» 넣어두기 (권장 · 기록에 안 남는다)\n"
+            f'     security add-generic-password -a "$USER" -s {KEYCHAIN} -w\n'
+            "     (입력한 글자는 화면에 안 보인다. 그 뒤로는 그냥 돌리면 된다)\n\n"
+            "  ② 이번 한 번만 환경변수로\n"
+            "     HY_PASSWORD='...' python3 knowledge/import.py")
     print(f"로그인: {EMAIL}")
     tok = api("/auth/v1/token?grant_type=password", "POST",
               {"email": EMAIL, "password": PW})

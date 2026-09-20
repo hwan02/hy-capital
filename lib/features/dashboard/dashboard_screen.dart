@@ -66,8 +66,10 @@ class DashboardScreen extends ConsumerWidget {
         const Gap(14),
         const _NextGoalsCard(),
         const Gap(14),
-        // 오늘 해야 할 일 (전체 폭)
+        // 오늘 해야 할 일 (전체 폭). 체크하면 사라지고 「지난 완료」로 간다.
         const _TodayTasks(),
+        const Gap(14),
+        const _Memos(),
       ],
     );
   }
@@ -757,15 +759,39 @@ class _Engine {
 }
 
 // ── 오늘 해야 할 일 ─────────────────────────────────────────
+//
+// 체크하면 «목록에서 사라진다». 남은 것만 보이는 게 오늘 할 일의 목적이고,
+// 끝낸 줄이 줄줄이 남아 있으면 남은 게 몇 개인지 한눈에 안 들어온다.
+// 사라진 것은 헤더의 시계 아이콘 →「지난 완료」에서 날짜별로 본다.
+// 잘못 눌렀을 때를 위해 체크 직후 스낵바에 되돌리기를 띄운다.
 class _TodayTasks extends ConsumerWidget {
   const _TodayTasks();
 
-  Future<void> _toggle(WidgetRef ref, TodoTask t) async {
-    await ref
-        .read(supabaseProvider)
-        .from('tasks')
-        .update({'done': !t.done}).eq('id', t.id);
+  /// 체크 → done + done_at. 해제 → 둘 다 되돌린다.
+  Future<void> _setDone(WidgetRef ref, TodoTask t, bool done) async {
+    await ref.read(supabaseProvider).from('tasks').update({
+      'done': done,
+      'done_at': done ? DateTime.now().toUtc().toIso8601String() : null,
+    }).eq('id', t.id);
     ref.invalidate(tasksProvider);
+    ref.invalidate(doneTasksProvider);
+  }
+
+  Future<void> _check(BuildContext context, WidgetRef ref, TodoTask t) async {
+    await _setDone(ref, t, true);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('완료 — ${t.title}'),
+        backgroundColor: AppColors.surfaceAlt,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: '되돌리기',
+          textColor: AppColors.primary,
+          onPressed: () => _setDone(ref, t, false),
+        ),
+      ));
   }
 
   @override
@@ -776,19 +802,33 @@ class _TodayTasks extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader('오늘 해야 할 일',
-              trailing: TextButton.icon(
-                onPressed: () => editBuiltinRecord(context, ref, taskSpec),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('추가'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => showDoneTasksSheet(context),
+                    icon: const Icon(Icons.history_rounded, size: 20),
+                    color: AppColors.textFaint,
+                    tooltip: '지난 완료',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  TextButton.icon(
+                    onPressed: () => editBuiltinRecord(context, ref, taskSpec),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('추가'),
+                  ),
+                ],
               )),
           const Gap(6),
           tasksAsync.when(
             loading: AsyncStatus.loading,
             error: AsyncStatus.error,
-            data: (tasks) {
+            data: (all) {
+              // 체크한 것은 여기 남지 않는다 —「지난 완료」로 간다.
+              final tasks = all.where((t) => !t.done).toList();
               if (tasks.isEmpty) {
                 return const EmptyState(
-                    icon: Icons.checklist_rounded, message: '할 일이 없습니다');
+                    icon: Icons.task_alt_rounded, message: '오늘 할 일을 다 끝냈습니다');
               }
               return Column(
                 children: [
@@ -798,8 +838,8 @@ class _TodayTasks extends ConsumerWidget {
                       child: Row(
                         children: [
                           Checkbox(
-                            value: t.done,
-                            onChanged: (_) => _toggle(ref, t),
+                            value: false,
+                            onChanged: (_) => _check(context, ref, t),
                             activeColor: AppColors.primary,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(6)),
@@ -815,14 +855,9 @@ class _TodayTasks extends ConsumerWidget {
                             child: Text(
                               t.title,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: AppFont.body,
-                                decoration: t.done
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                color: t.done
-                                    ? AppColors.textFaint
-                                    : AppColors.textPrimary,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ),
@@ -841,6 +876,246 @@ class _TodayTasks extends ConsumerWidget {
                             onDelete: () => deleteBuiltinRecord(
                                 context, ref, taskSpec, t.id,
                                 name: t.title),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 지난 완료 ───────────────────────────────────────────────
+/// 체크해서 사라진 할 일을 «날짜별»로 본다. 여기서 체크를 풀면
+/// 다시 오늘 할 일로 돌아간다.
+Future<void> showDoneTasksSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+    ),
+    builder: (_) => const _DoneTasksSheet(),
+  );
+}
+
+class _DoneTasksSheet extends ConsumerWidget {
+  const _DoneTasksSheet();
+
+  /// 「오늘」·「어제」는 날짜보다 그 말이 빠르게 읽힌다.
+  String _dayLabel(DateTime? d) {
+    if (d == null) return '날짜 기록 없음';
+    final now = DateTime.now();
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = DateTime(now.year, now.month, now.day).difference(day).inDays;
+    if (diff == 0) return '오늘';
+    if (diff == 1) return '어제';
+    return Dates.md(d);
+  }
+
+  Future<void> _undo(WidgetRef ref, TodoTask t) async {
+    await ref
+        .read(supabaseProvider)
+        .from('tasks')
+        .update({'done': false, 'done_at': null}).eq('id', t.id);
+    ref.invalidate(tasksProvider);
+    ref.invalidate(doneTasksProvider);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(doneTasksProvider);
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader('지난 완료', subtitle: '체크한 날짜별로 묶여 있습니다'),
+              const Gap(8),
+              Flexible(
+                child: async.when(
+                  loading: AsyncStatus.loading,
+                  error: AsyncStatus.error,
+                  data: (tasks) {
+                    if (tasks.isEmpty) {
+                      return const EmptyState(
+                          icon: Icons.history_rounded,
+                          message: '아직 완료한 할 일이 없습니다');
+                    }
+                    // 날짜별로 묶는다. 목록이 이미 최신순이라 순서는 유지된다.
+                    final groups = <String, List<TodoTask>>{};
+                    for (final t in tasks) {
+                      groups.putIfAbsent(_dayLabel(t.doneAt), () => []).add(t);
+                    }
+                    return ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final e in groups.entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(2, 12, 2, 6),
+                            child: Row(
+                              children: [
+                                Text(e.key,
+                                    style: const TextStyle(
+                                        fontSize: AppFont.label,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary)),
+                                const Gap(8),
+                                Text('${e.value.length}',
+                                    style: const TextStyle(
+                                        fontSize: AppFont.caption,
+                                        color: AppColors.textFaint)),
+                              ],
+                            ),
+                          ),
+                          for (final t in e.value)
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: true,
+                                  onChanged: (_) => _undo(ref, t),
+                                  activeColor: AppColors.primary,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6)),
+                                ),
+                                if (t.module != null) ...[
+                                  Pill(t.module!,
+                                      color: AppColors.module[t.module] ??
+                                          AppColors.textFaint),
+                                  const Gap(10),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    t.title,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: AppFont.body,
+                                      color: AppColors.textFaint,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── 메모 ────────────────────────────────────────────────────
+//
+// 자료실은 «정리된 자료»고 여기는 그 전 단계 — 통화하다 들은 숫자,
+// 아직 할 일인지도 모르는 한 줄. 제목 없이 본문만 받는다.
+class _Memos extends ConsumerWidget {
+  const _Memos();
+
+  Future<void> _togglePin(WidgetRef ref, Memo m) async {
+    await ref
+        .read(supabaseProvider)
+        .from('memos')
+        .update({'pinned': !m.pinned}).eq('id', m.id);
+    ref.invalidate(memosProvider);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(memosProvider);
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader('메모',
+              trailing: TextButton.icon(
+                onPressed: () => editBuiltinRecord(context, ref, memoSpec),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('추가'),
+              )),
+          const Gap(6),
+          async.when(
+            loading: AsyncStatus.loading,
+            error: AsyncStatus.error,
+            data: (memos) {
+              if (memos.isEmpty) {
+                return const EmptyState(
+                    icon: Icons.sticky_note_2_rounded,
+                    message: '메모가 없습니다');
+              }
+              return Column(
+                children: [
+                  for (final m in memos)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          IconButton(
+                            onPressed: () => _togglePin(ref, m),
+                            icon: Icon(
+                              m.pinned
+                                  ? Icons.push_pin_rounded
+                                  : Icons.push_pin_outlined,
+                              size: 16,
+                            ),
+                            color: m.pinned
+                                ? AppColors.gold
+                                : AppColors.textFaint,
+                            tooltip: m.pinned ? '고정 해제' : '위에 고정',
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.only(top: 2),
+                            constraints: const BoxConstraints(),
+                          ),
+                          const Gap(10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 여러 줄 메모는 접어 둔다 — 카드가 길어지면
+                                // 대시보드의 다른 것이 밀려난다.
+                                Text(
+                                  m.body.trim(),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: AppFont.body,
+                                      height: 1.45,
+                                      color: AppColors.textPrimary),
+                                ),
+                                const Gap(2),
+                                Text(Dates.md(m.createdAt),
+                                    style: const TextStyle(
+                                        fontSize: AppFont.caption,
+                                        color: AppColors.textFaint)),
+                              ],
+                            ),
+                          ),
+                          RecordMenu(
+                            onEdit: () => editBuiltinRecord(
+                                context, ref, memoSpec,
+                                initial: {'body': m.body, 'pinned': m.pinned},
+                                id: m.id),
+                            onDelete: () => deleteBuiltinRecord(
+                                context, ref, memoSpec, m.id,
+                                name: m.firstLine),
                           ),
                         ],
                       ),
