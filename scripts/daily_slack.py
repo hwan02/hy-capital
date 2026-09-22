@@ -288,7 +288,10 @@ def main():
     hook = e.get('SLACK_WEBHOOK') or os.environ.get('SLACK_WEBHOOK')
     if not hook:
         sys.exit('SLACK_WEBHOOK 이 env.local.json 에 없습니다')
-    req = u.Request(hook, data=json.dumps({'text': text}).encode(),
+    # 기사 URL 을 맨 URL 로 넣기 때문에(복사-붙여넣기가 되게) 미리보기를 끈다.
+    # 안 끄면 기사 8개마다 카드가 붙어 채널이 스크롤 지옥이 된다.
+    payload = {'text': text, 'unfurl_links': False, 'unfurl_media': False}
+    req = u.Request(hook, data=json.dumps(payload).encode(),
                     headers={'Content-Type': 'application/json'})
     try:
         with u.urlopen(req) as r:

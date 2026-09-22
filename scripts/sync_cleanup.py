@@ -37,8 +37,8 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from import_moa_pdf import (ALIAS, _parts, login, open_retry,  # noqa: E402
-                            sb)  # 같은 규칙·재시도를 쓴다
+from import_moa_pdf import (ALIAS, _parts, app_password, login,  # noqa: E402
+                            open_retry, sb)  # 같은 규칙·재시도를 쓴다
 
 LIST = ("https://cleanup.seoul.go.kr/cleanup/bsnssttus/"
         "lsubBsnsSttus.do?cpage=1&pageSize=3000")
@@ -90,21 +90,34 @@ def zone_key(district, name):
     return ALIAS.get((district or '', d, l), (d, l))
 
 
-def matches(row, dong, lot):
+def matches(row, dong, lot, aliases=()):
     """이 사업장이 (동, 번지) 구역 것인가.
 
-    두 가지로 본다 —
+    세 가지로 본다 —
       ① 사업장명에 번지가 박혀 있다: 「화곡1동 354 일대 모아타운 A2-4구역」
       ② «대표지번»이 구역 대표지번과 같다: 「면목역2의5구역」 → 면목동 127-26
+      ③ «포함 번지»(zones.aliases)에 있다: 성산동 160-4 구역의 200-258
 
     ②를 빼먹었더니 이름에 번지가 없는 조합을 통째로 놓쳤다. 면목역·중화역·
     장위N구역처럼 «역 이름 + 번호»로 등록된 것들이 그렇다. 하필 그중에
     내가 매수 후보로 꼽았던 구역(면목동 127-26 · 하월곡동 40-107 ·
     장위동 65-107)이 이미 조합설립인가 난 채로 들어 있었다.
+
+    ③ 은 «대표번지와 세부구역 번지가 아예 다른» 모아타운 때문이다.
+    마포 성산동 모아타운은 구역명이 「성산동 160-4 일대」인데 그 안의
+    조합 셋은 165-72 · 200-258 · 200-323 으로 등록돼 있다. 대표번지만
+    보면 하나도 안 붙어서, 조합설립인가가 «셋 다» 난 구역이 앱에서는
+    여전히 「매수 가능」으로 보였다.
+
+    동만 같으면 붙이는 식으로 넓히지는 «않는다» — 같은 동의 독립
+    가로주택·아파트 소규모재건축까지 빨려 들어와 멀쩡한 구역을
+    「진입 불가」로 막아버린다. 포함 번지는 사람이 확인한 것만 넣는다.
     """
     if lot and lot in set(LOT.findall(row['name'])):
         return True
     rd, rl = _parts(row['lot'])          # 「면목동 127-26」
+    if rd == dong and rl and rl in {str(a).strip() for a in (aliases or ())}:
+        return True
     return bool(lot) and rd == dong and rl == lot
 
 
@@ -113,25 +126,26 @@ def main():
     rows = [r for r in fetch() if r['kind'] in SMALL]
     print(f"{SRC} — 소규모주택정비 {len(rows)}건\n")
 
-    if dry and not os.environ.get("HY_PASSWORD"):
+    if dry and not app_password():
         for r in sorted(rows, key=lambda x: (x['gu'], x['name'])):
             if r['stage'] in STAGE and STAGE[r['stage']] >= 9:
                 print(f"  {r['gu']:6} {r['name'][:46]:48} {r['stage']}")
-        print("\n(구역 대조는 HY_PASSWORD 를 줘야 한다.)")
+        print("\n(구역 대조는 키체인이나 HY_PASSWORD 가 필요하다.)")
         return
 
     tok, _ = login()
 
     zones = sb("/rest/v1/zones?select=id,name,kind,district,stage,subs,memo,"
-               "stage_source&kind=eq.모아타운", token=tok)
+               "aliases,stage_source&kind=eq.모아타운", token=tok)
 
     raised = subbed = added = same = 0
     for z in zones:
         dong, lot = zone_key(z['district'], z['name'])
         if not lot:
             continue
+        al = z.get('aliases') or []
         mine = [r for r in rows
-                if r['gu'] == z['district'] and matches(r, dong, lot)]
+                if r['gu'] == z['district'] and matches(r, dong, lot, al)]
         if not mine:
             continue
 

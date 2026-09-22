@@ -140,6 +140,19 @@ def keychain_password():
         return ""
 
 
+def app_password():
+    """앱 비밀번호를 «키체인 → 환경변수» 순으로 찾는다. 없으면 빈 문자열.
+
+    login() 과 --dry 게이트가 «같은» 기준을 봐야 한다. 예전엔 게이트만
+    HY_PASSWORD 를 직접 봐서, 키체인에 넣어둔 사람은 --dry 로 구역 대조를
+    아예 못 했다 — 「HY_PASSWORD 를 줘야 한다」는 안내가 뜨는데 정작
+    로그인은 키체인으로 잘 되는 상태였다.
+    """
+    return (keychain_password()
+            or os.environ.get("HY_PASSWORD")
+            or os.environ.get("AUTO_PASSWORD", ""))
+
+
 def login():
     """앱 계정으로 로그인해 (토큰, uid) 를 준다.
 
@@ -149,9 +162,7 @@ def login():
     """
     # 앱이 쓰는 계정과 «같은» 계정이다. Vercel·Actions 에 이미 AUTO_* 로
     # 들어 있으므로 그걸 그대로 받아쓴다 — 시크릿을 두 벌 관리하지 않는다.
-    pw = (keychain_password()
-          or os.environ.get("HY_PASSWORD")
-          or os.environ.get("AUTO_PASSWORD", ""))
+    pw = app_password()
     if not pw:
         sys.exit(
             "앱 비밀번호를 못 찾았다. 둘 중 하나로 준다 —\n\n"
@@ -211,13 +222,13 @@ def main():
     print(f"{doc['출처']}\n  공모 {doc['집계']['자치구 공모']} · "
           f"주민제안 {doc['집계']['주민제안']} · 행 {len(rows)}\n")
 
-    if dry and not os.environ.get("HY_PASSWORD"):
+    if dry and not app_password():
         for r in rows:
             if r['stage'] == 4:
                 print(f"  매수 A  {r['자치구']:6} {r['대표지번']:18} "
                       f"{r['면적']:>9,.0f}㎡  권리산정 "
                       f"{'·'.join(r['권리산정기준일']) or '?'}")
-        print("\n(로그인 없이 표만 보여준 것이다. 대조하려면 HY_PASSWORD 를 준다.)")
+        print("\n(로그인 없이 표만 보여준 것이다. 대조하려면 키체인이나 HY_PASSWORD 가 필요하다.)")
         return
 
     tok, uid = login()
