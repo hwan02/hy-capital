@@ -25,6 +25,7 @@ import urllib.request as u
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 URL = 'https://rbksmjnfaqglnzypgxqa.supabase.co'
+KST = datetime.timezone(datetime.timedelta(hours=9))
 ANON = ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6'
         'InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs'
         'ImV4cCI6MjEwMTMwODM1M30.v7a-ZkdHr0neEwRuZBveCROrs6J80bVeBFd2jN4LGUI')
@@ -167,8 +168,11 @@ def build(token, today, record=True):
 
         # 입찰 — D-7 이내
         if r.get('bid_date'):
+            # timestamptz 는 UTC 로 온다. 한국시간으로 바꾼 뒤 날짜를 뗀다 —
+            # 안 그러면 오전 9시 전 입찰은 전날로 잡힌다.
             d = (datetime.datetime.fromisoformat(
-                r['bid_date'].replace('Z', '+00:00')).date() - d0).days
+                r['bid_date'].replace('Z', '+00:00')).astimezone(KST).date()
+                 - d0).days
             if 0 <= d <= 7:
                 dep = won(r.get('deposit') or (r.get('min_price') or 0) * 0.1)
                 tag = '오늘 입찰' if d == 0 else f'D-{d}'
@@ -261,7 +265,11 @@ def main():
     force = '--force' in sys.argv
     e = env()
     token = login(e)
-    today = datetime.date.today().isoformat()
+    # 한국 날짜로 센다. 배치는 GitHub 러너(UTC)에서 한국시간 아침에 돈다 —
+    # date.today() 를 쓰면 «어제» 날짜가 나와서 헤더가 하루 밀리고,
+    # 공람·입찰·잔금·명도 D-day 가 전부 하루씩 늦었다(2026-09-23 발견).
+    # 잔금 기한은 넘기면 보증금 몰수라 하루 늦은 알림은 사고다.
+    today = datetime.datetime.now(KST).date().isoformat()
     sections = build(token, today, record=not dry)
 
     if not sections and not force:

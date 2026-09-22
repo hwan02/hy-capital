@@ -37,6 +37,12 @@ QUERIES = [
     ('신속통합기획 정비구역 지정', '신통기획'),
 ]
 
+def today_kst():
+    """한국 날짜. GitHub 러너는 UTC 라 아침 6~9시에 돌면 «어제»가 된다."""
+    return datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=9))).date()
+
+
 # «하루치»만 본다.
 #
 # 전에는 14일이었다. 그랬더니 매일 70건씩 후보가 쌓이는데 슬랙엔 8건만
@@ -93,7 +99,7 @@ def _parse(xml, topic):
 def collect(today=None, days=DAYS):
     """새로 볼 만한 기사. 중복(url)과 오래된 것은 여기서 이미 걸러진다."""
     today = datetime.date.fromisoformat(today) if isinstance(today, str) \
-        else (today or datetime.date.today())
+        else (today or today_kst())
     cutoff = today - datetime.timedelta(days=days)
     seen, out = set(), []
     for q, topic in QUERIES:
@@ -190,14 +196,32 @@ def slack_lines(fresh, limit=10):
         src = f" · {i['source']}" if i['source'] else ''
         # 여러 매체가 받아쓴 건 «크게 난 소식»이라는 뜻이라 표시해 준다.
         more = f" (+{i['also']}곳)" if i.get('also') else ''
+        # 기록(news_digest)은 원래 주소로 한다 — 중복 판정 키라서.
+        # 줄이는 건 «보여줄 때»만.
         lines.append(
-            f"{when} [{i['topic']}] {i['title'][:60]}{src}{more}\n{i['url']}")
-    if len(fresh) > limit:
-        # 하루치만 보므로 «내일 이어서»가 아니다 — 여기서 잘린 건 그냥
-        # 안 보낸다. 그래도 몇 건을 버렸는지는 말해준다. 말없이 버리면
-        # 다 본 줄 안다.
-        lines.append(f'… 그 밖에 {len(fresh) - limit}건은 생략(오늘치)')
+            f"{when} [{i['topic']}] {i['title'][:60]}{src}{more}\n{short(i['url'])}")
+    # 잘린 건수는 말하지 않는다. 하루치만 보므로 잘린 건 다시 안 온다 —
+    # 「그 밖에 24건은 생략」은 할 수 있는 게 없는 정보라 소음이었다.
     return lines
+
+
+def short(url):
+    """긴 주소를 tinyurl 로 줄인다. 실패하면 원래 주소를 그대로 쓴다.
+
+    구글 뉴스 주소는 원문을 통째로 인코딩해서 200자가 넘는다. 원문으로
+    풀 수는 없어서(JS 로만 튕긴다) 대신 짧게 감싼다 — 누르면 똑같이 간다.
+    단축이 안 된다고 뉴스를 못 보내면 안 되므로 어떤 실패든 원래 주소로.
+    is.gd 는 2026-09-23 에 「database insert failed」를 뱉어 뺐다.
+    """
+    try:
+        req = u.Request('https://tinyurl.com/api-create.php?url='
+                        + urllib.parse.quote(url, safe=''),
+                        headers={'User-Agent': 'Mozilla/5.0'})
+        with u.urlopen(req, timeout=8) as r:
+            s = r.read().decode().strip()
+        return s if s.startswith('https://tinyurl.com/') else url
+    except Exception:  # noqa: BLE001
+        return url
 
 
 def main():

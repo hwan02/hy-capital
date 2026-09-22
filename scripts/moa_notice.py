@@ -97,7 +97,8 @@ def slack_lines(today, zones_by_key=None):
 
 
 def main():
-    today = datetime.date.today().isoformat()
+    today = datetime.datetime.now(datetime.timezone(
+        datetime.timedelta(hours=9))).date().isoformat()  # 러너는 UTC
     rows = notices(today)
     if '--all' in sys.argv:
         d0 = datetime.date.fromisoformat(today)
