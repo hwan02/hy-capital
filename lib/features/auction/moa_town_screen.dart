@@ -840,20 +840,22 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                   : AppColors.sky),
                         if (mine.isNotEmpty)
                           Pill('물건 ${mine.length}', color: AppColors.primary),
-                        Pill('입지 ${_locDone(z)}/${_locItems.length}',
-                            color: _locDone(z) == _locItems.length
-                                ? AppColors.primary
-                                : _locDone(z) == 0
-                                    ? AppColors.textFaint
-                                    : AppColors.gold),
+                        // 입지는 «손으로 체크한 게 있을 때만». 142곳 중 1곳만
+                        // 체크된 상태에서 모든 카드에 「입지 0/5」가 붙어 소음이었다.
+                        // 체크 목록 자체는 카드를 펼치면 그대로 있다.
+                        if (_locDone(z) > 0)
+                          Pill('입지 ${_locDone(z)}/${_locItems.length}',
+                              color: _locDone(z) == _locItems.length
+                                  ? AppColors.primary
+                                  : AppColors.gold),
                         if (z.subs.isNotEmpty)
                           Pill('매수가능 ${_buySubs(z)}/${z.subs.length}',
                               color: _buySubs(z) > 0
                                   ? AppColors.primary
                                   : AppColors.textFaint),
-                        // 해제 위험은 «칩 하나»로만 — 설명은 위 사다리 카드에
-                        // 한 번만 적는다. 구역마다 같은 문단을 붙이면 못 읽는다.
-                        if (hasDropRisk(z)) const Pill('해제 위험', color: AppColors.gold),
+                        // 「해제 위험」 칩은 뺐다. 구역별 신호가 아니라 «단계 1~5면
+                        // 무조건» 붙어서(48곳) 「초기 단계다」를 한 번 더 말할 뿐이었다.
+                        // 뜻은 위 사다리 카드(kDropRiskNote)에 한 번 적혀 있다.
                       ]),
                       const Gap(8),
                       Text(unknown ? '동·번지 확인 전' : z.name,
