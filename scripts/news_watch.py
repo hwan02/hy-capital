@@ -4,8 +4,12 @@
 아침 슬랙에 뉴스가 한 줄도 안 나오던 이유는 단순하다 — 수집하는 코드가
 아예 없었다. news_digest 표는 있었지만 앱에서 손으로 링크를 넣는 용도였다.
 
-출처는 «구글 뉴스 RSS». 키가 필요 없고, 매체를 가리지 않고 긁는다.
-    https://news.google.com/rss/search?q=<검색어>&hl=ko&gl=KR&ceid=KR:ko
+출처는 둘이다.
+  ① 정비사업 «전문지» RSS (SITES) — 구글이 늦게 잡거나 아예 안 잡는
+     구역 단위 소식(동의서 징구·조합장 선출)이 여기 먼저 뜬다. 주소도
+     원문 그대로라 짧다.
+  ② «구글 뉴스 RSS» — 키가 필요 없고, 매체를 가리지 않고 긁는다.
+     https://news.google.com/rss/search?q=<검색어>&hl=ko&gl=KR&ceid=KR:ko
 
 중복은 news_digest.url 로 막는다(unique). 한 번 보낸 기사는 다시 안 보낸다.
 
@@ -21,6 +25,20 @@ import urllib.parse
 import urllib.request as u
 
 RSS = 'https://news.google.com/rss/search?q={q}&hl=ko&gl=KR&ceid=KR:ko'
+
+# 정비사업 전문지. 사이트 전체 기사 RSS 를 받아 모아·신통만 걸러낸다.
+# 검색어를 사이트마다 돌리지 않는 이유 — 전문지는 하루 기사가 몇 개
+# 안 돼서 «전체»를 받아 거르는 게 빠르고, 검색 API 가 없는 곳도 된다.
+SITES = [
+    ('디벨로퍼뉴스', 'https://cdn.dpnews.co.kr/rss/gn_rss_allArticle.xml'),
+    ('하우징헤럴드', 'https://cdn.housingherald.co.kr/rss/gn_rss_allArticle.xml'),
+]
+
+# 전문지 기사를 어느 topic 으로 볼지. 「모아」만 걸면 「모아서」가 걸린다.
+TOPIC_OF = [
+    (re.compile(r'모아타운|모아주택'), '모아타운'),
+    (re.compile(r'신속통합|신통기획|신통\s*재'), '신통기획'),
+]
 
 # 무엇을 찾을 것인가. 값은 앱의 topic 으로 그대로 들어간다.
 #
@@ -96,18 +114,59 @@ def _parse(xml, topic):
     return out
 
 
+def _site_items(name, url):
+    """전문지 전체 기사 RSS → 모아·신통 기사만. 제목·요약에서 topic 을 정한다."""
+    req = u.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with u.urlopen(req, timeout=12) as r:
+        xml = r.read().decode('utf-8', 'ignore')
+    out = []
+    for it in re.findall(r'<item>(.*?)</item>', xml, re.S):
+        def pick(tag):
+            m = re.search(rf'<{tag}[^>]*>(.*?)</{tag}>', it, re.S)
+            if not m:
+                return ''
+            v = re.sub(r'^\s*<!\[CDATA\[(.*)\]\]>\s*$', r'\1', m.group(1), flags=re.S)
+            return html.unescape(v).strip()
+        title, link = pick('title'), pick('link')
+        if not title or not link:
+            continue
+        text = title + ' ' + re.sub(r'<[^>]+>', ' ', pick('description'))[:600]
+        topic = next((t for rx, t in TOPIC_OF if rx.search(text)), None)
+        if not topic:
+            continue
+        day = None
+        pub = pick('pubDate')
+        if pub:
+            try:
+                day = datetime.datetime.strptime(pub[:16], '%a, %d %b %Y').date()
+            except ValueError:
+                day = None
+        out.append({'url': link, 'title': title, 'source': name,
+                    'topic': topic, 'published_on': day})
+    return out
+
+
 def collect(today=None, days=DAYS):
     """새로 볼 만한 기사. 중복(url)과 오래된 것은 여기서 이미 걸러진다."""
     today = datetime.date.fromisoformat(today) if isinstance(today, str) \
         else (today or today_kst())
     cutoff = today - datetime.timedelta(days=days)
     seen, out = set(), []
+    # 전문지를 «먼저» 넣는다. 중복 묶기는 먼저 들어온 것을 대표로 남기므로,
+    # 같은 사건을 구글도 잡았으면 전문지 기사가 대표가 되고 구글 쪽은
+    # 「(+N곳)」으로만 붙는다 — 주소가 짧고 원문이다.
+    batches = []
+    for name, url in SITES:
+        try:
+            batches.append(_site_items(name, url))
+        except Exception as ex:  # noqa: BLE001  한 곳이 죽어도 나머지는 본다
+            print(f'  «{name}» 조회 실패: {ex}', file=sys.stderr)
     for q, topic in QUERIES:
         try:
-            items = _parse(_fetch(q), topic)
+            batches.append(_parse(_fetch(q), topic))
         except Exception as ex:  # noqa: BLE001
             print(f'  «{q}» 조회 실패: {ex}', file=sys.stderr)
-            continue
+    for items in batches:
         for it in items:
             if it['url'] in seen:
                 continue
@@ -117,7 +176,8 @@ def collect(today=None, days=DAYS):
                 continue
             seen.add(it['url'])
             out.append(it)
-    # 최신순. 날짜를 못 읽은 것은 뒤로.
+    # 최신순. 날짜를 못 읽은 것은 뒤로. 같은 날이면 전문지가 앞 —
+    # sort 는 안정적이라 위에서 넣은 순서(전문지 → 구글)가 유지된다.
     out.sort(key=lambda x: x['published_on'] or datetime.date(1970, 1, 1),
              reverse=True)
     return _dedupe(out)
@@ -213,8 +273,11 @@ def short(url):
     단축이 안 된다고 뉴스를 못 보내면 안 되므로 어떤 실패든 원래 주소로.
     is.gd 는 2026-09-23 에 「database insert failed」를 뱉어 뺐다.
     """
+    if 'news.google.com' not in url:
+        return url                    # 전문지 원문 주소는 이미 짧다
     try:
         req = u.Request('https://tinyurl.com/api-create.php?url='
+
                         + urllib.parse.quote(url, safe=''),
                         headers={'User-Agent': 'Mozilla/5.0'})
         with u.urlopen(req, timeout=8) as r:
