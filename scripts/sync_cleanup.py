@@ -84,6 +84,18 @@ def fetch():
     return out
 
 
+# 사람이 «확인한» 포함 번지 — 동기화가 zones.aliases 에 채워 넣는다.
+#
+# 구역명 대표번지와 세부 조합 번지가 다른 모아타운용. 앱 화면에서 넣을 수도
+# 있지만 여기 적어두면 배치가 알아서 DB 에 넣고, 그 번지로 조합을 붙인다.
+# 넣는 기준: 서울시 자료·구청 고시로 «이 구역 안»이라고 확인된 번지만.
+# (자치구, 동, 대표번지) → [포함 번지]
+SEED_ALIASES = {
+    # 조선비즈 표(자료=서울시): 1구역 165-72 · 2구역 200-81 · 3구역 200-323 · 4구역 200-258
+    ('마포구', '성산동', '160-4'): ['165-72', '200-81', '200-323', '200-258'],
+}
+
+
 def zone_key(district, name):
     """구역 이름 → (동, 번지). import_moa_pdf 의 규칙을 그대로 쓴다."""
     d, l = _parts(name)
@@ -143,15 +155,25 @@ def main():
         dong, lot = zone_key(z['district'], z['name'])
         if not lot:
             continue
-        al = z.get('aliases') or []
+        al = list(z.get('aliases') or [])
+        seed = SEED_ALIASES.get((z['district'] or '', dong, lot), [])
+        new_al = [a for a in seed if a not in al]
+        patch = {}
+        if new_al:
+            al += new_al
+            patch['aliases'] = al
+            print(f"  ＋번지 {z['name'][:26]:28} {', '.join(new_al)}")
+            if not dry:
+                report('정비몽땅', f"＋ {z['name'][:26]} 포함 번지 {', '.join(new_al)}")
         mine = [r for r in rows
                 if r['gu'] == z['district'] and matches(r, dong, lot, al)]
         if not mine:
+            if patch and not dry:
+                sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", patch, token=tok)
             continue
 
         subs = list(z.get('subs') or [])
         by_code = {str(s.get('code', '')).upper(): s for s in subs}
-        patch = {}
         best = z['stage'] or 0
 
         for r in mine:

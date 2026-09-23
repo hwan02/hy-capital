@@ -32,6 +32,7 @@
     HY_PASSWORD='...' python3 scripts/sync_moa_zones.py
 """
 import json
+import re
 import os
 import sys
 import urllib.parse
@@ -158,8 +159,8 @@ def main():
 
     tok, uid = login()
 
-    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date,propel_dt",
-                  token=tok)
+    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date,propel_dt,"
+              "stage_source", token=tok)
     by = {key(z['name']): z for z in have}
 
     # 오늘 날짜로 찍는다. 예전엔 날짜가 코드에 박혀 있어서(9/12) 매일 돌아도
@@ -175,6 +176,17 @@ def main():
                f"{w['area']:,}㎡ · 추진일 {w['dt']} (동기화 {kst_day})")
         k = key(w['name'])
         z = by.get(k)
+        if z is not None:
+            # 포털이 «오늘» 이 구역을 봤다 — 문구의 동기화 날짜를 오늘로 맞춘다.
+            # 포털에서 온 문구만 건드린다. 정비몽땅·서울시 표·손으로 적은 출처는
+            # 그대로 둔다(단계도 안 건드린다 — 날짜만).
+            cur = z.get('stage_source') or ''
+            if cur.startswith('서울도시공간포털') and f'(동기화 {kst_day})' not in cur:
+                fresh = re.sub(r'\(동기화 \d{4}-\d{2}-\d{2}\)', f'(동기화 {kst_day})', cur)
+                if fresh != cur:
+                    sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+                       {'stage_source': fresh}, token=tok)
+                    z['stage_source'] = fresh
         if z is None:
             sb("/rest/v1/zones", "POST", [{
                 'user_id': uid, 'name': w['name'], 'kind': w['kind'],
@@ -209,7 +221,8 @@ def main():
             report('포털', f"↑ {w['name'][:30]} — 단계 {z['stage']}→{w['stage']} "
                            f"({w['raw']})")
         else:
-            patch = {}
+            # 단계가 같다 = 포털이 이 단계를 «오늘» 확인했다.
+            patch = {'stage_checked_at': checked}
             if w['dt'] and z.get('propel_dt') != w['dt']:
                 patch['propel_dt'] = w['dt']
             if patch:
