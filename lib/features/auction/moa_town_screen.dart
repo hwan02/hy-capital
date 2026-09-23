@@ -175,7 +175,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
     // 라벨은 «그 사업의 단계 이름»으로 쓴다. 모아 용어를 신통 탭에
     // 그대로 두면 무슨 구간인지 알 수가 없다.
-    final aWhen = _sin ? '대상지선정 후~확정 전' : '관리계획수립·공람';
+    final aWhen = _sin ? '아카이브 기획중(선정~확정 전)' : '관리계획수립·공람';
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _kindColor(_kind)),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
