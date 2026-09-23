@@ -180,7 +180,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
     // 라벨은 «그 사업의 단계 이름»으로 쓴다. 모아 용어를 신통 탭에
     // 그대로 두면 무슨 구간인지 알 수가 없다.
-    final aWhen = _sin ? '아카이브 기획중(선정~확정 전)' : '조합설립인가 전';
+    final aWhen = _sin ? '선정 후~확정 전' : '조합설립인가 전';
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _kindColor(_kind)),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
@@ -1444,7 +1444,7 @@ class _StageLadder extends StatelessWidget {
           const Gap(8),
           Text(
               _sin
-                  ? '아카이브 «기획중»(선정~확정 전)에 사서 기획 확정 뒤 판다. '
+                  ? '선정 후~기획 확정 전에 사서 기획 확정 뒤 판다. '
                       '두 번째는 «동의서 징구»에 사서 조합설립인가 직전에 판다.'
                   : '«수립·공람»에 사서 통합심의 통과 직후 판다. '
                       '두 번째는 «동의서 징구»에 사서 조합설립인가 직전에 판다.',

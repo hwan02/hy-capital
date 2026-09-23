@@ -93,6 +93,86 @@ def fetch_all():
     return rows
 
 
+CLEANUP_SEL = "https://cleanup.seoul.go.kr/cleanup/view/publicIntgrPlanArea.do"
+CLEANUP_PRG = "https://cleanup.seoul.go.kr/cleanup/view/publicIntgrPlanSttn.do"
+
+
+def _get(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    return open_retry(req).decode('utf-8', 'ignore')
+
+
+def _lines(page):
+    t = re.sub(r'<script.*?</script>|<style.*?</style>|<!--.*?-->', '', page, flags=re.S)
+    return [x.strip() for x in html.unescape(re.sub(r'<[^>]+>', '\n', t)).split('\n')
+            if x.strip()]
+
+
+def cleanup_selected(page):
+    """정비몽땅 「재개발 공모 선정구역」 → [{when, gu, loc}]. 취소현황은 뺀다.
+
+    회차 제목(1차 공모 · ’25년 수시선정구역(’25. 12월) …) 아래에
+    「구역 표기 / 위치도 / 현황 / 구역면적 …」이 반복된다. 「위치도」 바로 앞
+    줄이 구역이다. 제목에 월이 없는 회차(’26년)는 연도만 적는다.
+    """
+    L = _lines(page)
+    cur, out = None, []
+    for i, x in enumerate(L):
+        if x.startswith('취소현황'):
+            break
+        if x.startswith('1차 공모 선정구역'):
+            cur = '2021-12'
+        elif x.startswith('2차 공모 선정구역'):
+            cur = '2022-12'
+        elif '수시선정구역' in x:
+            y = re.search(r'’(\d\d)년', x)
+            m = re.search(r'(\d{1,2})\s*월', x) or re.search(r'’\d\d\.\s*(\d{1,2})\.', x)
+            if y:
+                cur = f"20{y.group(1)}" + (f"-{int(m.group(1)):02d}" if m else '')
+        if x == '위치도' and cur and i:
+            raw = L[i - 1]
+            m = (re.match(r'^\(?\s*([가-힣]{1,4}구)\s*\)?\s*(.+)$', raw)
+                 or re.search(r'\(([가-힣]{1,4}구)\s+(.+?)\)', raw))
+            gu, loc = (m.group(1), m.group(2)) if m else ('', raw)
+            inner = re.search(r'\(([^)]*\d[^)]*)\)', loc)      # 「면목7구역(면목동 69-14일대)」
+            out.append({'when': cur, 'gu': gu, 'name': raw,
+                        'loc': inner.group(1) if inner and not m else loc})
+    return out
+
+
+# 「확정 이상」으로 볼 정비몽땅 추진현황 표현. 가이드라인 수립 = 기획 확정.
+_PRG_DONE = re.compile(r'가이드라인|구역\s*지정|통심\s*완료|시행자\s*지정|조합설립')
+
+
+def cleanup_done(page):
+    """정비몽땅 「추진현황」 → 확정 이상인 구역 [{gu, name, why}].
+
+    표가 두 개다(구역지정 이후 / 기획 단계). 둘 다 주석(<!-- -->) 안에도
+    행이 있어 주석을 벗기고 읽는다. 이 표도 늦게 바뀐다 — 확정 «신호»로만 쓴다.
+    """
+    page = page.replace('<!--', '').replace('-->', '')
+    out = []
+    for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', page, re.S):
+        tds = [_text(x) for x in re.findall(r'<td[^>]*>(.*?)</td>', tr, re.S)]
+        if len(tds) < 6 or not tds[1].endswith('구'):
+            continue
+        rest = ' '.join(tds[5:])
+        if _PRG_DONE.search(rest):
+            out.append({'gu': tds[1], 'name': tds[2], 'loc': tds[2],
+                        'why': re.sub(r'\s+', ' ', rest)[:40]})
+    return out
+
+
+def dong_to_gu(zones):
+    """앱 구역들에서 «동 → 자치구»를 배운다. 정비몽땅 ’26년 목록은 구가 없다."""
+    m = {}
+    for z in zones:
+        d = _parts(z['name'])[0]
+        if d and z.get('district'):
+            m.setdefault(d, z['district'])
+    return m
+
+
 def _norm(s):
     """이름 비교용 — 「흑석10구역」과 「흑석10」, 「舊 신당10」과 「신당10구역」."""
     return re.sub(r'[\s·,()舊]|구역|일대|일원|번지|아파트|주택재개발사업', '', s or '')
@@ -120,6 +200,14 @@ def match(row, zones):
             zd, zl = _parts(z['name'])
             if l in (z.get('aliases') or []) and (not zl or zd == d):
                 return z
+    # 「정릉 898-16」 「신월 5-72」처럼 동 글자가 빠진 표기 — 같은 구에서
+    # 그 번지를 가진 구역이 «하나뿐»일 때만 붙인다.
+    lot = re.search(r'(\d+-\d+|\d{2,})', row['loc'] or '')
+    if lot:
+        lot = lot.group(1)
+        c = [z for z in mine if lot == _parts(z['name'])[1] or lot in (z.get('aliases') or [])]
+        if len(c) == 1:
+            return c[0]
     return None
 
 
@@ -237,6 +325,68 @@ def main():
                 report('신통 아카이브', f"↑ {z['name'][:30]} — 단계 {cur}→{target} ({tag})")
             z['stage'] = target
             raised += 1
+
+    # ── 정비몽땅: «확정 이상» 가리기 ─────────────────────────
+    # 매수적기 = 선정 ~ 확정 전. 확정됐는데 3·4 로 남아 있으면 매수적기에 섞인다.
+    try:
+        done = cleanup_done(_get(CLEANUP_PRG))
+    except Exception as ex:  # noqa: BLE001
+        print(f"  정비몽땅 추진현황 조회 실패: {ex}", file=sys.stderr)
+        done = []
+    for r in done:
+        z = match(r, zones)
+        if not z or (z['stage'] or 0) >= 5:
+            continue
+        print(f"  ↑ [{z['stage']}→5] {r['gu']:5} {z['name'][:28]:30} (정비몽땅 «{r['why']}»)")
+        if not dry:
+            sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+               {'stage': 5, 'stage_checked_at': now.isoformat(),
+                'stage_source': f"정비몽땅 추진현황 «{r['why']}» · {r['name']} "
+                                f"— 확정 이상 (동기화 {kst_day})"}, token=tok)
+            report('신통 아카이브', f"↑ {z['name'][:30]} — 단계 {z['stage']}→5 "
+                                    f"(정비몽땅 {r['why'][:20]})")
+        z['stage'] = 5
+        raised += 1
+
+    # ── 정비몽땅: 선정됐는데 앱에서 못 찾은 구역 — «출력만» ─────────
+    # 자동으로 추가하지 않는다. 정비몽땅 표기(「신림동 610-200일대」)와 앱
+    # 이름(「신림10구역」)이 달라 못 붙은 게 대부분이고, 이미 확정된 곳도
+    # 섞여 있다(독산동 1036·1072 = 독산1·2구역). 2026-09-23 드라이런에서
+    # 31곳 중 대부분이 그랬다 — 넣으면 중복 19건 정리한 게 도로 생긴다.
+    try:
+        sel = cleanup_selected(_get(CLEANUP_SEL))
+    except Exception as ex:  # noqa: BLE001
+        print(f"  정비몽땅 선정구역 조회 실패: {ex}", file=sys.stderr)
+        sel = []
+    d2g = dong_to_gu(zones)
+    done_keys = {(r['gu'], _parts(r['loc'])) for r in done}
+    arch_done = {(r['gu'], _parts(r['loc'])) for r in rows if r['state'] == '기획완료'}
+    unseen = []
+    for r in sel:
+        gu = r['gu'] or d2g.get(_parts(r['loc'])[0], '')
+        if match_all({**r, 'gu': gu}, zones):
+            continue
+        if (gu, _parts(r['loc'])) in done_keys | arch_done:
+            continue
+        unseen.append((r['when'], gu or '?', r['loc']))
+    if unseen:
+        print(f"\n  정비몽땅 선정 중 앱에서 못 찾은 {len(unseen)}곳 (이름 표기 차이 가능 — 추가 안 함)")
+        for w, g, l in unseen:
+            print(f"    {w:7} {g:5} {l[:30]}")
+
+    # ── 중복 의심 — 지우지 않고 출력만 ─────────────────────────
+    # 이름 표기만 다른 같은 구역(흑석10 ↔ 흑석10구역)은 매수적기에 두 번 뜬다.
+    # 삭제는 되돌릴 수 없으니 사람이 확인한다.
+    seen = {}
+    for z in zones:
+        if not z.get('id'):
+            continue
+        k = (z.get('district'), _norm(z['name']))
+        if k[1] and k in seen:
+            # 매일 같은 줄이 슬랙에 반복되면 소음이라 출력만 한다.
+            print(f"  ⚠ 중복 의심 — {z['district']} «{seen[k]['name']}» ↔ «{z['name']}»")
+        else:
+            seen[k] = z
 
     # 아카이브가 늦는 경우 — 기사엔 확정이 떴는데 표는 아직 기획중.
     for r, n in done_signals(rows, zones, tok):
