@@ -42,6 +42,9 @@ jobs:
       AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
       AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      # 동기화 두 개가 «바뀐 것»을 여기 한 줄씩 남기고, 슬랙이 읽어 보고한다.
+      # (잡 env 에서는 runner 컨텍스트를 못 써서 고정 경로를 쓴다)
+      SYNC_REPORT: /tmp/hy_sync_report.jsonl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,6 +82,10 @@ jobs:
       # 잡 env 로 올려놓고 env 로 본다.
       - name: 슬랙 — 오늘 할 일
         if: always() && env.SLACK_WEBHOOK != ''
+        # 동기화가 성공했는지도 같이 넘긴다 — 실패하면 슬랙 맨 위에 적는다.
+        env:
+          PORTAL_OUTCOME: ${{ steps.portal.outcome }}
+          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
         run: python3 scripts/daily_slack.py
 
       # ── 결과 판정 ────────────────────────────────────────

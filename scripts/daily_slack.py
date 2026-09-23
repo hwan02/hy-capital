@@ -35,7 +35,7 @@ CATS = {'fire': '🔥', 'film': '🎬', 'mind': '🤯',
 
 # 어떤 섹션을 슬랙으로 보낼지 켜고 끈다. 「뉴스만 일단」 방침으로
 # Shorts·부동산은 꺼둔다. 다시 켜려면 True 로 바꾸면 된다.
-SECTIONS = {'ipo': True, 'shorts': False, 'realestate': False,
+SECTIONS = {'sync': True, 'ipo': True, 'shorts': False, 'realestate': False,
             'moa': True, 'news': True}
 
 
@@ -100,9 +100,53 @@ def won(n):
     return f'{man:,}만'
 
 
+def sync_section():
+    """오늘 아침 구역 동기화가 «끝났는지», «무엇이 바뀌었는지».
+
+    배치는 동기화(포털 → 정비몽땅)를 돌린 «뒤» 이 스크립트를 부른다.
+    동기화는 바뀐 것을 SYNC_REPORT 파일에 한 줄씩 남기고, 각 단계가
+    성공했는지는 워크플로가 PORTAL_OUTCOME · CLEANUP_OUTCOME 으로 넘긴다.
+
+    SYNC_REPORT 가 없으면(손으로 돌릴 때) 섹션을 만들지 않는다 —
+    동기화를 안 돌렸는데 「변경 없음」이라고 하면 거짓말이다.
+    """
+    path = os.environ.get('SYNC_REPORT')
+    if not path:
+        return None
+    rows = []
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            for ln in f:
+                try:
+                    rows.append(json.loads(ln))
+                except ValueError:
+                    continue
+
+    out = []
+    names = {'PORTAL_OUTCOME': '서울도시공간포털', 'CLEANUP_OUTCOME': '정비몽땅'}
+    failed = [n for k, n in names.items()
+              if os.environ.get(k) and os.environ[k] != 'success']
+    for n in failed:
+        out.append(f'⚠️ *{n} 동기화 실패* — 오늘 이쪽 단계는 갱신 못 했다')
+
+    head = '✅ 동기화 완료' if not failed else '동기화 끝'
+    out.insert(0, f'{head} — 변경 {len(rows)}건' if rows
+               else f'{head} — 변경 없음')
+
+    # 바뀐 게 많아도 스무 줄이면 충분하다. 건수는 위 줄에 이미 있다.
+    for r in rows[:20]:
+        out.append(f"{r['line']}  _({r['source']})_")
+    return out
+
+
 def build(token, today, record=True):
     """섹션 목록을 만든다. 비어 있으면 보낼 게 없다는 뜻."""
     lines = []
+
+    # ── 구역 동기화 결과 — 맨 위 ─────────────────────────────
+    sync = sync_section()
+    if sync and SECTIONS['sync']:
+        lines.append(('🔄 모아·신통 업데이트', sync))
 
     # ── 공모주: 마감이 제일 급하다 ──────────────────────────
     ipo = get('/rest/v1/ipo_subscriptions?select=name,broker,sub_start,sub_end,'

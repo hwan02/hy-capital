@@ -121,6 +121,22 @@ def open_retry(req, timeout=90, tries=4):
     raise last
 
 
+def report(source, line):
+    """동기화에서 «바뀐 것» 한 줄을 SYNC_REPORT 파일에 남긴다.
+
+    매일 배치는 동기화 두 개(포털·정비몽땅)를 돌린 «뒤» 슬랙을 보낸다.
+    슬랙이 「오늘 무엇이 바뀌었나」를 알려면 동기화가 바뀐 것을 어딘가
+    남겨야 한다 — 화면에 찍고 끝이라 아무도 몰랐다.
+    SYNC_REPORT 가 없으면(손으로 돌릴 때) 아무것도 안 한다.
+    """
+    path = os.environ.get("SYNC_REPORT")
+    if not path:
+        return
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"source": source, "line": line},
+                           ensure_ascii=False) + "\n")
+
+
 KEYCHAIN = "hy-capital-app"
 
 

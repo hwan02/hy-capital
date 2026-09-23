@@ -39,7 +39,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from import_moa_pdf import login, open_retry  # noqa: E402  로그인·재시도를 함께 쓴다
+from import_moa_pdf import login, open_retry, report  # noqa: E402  로그인·재시도를 함께 쓴다
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs"
@@ -162,22 +162,31 @@ def main():
                   token=tok)
     by = {key(z['name']): z for z in have}
 
+    # 오늘 날짜로 찍는다. 예전엔 날짜가 코드에 박혀 있어서(9/12) 매일 돌아도
+    # 앱에는 「9/12 확인」으로 남았다 — 언제 마지막으로 봤는지 알 수 없었다.
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    kst_day = (now + datetime.timedelta(hours=9)).date().isoformat()
+    checked = now.isoformat()
+
     added = updated = same = 0
     for w in want:
         src = (f"서울도시공간포털 «{w['kind']} · {w['raw']}» · {w['name']} · {w['addr']} · "
-               f"{w['area']:,}㎡ · 추진일 {w['dt']} (동기화 2026-09-12)")
+               f"{w['area']:,}㎡ · 추진일 {w['dt']} (동기화 {kst_day})")
         k = key(w['name'])
         z = by.get(k)
         if z is None:
             sb("/rest/v1/zones", "POST", [{
                 'user_id': uid, 'name': w['name'], 'kind': w['kind'],
                 'district': w['district'], 'stage': w['stage'],
-                'stage_source': src, 'stage_checked_at': '2026-09-12T00:00:00Z',
+                'stage_source': src, 'stage_checked_at': checked,
                 'propel_dt': w['dt'] or None,
                 'memo': f"지금 진행 중 — {w['doing']}",
             }], token=tok)
             added += 1
             print(f"  ＋ [{w['stage']}] {w['district']:6} {w['name'][:30]}")
+            report('포털', f"＋ 새 구역 {w['district']} {w['name'][:30]} "
+                           f"({w['kind']} · {w['raw']})")
         elif z['stage'] >= 8:
             # 이 API 는 모아타운 «지정» 절차까지만 안다. 조합설립(3) 이후는
             # 정비몽땅·조합에서 따로 확인한 값이므로 «아무것도 건드리지 않는다».
@@ -192,11 +201,13 @@ def main():
         elif z['stage'] < w['stage']:
             sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", {
                 'stage': w['stage'], 'stage_source': src,
-                'stage_checked_at': '2026-09-12T00:00:00Z',
+                'stage_checked_at': checked,
                 'propel_dt': w['dt'] or None,
             }, token=tok)
             updated += 1
             print(f"  ↻ [{z['stage']}→{w['stage']}] {w['name'][:30]}")
+            report('포털', f"↑ {w['name'][:30]} — 단계 {z['stage']}→{w['stage']} "
+                           f"({w['raw']})")
         else:
             patch = {}
             if w['dt'] and z.get('propel_dt') != w['dt']:

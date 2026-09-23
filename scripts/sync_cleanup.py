@@ -38,7 +38,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from import_moa_pdf import (ALIAS, _parts, app_password, login,  # noqa: E402
-                            open_retry, sb)  # 같은 규칙·재시도를 쓴다
+                            open_retry, report, sb)  # 같은 규칙·재시도를 쓴다
 
 LIST = ("https://cleanup.seoul.go.kr/cleanup/bsnssttus/"
         "lsubBsnsSttus.do?cpage=1&pageSize=3000")
@@ -169,11 +169,15 @@ def main():
                     subs.append({'code': code, 'status': f"{r['stage']} ({SRC})",
                                  'rating': ''})
                     print(f"  ＋세부 {z['name'][:22]:24} {code:6} {r['stage']}")
+                    if not dry:
+                        report('정비몽땅', f"＋ {z['name'][:26]} {code} — {r['stage']}")
                     added += 1
                 elif r['stage'] not in str(cur.get('status', '')):
                     # ★평점·메모는 그대로 두고 status 만 바꾼다.
                     cur['status'] = f"{r['stage']} ({SRC})"
                     print(f"  ↻세부 {z['name'][:22]:24} {code:6} → {r['stage']}")
+                    if not dry:
+                        report('정비몽땅', f"↻ {z['name'][:26]} {code} → {r['stage']}")
                     subbed += 1
             else:
                 best = max(best, st)
@@ -186,6 +190,9 @@ def main():
                 f"{SRC} — {mine[0]['name']} · {mine[0]['stage']}")
             print(f"  ↑ 단계 [{z['stage']}→{best}] {z['name'][:30]} "
                   f"({mine[0]['stage']})")
+            if not dry:
+                report('정비몽땅', f"↑ {z['name'][:30]} — 단계 {z['stage']}→{best} "
+                                   f"({mine[0]['stage']})")
             raised += 1
 
         if patch:
