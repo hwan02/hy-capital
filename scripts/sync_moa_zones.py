@@ -40,7 +40,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from import_moa_pdf import login, open_retry, report  # noqa: E402  로그인·재시도를 함께 쓴다
+from import_moa_pdf import ALIAS, _parts, login, open_retry, report  # noqa: E402  로그인·재시도를 함께 쓴다
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs"
@@ -104,12 +104,20 @@ def sb(path, method="GET", body=None, token=None):
         return json.loads(raw) if raw else None
 
 
-def key(name):
-    """구역 이름에서 «동 + 번지»만 남겨 비교 키로 쓴다.
-    「화곡1동 354번지 일대」와 「화곡동 354」가 같은 구역이다."""
-    import re
-    m = re.search(r'([가-힣]+)\d*동\s*([0-9]+(?:-[0-9]+)?)', name)
-    return f'{m.group(1)}동 {m.group(2)}' if m else name.strip()
+def key(name, district=None):
+    """구역 이름에서 «자치구 + 동 + 번지»만 남겨 비교 키로 쓴다.
+    「화곡1동 354번지 일대」와 「화곡동 354」가 같은 구역이다.
+
+    예전엔 여기만 따로 만든 정규식을 써서 「면목3,8동」의 쉼표를 못 읽었다.
+    2026-09-19 포털이 구역명을 「면목38동」→「면목3,8동」으로 바꿔 쓰자
+    같은 구역인 줄 모르고 «새 구역으로 추가»했다 — 면목동 두 곳이 중복됐다.
+    정비몽땅 동기화와 «같은» 규칙(_parts + ALIAS)을 쓴다.
+    """
+    d, l = _parts(name)
+    if not l:
+        return name.strip()
+    d, l = ALIAS.get((district or '', d, l), (d, l))
+    return f'{district or ""}|{d} {l}'.strip('|')
 
 
 def main():
@@ -159,9 +167,9 @@ def main():
 
     tok, uid = login()
 
-    have = sb("/rest/v1/zones?select=id,name,stage,memo,rights_date,propel_dt,"
-              "stage_source", token=tok)
-    by = {key(z['name']): z for z in have}
+    have = sb("/rest/v1/zones?select=id,name,district,stage,memo,rights_date,"
+              "propel_dt,stage_source", token=tok)
+    by = {key(z['name'], z.get('district')): z for z in have}
 
     # 오늘 날짜로 찍는다. 예전엔 날짜가 코드에 박혀 있어서(9/12) 매일 돌아도
     # 앱에는 「9/12 확인」으로 남았다 — 언제 마지막으로 봤는지 알 수 없었다.
@@ -174,7 +182,7 @@ def main():
     for w in want:
         src = (f"서울도시공간포털 «{w['kind']} · {w['raw']}» · {w['name']} · {w['addr']} · "
                f"{w['area']:,}㎡ · 추진일 {w['dt']} (동기화 {kst_day})")
-        k = key(w['name'])
+        k = key(w['name'], w['district'])
         z = by.get(k)
         if z is not None:
             # 포털이 «오늘» 이 구역을 봤다 — 문구의 동기화 날짜를 오늘로 맞춘다.
