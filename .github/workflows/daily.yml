@@ -68,6 +68,14 @@ jobs:
         continue-on-error: true
         run: python3 scripts/sync_moa_zones.py
 
+      # 신통은 포털에 「기획중」이 없어 선정 뒤로 전부 3 에 멈춘다. 서울시
+      # 신통 아카이브의 기획중/기획완료로 4·5 를 맞춘다(올리기만).
+      - name: 서울시 신통 아카이브 — 기획중/기획완료
+        id: sinarch
+        if: always()
+        continue-on-error: true
+        run: python3 scripts/sync_sin_archive.py
+
       - name: 정비몽땅 — 조합 단계
         id: cleanup
         if: always()
@@ -85,6 +93,7 @@ jobs:
         # 동기화가 성공했는지도 같이 넘긴다 — 실패하면 슬랙 맨 위에 적는다.
         env:
           PORTAL_OUTCOME: ${{ steps.portal.outcome }}
+          SINARCH_OUTCOME: ${{ steps.sinarch.outcome }}
           CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
         run: python3 scripts/daily_slack.py
 
@@ -95,10 +104,12 @@ jobs:
         if: always()
         run: |
           p='${{ steps.portal.outcome }}'
+          a='${{ steps.sinarch.outcome }}'
           c='${{ steps.cleanup.outcome }}'
           echo "서울도시공간포털: $p"
+          echo "신통 아카이브:    $a"
           echo "정비몽땅:         $c"
-          if [ "$p" != 'success' ] || [ "$c" != 'success' ]; then
+          if [ "$p" != 'success' ] || [ "$a" != 'success' ] || [ "$c" != 'success' ]; then
             echo '::error::동기화 실패 — 위 스텝 로그를 본다. 슬랙 알림은 별개로 나갔다.'
             exit 1
           fi

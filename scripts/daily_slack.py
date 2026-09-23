@@ -123,7 +123,8 @@ def sync_section():
                     continue
 
     out = []
-    names = {'PORTAL_OUTCOME': '서울도시공간포털', 'CLEANUP_OUTCOME': '정비몽땅'}
+    names = {'PORTAL_OUTCOME': '서울도시공간포털', 'SINARCH_OUTCOME': '서울시 신통 아카이브',
+             'CLEANUP_OUTCOME': '정비몽땅'}
     failed = [n for k, n in names.items()
               if os.environ.get(k) and os.environ[k] != 'success']
     for n in failed:
