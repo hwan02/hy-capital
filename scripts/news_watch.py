@@ -32,6 +32,7 @@ RSS = 'https://news.google.com/rss/search?q={q}&hl=ko&gl=KR&ceid=KR:ko'
 SITES = [
     ('디벨로퍼뉴스', 'https://cdn.dpnews.co.kr/rss/gn_rss_allArticle.xml'),
     ('하우징헤럴드', 'https://cdn.housingherald.co.kr/rss/gn_rss_allArticle.xml'),
+    ('한국주택경제신문', 'https://cdn.arunews.com/rss/gn_rss_allArticle.xml'),
 ]
 
 # 전문지 기사를 어느 topic 으로 볼지. 「모아」만 걸면 「모아서」가 걸린다.
