@@ -130,11 +130,16 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     if (_stageF < 0) return true;
     // 세부구역이 있으면 «세부구역 기준»으로 판정한다 —
     // 한 구역이라도 조합설립 «진행중» 세부구역이 있으면 매수 가능.
+    // 모아타운 매수적기 = «조합설립인가 전» 전부 (두 골짜기 + 인가 전 세부구역).
+    // 전엔 매수 A(관리계획 수립·공람)만 넣고 세부구역 구역은 통째로 뺐다 —
+    // 그래서 화곡6동 957-1 A4(조합설립 진행 중 ★5)가 있는데도 매수적기에서
+    // 강서구가 사라졌다(2026-09-23). 신통은 아카이브 «기획중»(A)만 — 신통은
+    // 확정 뒤 동의서 징구(B)까지 한참이라 같은 칸에 넣으면 섞인다.
     if (z.subs.isNotEmpty) {
       final buy = _buySubs(z);
       return switch (_stageF) {
         0 => buy > 0, // 살 수 있는 것
-        1 => false, // 매수적기(관리계획수립·신통 기획중)는 세부구역 이전 단계
+        1 => !_sin && buy > 0, // 모아 매수적기 — 인가 전 세부구역이 있으면
         2 => buy > 0, // 매수 B(조합설립 진행중) = 세부 타깃
         3 => buy == 0, // 진입불가 — 매수가능 세부 없음(전부 인가·사업시행)
         _ => true,
@@ -143,7 +148,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     final b = bandOfZone(z);
     return switch (_stageF) {
       0 => b.canBuy, // 매수 A + B
-      1 => b == BuyBand.early,
+      1 => _sin ? b == BuyBand.early : b.canBuy, // 모아 = 조합설립인가 전
       2 => b == BuyBand.late_,
       3 => b == BuyBand.blocked,
       _ => true,
@@ -175,7 +180,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
     // 라벨은 «그 사업의 단계 이름»으로 쓴다. 모아 용어를 신통 탭에
     // 그대로 두면 무슨 구간인지 알 수가 없다.
-    final aWhen = _sin ? '아카이브 기획중(선정~확정 전)' : '관리계획수립·공람';
+    final aWhen = _sin ? '아카이브 기획중(선정~확정 전)' : '조합설립인가 전';
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _kindColor(_kind)),
       chip(0, '🟢 살 수 있는 것', AppColors.primary),
