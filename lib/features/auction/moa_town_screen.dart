@@ -22,10 +22,10 @@ const _teal = Color(0xFF14B8A6);
 
 Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 
-/// 다음 가격 상승 이벤트 — 이 «직전»이 매도 라인.
+/// 카드의 «다음에 할 일» 한 줄(매도 시점·다음 매수 자리).
 /// 표는 buy_band.dart 에 있다(종류마다 축이 다르다).
-String? _nextJump(Zone z) =>
-    z.isSin ? kSinNextRise[z.stage] : kNextRise[z.stage];
+String? _nextMove(Zone z) =>
+    z.isSin ? kSinNextMove[z.stage] : kMoaNextMove[z.stage];
 
 // 입지 우선 체크 — 매수 밴드(단계)보다 «입지»가 먼저다. (은천 사례 기준)
 // (key, 라벨, 설명)
@@ -888,14 +888,14 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                             ),
                         ]),
                       ],
-                      if (_nextJump(z) != null) ...[
+                      if (_nextMove(z) != null) ...[
                         const Gap(4),
                         Row(children: [
                           const Icon(Icons.trending_up_rounded,
                               size: 14, color: AppColors.rose),
                           const Gap(4),
                           Flexible(
-                            child: Text('다음 상승: ${_nextJump(z)} 직전 매도',
+                            child: Text(_nextMove(z)!,
                                 style: const TextStyle(
                                     fontSize: AppFont.caption,
                                     color: AppColors.rose,
@@ -1444,9 +1444,10 @@ class _StageLadder extends StatelessWidget {
           const Gap(8),
           Text(
               _sin
-                  ? '가격은 «선정 → 토허가», «지정고시», «조합설립» 에서 뛴다. '
-                      '골짜기는 «기획 완료»와 «동의서 징구» — 그 칸에서 산다.'
-                  : '가격은 «수립 → 고시», «징구 → 인가» 두 번 뛴다. 그 직전 칸에서 산다.',
+                  ? '아카이브 «기획중»(선정~확정 전)에 사서 기획 확정 뒤 판다. '
+                      '두 번째는 «동의서 징구»에 사서 조합설립인가 직전에 판다.'
+                  : '«수립·공람»에 사서 통합심의 통과 직후 판다. '
+                      '두 번째는 «동의서 징구»에 사서 조합설립인가 직전에 판다.',
               style: const TextStyle(
                   fontSize: AppFont.label,
                   color: AppColors.textSecondary,
