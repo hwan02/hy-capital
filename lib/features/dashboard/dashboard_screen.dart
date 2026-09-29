@@ -124,9 +124,9 @@ class _FreedomHero extends ConsumerWidget {
                   spacing: 26,
                   runSpacing: 14,
                   children: [
-                    _miniStat('월급 제외(평균)', '${Won.compact(m.nonSalaryCashflow)}원',
-                        '${m.freedomScore.toStringAsFixed(0)}%'),
-                    _miniStat('이번 달 기준', '${Won.compact(m.thisMonthCashflow)}원',
+                    // «실제로 찍힌 것»만 — 평균(추정: 예상 월수익·연배당÷12·누적 순익)은
+                    // 뺐다. 실적이 아니라서 판단을 흐렸다(2026-09-29).
+                    _miniStat('이번 달 실적', '${Won.compact(m.thisMonthCashflow)}원',
                         '${m.thisMonthScore.toStringAsFixed(0)}%'),
                     _miniStat('자유 기준선 (월 목표)', '${Won.compact(m.freedomTarget)}원', null),
                   ],
@@ -268,8 +268,9 @@ class _FreedomGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pct = (m.freedomScore / 100).clamp(0.0, 1.0);
-    final cur = (m.nonSalaryCashflow / 10000).round();
+    // 게이지도 «이번 달 실적» 기준. 전엔 추정 평균이라 실제보다 높게 보였다.
+    final pct = (m.thisMonthScore / 100).clamp(0.0, 1.0);
+    final cur = (m.thisMonthCashflow / 10000).round();
     final tgt = (m.freedomTarget / 10000).round();
     return SizedBox(
       height: 156,
@@ -648,7 +649,10 @@ class _NextGoalsCard extends ConsumerWidget {
 }
 
 
-// ── 사업 엔진 현황 ───────────────────────────────────────────
+// ── 사업 엔진 ───────────────────────────────────────────────
+// 이번 달에 «실제로 기록된» 수익만 보여준다. 0원인 엔진은 카드를 안 만든다.
+// 전엔 「평균 / 이번 달」 두 숫자를 같이 띄웠는데, 평균은 추정치라 헷갈렸다.
+// 토지는 월 수익이 아니라 «프로젝트 건수»라 이 줄에서 뺐다(토지 메뉴에서 본다).
 class _BusinessEngines extends StatelessWidget {
   final DashboardMetrics m;
   const _BusinessEngines({required this.m});
@@ -657,26 +661,26 @@ class _BusinessEngines extends StatelessWidget {
   Widget build(BuildContext context) {
     final engines = [
       _Engine('에어비앤비', Icons.house_rounded, AppColors.sky,
-          m.airbnbMonthly, m.airbnbThisMonth, '/airbnb'),
+          m.airbnbThisMonth, '/airbnb'),
       _Engine('배당', Icons.savings_rounded, AppColors.primary,
-          m.monthlyDividend, m.dividendThisMonth, '/dividend'),
+          m.dividendThisMonth, '/dividend'),
       _Engine('숏폼', Icons.play_circle_fill_rounded, AppColors.rose,
-          m.shortsProfit, m.shortsThisMonth, '/shorts'),
-      _Engine('토지', Icons.terrain_rounded, const Color(0xFFB4844E),
-          m.landCount.toDouble(), -1, '/land'),
-    ];
+          m.shortsThisMonth, '/shorts'),
+    ].where((e) => e.amount > 0).toList();
+    if (engines.isEmpty) return const SizedBox.shrink();
 
+    final month = DateTime.now().month;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
           padding: EdgeInsets.only(bottom: 12, left: 2),
-          child: Text('사업 엔진 · 평균 / 이번 달',
+          child: Text('사업 엔진',
               style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w700)),
         ),
         ResponsiveGrid(
           minTileWidth: 180,
-          ratio: 1.1,
+          ratio: 1.4,
           children: [
             for (final e in engines)
               GlassCard(
@@ -700,44 +704,19 @@ class _BusinessEngines extends StatelessWidget {
                       ],
                     ),
                     const Gap(10),
-                    if (e.name == '토지') ...[
-                      Text('${e.avg.toStringAsFixed(0)}건',
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('${Won.compact(e.amount)}원',
+                          maxLines: 1,
                           style: TextStyle(
                               fontSize: AppFont.title,
                               fontWeight: FontWeight.w800,
                               color: e.color)),
-                      const Text('프로젝트',
-                          style: TextStyle(
-                              color: AppColors.textFaint, fontSize: AppFont.micro)),
-                      const Gap(5),
-                      Text(e.avg > 0 ? '진행 중' : '없음',
-                          style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: AppFont.label,
-                              fontWeight: FontWeight.w600)),
-                    ] else ...[
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text('${Won.compact(e.avg)}원',
-                            maxLines: 1,
-                            style: TextStyle(
-                                fontSize: AppFont.title,
-                                fontWeight: FontWeight.w800,
-                                color: e.color)),
-                      ),
-                      const Text('평균(월)',
-                          style: TextStyle(
-                              color: AppColors.textFaint, fontSize: AppFont.micro)),
-                      const Gap(5),
-                      Text('이번 달 ${Won.compact(e.thisMonth)}원',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: AppFont.label,
-                              fontWeight: FontWeight.w600)),
-                    ],
+                    ),
+                    Text('$month월 실적',
+                        style: const TextStyle(
+                            color: AppColors.textFaint, fontSize: AppFont.micro)),
                   ],
                 ),
               ),
@@ -752,10 +731,9 @@ class _Engine {
   final String name;
   final IconData icon;
   final Color color;
-  final double avg;
-  final double thisMonth;
+  final double amount; // 이번 달 실적
   final String route;
-  _Engine(this.name, this.icon, this.color, this.avg, this.thisMonth, this.route);
+  _Engine(this.name, this.icon, this.color, this.amount, this.route);
 }
 
 // ── 오늘 해야 할 일 ─────────────────────────────────────────
