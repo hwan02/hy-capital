@@ -41,7 +41,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
     FieldSpec(key: 'direction', label: '유형', type: FieldType.select, required: true,
         // 저장 값은 그대로(모델이 '들어오는 돈'으로 수입/지출을 가른다), 화면 글자만 바꾼다.
         options: ['들어오는 돈', '나가는 돈'],
-        optionLabels: {'들어오는 돈': '들어온 돈', '나가는 돈': '나간 돈'}),
+        optionLabels: {'들어오는 돈': '들어온 돈', '나가는 돈': '투자한 돈'}),
     FieldSpec(key: 'label', label: '항목명 (월급·에어비앤비·연금저축 …)', type: FieldType.text, required: true),
     FieldSpec(key: 'amount', label: '금액', type: FieldType.money, required: true),
     FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
@@ -208,11 +208,11 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                       emptyMsg: '유입 없음',
                       stacked: st);
                   _DonutCard outD(bool st) => _DonutCard(
-                      title: '나간 돈',
+                      title: '투자한 돈',
                       slices: slices(expense),
                       total: totalOut,
                       color: AppColors.sky,
-                      emptyMsg: '지출 없음',
+                      emptyMsg: '투자 없음',
                       stacked: st);
                   if (narrow) {
                     // 좁은 화면: 카드 세로로 쌓기 (도넛 위·범례 아래).

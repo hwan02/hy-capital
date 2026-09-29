@@ -390,8 +390,8 @@ class _MoneyFlowSummary extends ConsumerWidget {
                 title: '들어온 돈', slices: inSlices, total: totalIn,
                 color: AppColors.gold, emptyMsg: '유입 없음');
             final outD = _MiniDonut(
-                title: '나간 돈', slices: outSlices, total: totalOut,
-                color: AppColors.sky, emptyMsg: '지출 없음');
+                title: '투자한 돈', slices: outSlices, total: totalOut,
+                color: AppColors.sky, emptyMsg: '투자 없음');
             if (c.maxWidth < 620) {
               return Column(children: [inD, const Gap(20), outD]);
             }
