@@ -387,10 +387,10 @@ class _MoneyFlowSummary extends ConsumerWidget {
           const Gap(18),
           LayoutBuilder(builder: (context, c) {
             final inD = _MiniDonut(
-                title: '들어오는 돈', slices: inSlices, total: totalIn,
+                title: '들어온 돈', slices: inSlices, total: totalIn,
                 color: AppColors.gold, emptyMsg: '유입 없음');
             final outD = _MiniDonut(
-                title: '나가는 돈', slices: outSlices, total: totalOut,
+                title: '나간 돈', slices: outSlices, total: totalOut,
                 color: AppColors.sky, emptyMsg: '지출 없음');
             if (c.maxWidth < 620) {
               return Column(children: [inD, const Gap(20), outD]);

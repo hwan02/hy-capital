@@ -39,7 +39,9 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
   static const _fields = [
     FieldSpec(key: 'entry_date', label: '날짜', type: FieldType.date, required: true),
     FieldSpec(key: 'direction', label: '유형', type: FieldType.select, required: true,
-        options: ['들어오는 돈', '나가는 돈']),
+        // 저장 값은 그대로(모델이 '들어오는 돈'으로 수입/지출을 가른다), 화면 글자만 바꾼다.
+        options: ['들어오는 돈', '나가는 돈'],
+        optionLabels: {'들어오는 돈': '들어온 돈', '나가는 돈': '나간 돈'}),
     FieldSpec(key: 'label', label: '항목명 (월급·에어비앤비·연금저축 …)', type: FieldType.text, required: true),
     FieldSpec(key: 'amount', label: '금액', type: FieldType.money, required: true),
     FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
@@ -199,14 +201,14 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 LayoutBuilder(builder: (context, c) {
                   final narrow = c.maxWidth < 720;
                   _DonutCard inD(bool st) => _DonutCard(
-                      title: '들어오는 돈',
+                      title: '들어온 돈',
                       slices: colorize(incomeBy),
                       total: totalIn,
                       color: AppColors.gold,
                       emptyMsg: '유입 없음',
                       stacked: st);
                   _DonutCard outD(bool st) => _DonutCard(
-                      title: '나가는 돈',
+                      title: '나간 돈',
                       slices: slices(expense),
                       total: totalOut,
                       color: AppColors.sky,

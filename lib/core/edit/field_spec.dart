@@ -67,13 +67,21 @@ class FieldSpec {
   final bool required;
   final List<String> options; // select 용
 
+  /// select 옵션의 «보이는 글자». 저장 값(options)과 화면 표시를 분리할 때 쓴다.
+  /// 예) 저장 값은 '들어오는 돈' 그대로 두고 화면에는 '들어온 돈'으로 보이기.
+  final Map<String, String> optionLabels;
+
   const FieldSpec({
     required this.key,
     required this.label,
     this.type = FieldType.text,
     this.required = false,
     this.options = const [],
+    this.optionLabels = const {},
   });
+
+  /// select 옵션 하나의 표시 글자.
+  String optionLabel(String value) => optionLabels[value] ?? value;
 
   factory FieldSpec.fromMap(Map<String, dynamic> m) => FieldSpec(
         key: m['key'] as String,
@@ -106,6 +114,8 @@ class FieldSpec {
         return Dates.ymd(DateTime.parse(v.toString()));
       case FieldType.boolean:
         return (v == true) ? '예' : '아니오';
+      case FieldType.select:
+        return optionLabel(v.toString());
       default:
         return v.toString();
     }

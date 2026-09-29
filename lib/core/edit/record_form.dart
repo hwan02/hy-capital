@@ -276,7 +276,7 @@ class _RecordFormState extends State<_RecordForm> {
           dropdownColor: AppColors.surfaceAlt,
           items: [
             for (final o in f.options)
-              DropdownMenuItem(value: o, child: Text(o)),
+              DropdownMenuItem(value: o, child: Text(f.optionLabel(o))),
           ],
           validator: (v) =>
               f.required && (v == null || v.isEmpty) ? '필수 항목입니다' : null,
