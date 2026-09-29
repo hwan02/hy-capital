@@ -451,12 +451,12 @@ class _PhaseTile extends ConsumerWidget {
                             style: TextStyle(
                                 color: AppColors.textFaint, fontSize: AppFont.label)),
                       ),
-                    // 배분 (나가는 돈 기본세팅 / 현금흐름 구성 목표)
+                    // 배분 (투자한 돈 기본세팅 / 현금흐름 구성 목표)
                     const Gap(12),
                     const Divider(color: AppColors.border, height: 1),
                     const Gap(10),
                     _EditSubHeader(
-                        title: '나가는 돈 기본세팅',
+                        title: '투자한 돈 기본세팅',
                         onAdd: () => _editAllocation(context, ref,
                             phaseNo: phase.phaseNo, side: 'out')),
                     for (final a in outAllocs)
@@ -694,7 +694,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
       return s;
     }
 
-    // 이번 달 실제 나간 돈 총액 (거래 장부).
+    // 이번 달 실제 투자한 돈 총액 (거래 장부).
     double actualTotal = 0;
     for (final e in expenseThisMonth) {
       actualTotal += e.amount;
@@ -744,7 +744,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: AppFont.label)),
           const Gap(14),
-          // 이번 달 실제 나간 돈 총액 (거래내역 기준)
+          // 이번 달 실제 투자한 돈 총액 (거래내역 기준)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -753,7 +753,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
             ),
             child: Row(
               children: [
-                const Text('이번 달 실제 나간 돈',
+                const Text('이번 달 실제 투자한 돈',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: AppFont.label)),
                 const Spacer(),
@@ -775,7 +775,7 @@ class _PhasePlanVsActualState extends ConsumerState<PhasePlanVsActual> {
           const Divider(color: AppColors.border, height: 1),
           const Gap(6),
           _EditSubHeader(
-              title: '나가는 돈 · 계획 / 실제 (누르면 수정)',
+              title: '투자한 돈 · 계획 / 실제 (누르면 수정)',
               onAdd: () => _editAllocation(context, ref,
                   phaseNo: phase.phaseNo, side: 'out')),
           for (final a in outAllocs)
