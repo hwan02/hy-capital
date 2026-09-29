@@ -50,6 +50,17 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
   bool _inScope(FlowEntry e) =>
       _month == null || (e.date.year == _month!.year && e.date.month == _month!.month);
 
+  /// 새 거래의 기본 날짜 = 오늘. 지난달 탭을 보고 있을 때만 그 달 1일
+  /// (오늘로 넣으면 보고 있던 달에서 사라져 보이니까).
+  DateTime _defaultEntryDate() {
+    final now = DateTime.now();
+    final m = _month;
+    if (m == null || (m.year == now.year && m.month == now.month)) {
+      return DateTime(now.year, now.month, now.day);
+    }
+    return m;
+  }
+
   Future<void> _addOrEdit({FlowEntry? entry}) async {
     final values = await showRecordForm(
       context,
@@ -58,8 +69,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
       accent: AppColors.gold,
       initial: entry == null
           ? {
-              'entry_date':
-                  (_month ?? DateTime.now()).toIso8601String().substring(0, 10),
+              'entry_date': _defaultEntryDate().toIso8601String().substring(0, 10),
               'direction': '들어오는 돈',
             }
           : {
