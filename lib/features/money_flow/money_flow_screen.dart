@@ -25,7 +25,8 @@ class MoneyFlowScreen extends ConsumerStatefulWidget {
 }
 
 class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
-  DateTime? _month; // null = 전체
+  // 기본은 이번 달. null = 전체
+  DateTime? _month = DateTime(DateTime.now().year, DateTime.now().month);
   String _query = '';
   bool _unpaidOnly = false; // 아직 안 낸 지출만 보기
 
@@ -123,7 +124,9 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
             // 월 목록
             final monthSet = <String>{
               for (final e in all)
-                DateTime(e.date.year, e.date.month).toIso8601String().substring(0, 10)
+                DateTime(e.date.year, e.date.month).toIso8601String().substring(0, 10),
+              // 이번 달은 기록이 없어도 탭을 띄운다(기본 선택이라).
+              if (_month != null) _month!.toIso8601String().substring(0, 10),
             };
             final months = monthSet.map(DateTime.parse).toList()..sort();
 
