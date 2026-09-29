@@ -102,12 +102,14 @@ class _FreedomHero extends ConsumerWidget {
             children: [
           LayoutBuilder(builder: (context, c) {
             final narrow = c.maxWidth < 760;
-            final gauge = _FreedomGauge(m: m);
+            // 링 게이지는 뺐다 — 옆 숫자와 같은 말을 한 번 더 했고, 게이지만
+            // 추정 평균을 써서 숫자가 서로 달랐다(18% vs 20%). 숫자만 남긴다.
             final info = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.bolt, color: AppColors.primary, size: 16),
                     Gap(5),
@@ -120,33 +122,25 @@ class _FreedomHero extends ConsumerWidget {
                   ],
                 ),
                 const Gap(14),
-                Wrap(
-                  spacing: 26,
-                  runSpacing: 14,
-                  children: [
-                    // «실제로 찍힌 것»만 — 평균(추정: 예상 월수익·연배당÷12·누적 순익)은
-                    // 뺐다. 실적이 아니라서 판단을 흐렸다(2026-09-29).
-                    _miniStat('이번 달 실적', '${Won.compact(m.thisMonthCashflow)}원',
-                        '${m.thisMonthScore.toStringAsFixed(0)}%'),
-                    _miniStat('자유 기준선 (월 목표)', '${Won.compact(m.freedomTarget)}원', null),
-                  ],
-                ),
+                // «실제로 찍힌 것»만 — 평균(추정: 예상 월수익·연배당÷12·누적 순익)은
+                // 뺐다. 실적이 아니라서 판단을 흐렸다(2026-09-29).
+                _miniStat('이번 달 실적', '${Won.compact(m.thisMonthCashflow)}원',
+                    '${m.thisMonthScore.toStringAsFixed(0)}%'),
+                const Gap(14),
+                _miniStat('자유 기준선 (월 목표)', '${Won.compact(m.freedomTarget)}원', null),
               ],
             );
             final hasMonthly = flows.any((f) => f.nonSalary > 0);
-            final monthly = _MonthlyStrip(flows: flows);
+            final monthly = _MonthlyBars(flows: flows);
             if (narrow) {
-              // 좁은 화면: 게이지 → 정보 → 월별을 세로로 쌓아 가로 넘침 방지.
               return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  gauge,
-                  const Gap(16),
                   info,
                   if (hasMonthly) ...[
-                    const Gap(14),
+                    const Gap(16),
                     const Divider(height: 1, color: Color(0x1AFFFFFF)),
-                    const Gap(12),
+                    const Gap(14),
                     monthly,
                   ],
                 ],
@@ -155,12 +149,12 @@ class _FreedomHero extends ConsumerWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                gauge,
-                const Gap(22),
-                Expanded(child: info),
+                info,
                 if (hasMonthly) ...[
+                  const Gap(28),
+                  Container(width: 1, height: 170, color: const Color(0x1AFFFFFF)),
                   const Gap(24),
-                  monthly,
+                  Expanded(child: monthly),
                 ],
               ],
             );
@@ -216,97 +210,127 @@ class _FreedomHero extends ConsumerWidget {
   }
 }
 
-/// 프리덤 스코어 옆 월별 현금흐름 — 최근 3개월, 날짜+금액만.
-class _MonthlyStrip extends StatelessWidget {
+/// 프리덤 스코어 옆 월별 현금흐름(월급 제외) — 사업별로 쌓은 막대.
+/// 카드의 남는 폭을 다 쓴다. 이번 달은 진하게, 지난달들은 옅게.
+class _MonthlyBars extends StatelessWidget {
   final List<MonthlyCashflow> flows;
-  const _MonthlyStrip({required this.flows});
+  const _MonthlyBars({required this.flows});
+
+  static const _barArea = 128.0;
+  static const _sources = [
+    ('에어비앤비', AppColors.sky),
+    ('배당', AppColors.primary),
+    ('숏폼', AppColors.rose),
+  ];
+
+  List<double> _parts(MonthlyCashflow f) => [f.airbnb, f.dividend, f.shorts];
 
   @override
   Widget build(BuildContext context) {
     final rows = flows.where((f) => f.nonSalary > 0).toList();
     if (rows.isEmpty) return const SizedBox.shrink();
-    final recent = rows.length > 4 ? rows.sublist(rows.length - 4) : rows;
+    final recent = rows.length > 6 ? rows.sublist(rows.length - 6) : rows;
+    final maxV = recent.map((r) => r.nonSalary).reduce((a, b) => a > b ? a : b);
+    final now = DateTime.now();
+    bool isNow(DateTime d) => d.year == now.year && d.month == now.month;
+    // 범례는 실제로 값이 있는 사업만.
+    final used = [
+      for (var i = 0; i < _sources.length; i++)
+        if (recent.any((r) => _parts(r)[i] > 0)) i,
+    ];
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('월별 현금흐름 · 월급 제외',
-            style: TextStyle(
-                fontSize: AppFont.label,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w700)),
-        const Gap(12),
-        for (final r in recent)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 52,
-                  child: Text(Dates.ym(r.month),
+        Padding(
+          padding: const EdgeInsets.only(right: 28), // 우상단 설정 아이콘 자리
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text('월별 현금흐름 · 월급 제외',
+                  style: TextStyle(
+                      fontSize: AppFont.label,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w700)),
+              for (final i in used)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                        color: _sources[i].$2,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                  const Gap(4),
+                  Text(_sources[i].$1,
                       style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: AppFont.label)),
-                ),
-                const Gap(14),
-                Text('${Won.compact(r.nonSalary)}원',
-                    style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: AppFont.display,
-                        fontWeight: FontWeight.w900)),
-              ],
-            ),
+                          color: AppColors.textFaint, fontSize: AppFont.caption)),
+                ]),
+            ],
           ),
+        ),
+        const Gap(14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final r in recent)
+              Expanded(
+                child: _bar(r, maxV, isNow(r.month)),
+              ),
+          ],
+        ),
       ],
     );
   }
-}
 
-class _FreedomGauge extends StatelessWidget {
-  final DashboardMetrics m;
-  const _FreedomGauge({required this.m});
-
-  @override
-  Widget build(BuildContext context) {
-    // 게이지도 «이번 달 실적» 기준. 전엔 추정 평균이라 실제보다 높게 보였다.
-    final pct = (m.thisMonthScore / 100).clamp(0.0, 1.0);
-    final cur = (m.thisMonthCashflow / 10000).round();
-    final tgt = (m.freedomTarget / 10000).round();
-    return SizedBox(
-      height: 156,
-      width: 156,
-      child: Stack(
-        alignment: Alignment.center,
+  Widget _bar(MonthlyCashflow r, double maxV, bool current) {
+    final h = maxV <= 0 ? 0.0 : (r.nonSalary / maxV) * _barArea;
+    final parts = _parts(r);
+    final alpha = current ? 1.0 : 0.55;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 156,
-            width: 156,
-            child: CircularProgressIndicator(
-              value: pct,
-              strokeWidth: 13,
-              backgroundColor: AppColors.surfaceAlt,
-              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-              strokeCap: StrokeCap.round,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('${Won.compact(r.nonSalary)}원',
+                style: TextStyle(
+                    color: current ? AppColors.primary : AppColors.textPrimary,
+                    fontSize: current ? AppFont.section : AppFont.label,
+                    fontWeight: FontWeight.w900)),
+          ),
+          const Gap(6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 44),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: h < 4 ? 4 : h,
+                child: Column(
+                  children: [
+                    // 위에서부터 숏폼 → 배당 → 에어비앤비 (바닥이 가장 큰 사업).
+                    for (var i = parts.length - 1; i >= 0; i--)
+                      if (parts[i] > 0)
+                        Expanded(
+                          flex: (parts[i] / r.nonSalary * 1000).round().clamp(1, 1000),
+                          child: Container(
+                              color: _sources[i].$2.withValues(alpha: alpha)),
+                        ),
+                  ],
+                ),
+              ),
             ),
           ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('$cur',
-                  style: const TextStyle(
-                      fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1)),
-              const Gap(2),
-              Text('/ $tgt만',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: AppFont.body)),
-              const Gap(3),
-              Text('${m.freedomScore.toStringAsFixed(0)}% 달성',
-                  style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: AppFont.body,
-                      fontWeight: FontWeight.w800)),
-            ],
-          ),
+          const Gap(8),
+          Text(Dates.ym(r.month),
+              style: TextStyle(
+                  color: current ? AppColors.textPrimary : AppColors.textFaint,
+                  fontSize: AppFont.caption,
+                  fontWeight: current ? FontWeight.w800 : FontWeight.w500)),
         ],
       ),
     );
