@@ -5,8 +5,10 @@
   · Shorts  오늘 편성 + 밀린 것
   · 공모주   오늘 청약 마감/시작 · 상장 · 환불 (마감이 제일 급하다)
   · 부동산   입찰일 D-7 이내 · 잔금·명도 기한
-  · 모아타운 주민공람 공고 — 공람이 뜨면 통합심의 임박 = «마지막 매수 기회»
-  · 뉴스     모아타운·신통기획 기사 — 한 번 보낸 건 다시 안 보낸다
+  · 모아·신통 구역 동기화 결과 + 모아타운 주민공람 공고 (한 섹션)
+             공람이 뜨면 통합심의 임박 = «마지막 매수 기회»
+  · 뉴스     모아타운·신통기획 기사 «제목 + 한 줄 요약» — 링크 없음.
+             한 번 보낸 건 다시 안 보낸다
 
 webhook 은 env.local.json 의 SLACK_WEBHOOK 에서 읽는다.
 저장소는 공개이므로 코드에 넣지 않는다.
@@ -144,10 +146,16 @@ def build(token, today, record=True):
     """섹션 목록을 만든다. 비어 있으면 보낼 게 없다는 뜻."""
     lines = []
 
-    # ── 구역 동기화 결과 — 맨 위 ─────────────────────────────
+    # ── 모아·신통 — 맨 위 ───────────────────────────────────
+    # 구역 동기화 결과와 모아타운 공람 공고를 «한 섹션»으로 보낸다.
+    # 전에는 「🔄 모아·신통 업데이트」·「🏘️ 모아타운 공람」 두 칸이었는데
+    # 둘 다 «내 구역 단계가 움직였나»라는 같은 질문이라 나눌 이유가 없었다.
+    # 공람 줄은 아래 모아타운 공람 조회에서 이 목록 뒤에 붙인다.
+    zone_lines = []
     sync = sync_section()
     if sync and SECTIONS['sync']:
-        lines.append(('🔄 모아·신통 업데이트', sync))
+        zone_lines.extend(sync)
+    lines.append(('🏘️ 모아·신통', zone_lines))
 
     # ── 공모주: 마감이 제일 급하다 ──────────────────────────
     ipo = get('/rest/v1/ipo_subscriptions?select=name,broker,sub_start,sub_end,'
@@ -260,7 +268,7 @@ def build(token, today, record=True):
                 by[f'{m.group(1)}동 {m.group(2)}'] = z
         m_lines = moa_notice.slack_lines(today, by)
         if m_lines and SECTIONS['moa']:
-            lines.append(('🏘️ 모아타운 공람', m_lines))
+            zone_lines.extend(m_lines)
     except Exception as ex:  # noqa: BLE001
         print(f'  공람 조회 실패: {ex}', file=sys.stderr)
 
@@ -276,12 +284,17 @@ def build(token, today, record=True):
             # 보낸 것만 기록한다 — 잘려서 «안 보낸» 기사는 내일 다시 후보다.
             # --dry 는 기록하지 않는다. 화면으로만 본 걸 「보냈다」고 남기면
             # 진짜 발송 때 그 기사들이 통째로 빠진다.
+            #
+            # 잘려서 안 보낸 것도 같이 남긴다. 하루치만 보는데 어제 기사가
+            # cutoff 안에 걸려 있어 내일 «어제 뉴스»로 다시 올라왔다.
             if record:
-                _remember(token, fresh[:8])
+                _remember(token, fresh)
     except Exception as ex:  # noqa: BLE001
         print(f'  뉴스 조회 실패: {ex}', file=sys.stderr)
 
-    return lines
+    # 모아·신통 칸이 끝내 비었으면(손으로 돌려 동기화 결과도 없고 공람도
+    # 없는 날) 뺀다 — 빈 알림은 보내지 않는다.
+    return [(t, rows) for t, rows in lines if rows]
 
 
 def _remember(token, items):
@@ -328,7 +341,13 @@ def main():
     for title, rows in sections:
         md.append('')
         md.append(f'*{title}*')
-        md.extend(rows)
+        # 뉴스처럼 한 건이 두 줄(제목 + 요약)이면 건 사이를 한 줄 띄운다.
+        # 안 띄우면 요약이 다음 기사 제목에 붙어 읽힌다.
+        gap = any('\n' in r for r in rows)
+        for k, r in enumerate(rows):
+            if gap and k:
+                md.append('')
+            md.append(r)
     if not sections:
         md.append('')
         md.append('_오늘은 예정된 것이 없습니다._')

@@ -25,9 +25,25 @@ name: 매일 동기화
 
 on:
   schedule:
-    # UTC 21:00 = KST 06:00. Actions 는 몇 분 늦게 뜰 수 있다(정상).
-    - cron: '0 21 * * *'
+    # UTC 19:13 = KST 04:13.
+    #
+    # 전에는 UTC 21:00(KST 06:00)이었는데 «몇 분»이 아니라 «몇 시간» 늦게
+    # 떴다 — 9/25 08:46 · 9/27 08:21 · 9/28 08:35 · 9/29 09:47, 9/30 은
+    # 08:40 까지 소식이 없었다. 정각은 전 세계 예약이 몰리는 시각이라
+    # GitHub 가 제일 많이 미룬다. 두 시간 당기고 분을 비껴서, 늦게 떠도
+    # 출근 전에는 도착하게 한다.
+    - cron: '13 19 * * *'
   workflow_dispatch:        # 손으로도 돌릴 수 있게
+    inputs:
+      force:
+        description: '오늘 이미 보냈어도 슬랙을 한 번 더 보낸다'
+        type: boolean
+        default: false
+
+# 「오늘 이미 보냈나」를 보려고 이 워크플로의 실행 목록을 읽는다.
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: daily
@@ -83,13 +99,34 @@ jobs:
         run: python3 scripts/sync_cleanup.py
 
       # ── 알림 ─────────────────────────────────────────────
+      # 하루 한 번만. 예약이 늦어 손으로 먼저 돌렸는데 예약분이 뒤늦게
+      # 뜨면 같은 알림이 두 번 온다. 오늘(KST) 이미 끝난 실행이 있으면
+      # 슬랙만 건너뛴다 — 동기화는 두 번 돌아도 해가 없다.
+      - name: 오늘 이미 보냈나
+        id: once
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          today=$(TZ=Asia/Seoul date +%F)
+          n=$(gh run list -R "$GITHUB_REPOSITORY" -w daily.yml -L 20 \
+                --json databaseId,createdAt,status \
+                --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .status == \"completed\")
+                       | select((.createdAt | fromdate + 32400 | strftime(\"%Y-%m-%d\")) == \"$today\")]
+                      | length")
+          echo "오늘($today) 먼저 끝난 실행: $n"
+          if [ "$n" != "0" ] && [ "$FORCE" != "true" ]; then
+            echo "sent=yes" >> "$GITHUB_OUTPUT"
+          fi
+
       # 동기화 «뒤»에 보내야 오늘 바뀐 단계가 반영된 알림이 간다.
       # 동기화가 실패해도 오늘 할 일은 알려줘야 한다 — always.
       # 웹훅이 없으면 보낼 곳이 없다. 배치를 «빨갛게» 만들지 않고 건너뛴다.
       # step 의 if 에서는 secrets 를 못 읽는다(Unrecognized named-value).
       # 잡 env 로 올려놓고 env 로 본다.
       - name: 슬랙 — 오늘 할 일
-        if: always() && env.SLACK_WEBHOOK != ''
+        if: always() && env.SLACK_WEBHOOK != '' && steps.once.outputs.sent != 'yes'
         # 동기화가 성공했는지도 같이 넘긴다 — 실패하면 슬랙 맨 위에 적는다.
         env:
           PORTAL_OUTCOME: ${{ steps.portal.outcome }}

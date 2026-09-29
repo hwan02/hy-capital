@@ -230,17 +230,15 @@ def new_items(get, post, today=None):
 
 
 def slack_lines(fresh, limit=10):
-    """슬랙에 넣을 줄. 너무 많으면 자르고 «몇 건 더»를 남긴다 —
-    말없이 버리면 다 본 줄 안다.
+    """슬랙에 넣을 줄 — «제목 + 한 줄 요약»만. 링크는 없다.
 
-    【URL 을 «그대로» 쓴다】
-    전에는 <url|제목> 슬랙 문법을 썼다. 슬랙 안에서는 예쁘지만, 그 줄을
-    복사해서 다른 데 붙이면 «제목만 남고 링크가 사라진다». 기사를 옮겨
-    적으려면 결국 슬랙으로 돌아가 하나씩 다시 눌러야 했다.
-    맨 URL 은 슬랙이 알아서 링크로 만들어 주고, 복사하면 따라온다.
-    대신 미리보기(unfurl)가 8개씩 붙으면 채널이 터지므로 발송 쪽에서 끈다.
+    【링크를 뺐다】 (2026-09-30)
+    링크가 있어도 결국 눌러 들어가서 읽지 않았다. 아침에 슬랙만 보고
+    «무슨 일이 있었나»를 알면 된다. 그래서 기사 첫 문장(리드)을 붙인다.
+    더 보고 싶은 건 제목으로 검색하면 된다.
 
-    줄머리 📰 는 붙이지 않는다 — 섹션 제목이 이미 「📰 정비사업 뉴스」다.
+    요약은 기사 원문의 og:description(리드 문단)에서 첫 문장을 딴다.
+    못 가져오면 제목만 보낸다 — 요약이 없다고 기사를 버리지 않는다.
     """
     # «여러 매체가 받아쓴 것»을 위로 올린다.
     # 큰 발표가 나면 그 하나를 20곳이 조금씩 다른 제목으로 쓴다. 제목이
@@ -252,40 +250,99 @@ def slack_lines(fresh, limit=10):
                    reverse=False)
     lines = []
     for i in fresh[:limit]:
-        d = i['published_on']
-        when = f"{d.month}/{d.day}" if d else '?'
-        src = f" · {i['source']}" if i['source'] else ''
         # 여러 매체가 받아쓴 건 «크게 난 소식»이라는 뜻이라 표시해 준다.
         more = f" (+{i['also']}곳)" if i.get('also') else ''
-        # 기록(news_digest)은 원래 주소로 한다 — 중복 판정 키라서.
-        # 줄이는 건 «보여줄 때»만.
-        lines.append(
-            f"{when} [{i['topic']}] {i['title'][:60]}{src}{more}\n{short(i['url'])}")
+        head = f"*{i['title'][:70]}*{more}"
+        gist = summary(i)
+        lines.append(f"{head}\n{gist}" if gist else head)
     # 잘린 건수는 말하지 않는다. 하루치만 보므로 잘린 건 다시 안 온다 —
     # 「그 밖에 24건은 생략」은 할 수 있는 게 없는 정보라 소음이었다.
     return lines
 
 
-def short(url):
-    """긴 주소를 tinyurl 로 줄인다. 실패하면 원래 주소를 그대로 쓴다.
+UA = {'User-Agent': 'Mozilla/5.0'}
 
-    구글 뉴스 주소는 원문을 통째로 인코딩해서 200자가 넘는다. 원문으로
-    풀 수는 없어서(JS 로만 튕긴다) 대신 짧게 감싼다 — 누르면 똑같이 간다.
-    단축이 안 된다고 뉴스를 못 보내면 안 되므로 어떤 실패든 원래 주소로.
-    is.gd 는 2026-09-23 에 「database insert failed」를 뱉어 뺐다.
+
+def original(url):
+    """구글 뉴스 주소 → 기사 원문 주소. 못 풀면 None.
+
+    구글 뉴스 RSS 주소(…/rss/articles/CBMi…)는 원문을 JS 로만 넘긴다.
+    그 페이지가 싣고 있는 서명(data-n-a-sg · ts)을 구글 뉴스 자체의
+    변환 요청(batchexecute)에 그대로 넘기면 원문 주소가 온다. 비공식
+    경로라 언제든 깨질 수 있다 — 그러면 요약 없이 제목만 나간다.
     """
     if 'news.google.com' not in url:
-        return url                    # 전문지 원문 주소는 이미 짧다
-    try:
-        req = u.Request('https://tinyurl.com/api-create.php?url='
-
-                        + urllib.parse.quote(url, safe=''),
-                        headers={'User-Agent': 'Mozilla/5.0'})
-        with u.urlopen(req, timeout=8) as r:
-            s = r.read().decode().strip()
-        return s if s.startswith('https://tinyurl.com/') else url
-    except Exception:  # noqa: BLE001
         return url
+    try:
+        gid = url.split('/articles/')[1].split('?')[0]
+        with u.urlopen(u.Request(url, headers=UA), timeout=8) as r:
+            page = r.read().decode('utf-8', 'ignore')
+        sg = re.search(r'data-n-a-sg="([^"]+)"', page).group(1)
+        ts = re.search(r'data-n-a-ts="([^"]+)"', page).group(1)
+        inner = ['garturlreq',
+                 [['X', 'X', ['X', 'X'], None, None, 1, 1, 'US:en', None, 1,
+                   None, None, None, None, None, 0, 1],
+                  'X', 'X', 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0],
+                 gid, int(ts), sg]
+        body = 'f.req=' + urllib.parse.quote(json.dumps(
+            [[['Fbv4je', json.dumps(inner), None, 'generic']]]))
+        req = u.Request(
+            'https://news.google.com/_/DotsSplashUi/data/batchexecute',
+            data=body.encode(),
+            headers={**UA, 'Content-Type':
+                     'application/x-www-form-urlencoded;charset=UTF-8'})
+        with u.urlopen(req, timeout=8) as r:
+            raw = r.read().decode('utf-8', 'ignore')
+        arr = json.loads(raw.split('\n\n', 1)[1])
+        return json.loads(arr[0][2])[1]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# 리드 문단 앞머리의 바이라인 — 「[헤럴드경제=박종일 선임기자]」
+# 「(서울=뉴스1) 홍길동 기자 =」 「홍길동 기자 =」
+_BYLINE = re.compile(
+    r'^\s*(?:[\[(【][^\])】]{0,40}[\])】]\s*)?'
+    r'(?:[가-힣]{2,4}\s*(?:선임|수석|전문)?기자\s*=?\s*)?')
+
+
+def summary(item, width=110):
+    """기사 리드의 첫 문장. 못 가져오거나 제목과 상관없는 글이면 ''.
+
+    og:description 은 대부분 기사 첫 문단이다. 다만 매체에 따라 사이트
+    소개문(「매일 아침 배달되는 서울시 온라인뉴스…」)이 들어 있어서,
+    제목과 겹치는 조각이 거의 없으면 요약이 아니라고 보고 버린다.
+    """
+    url = original(item['url'])
+    if not url:
+        return ''
+    try:
+        with u.urlopen(u.Request(url, headers=UA), timeout=8) as r:
+            raw = r.read(400_000)
+        cs = re.search(rb'charset=["\']?([\w-]+)', raw[:5000])
+        page = raw.decode(cs.group(1).decode() if cs else 'utf-8', 'ignore')
+    except Exception:  # noqa: BLE001
+        return ''
+    m = (re.search(r'<meta[^>]+(?:property|name)=["\'](?:og:)?description["\']'
+                   r'[^>]*content=["\']([^"\']+)', page)
+         or re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*'
+                      r'(?:property|name)=["\'](?:og:)?description', page))
+    if not m:
+        return ''
+    text = re.sub(r'\s+', ' ', html.unescape(m.group(1))).strip()
+    text = _BYLINE.sub('', text, count=1).strip()
+    if _same(_shingles(text), _shingles(item['title'])) < 0.3:
+        return ''
+    # 첫 문장. 「…했다.」 로 끝나는 데서 자른다 — 리드 문단은 마침표 뒤에
+    # 띄어쓰기 없이 다음 문장이 붙어 오기도 한다(「…올렸다.중랑구는」).
+    cut = re.search(r'^(.+?다)[.。]', text)
+    text = cut.group(1) + '.' if cut else text
+    # 제목을 그대로 되풀이한 리드는 요약이 아니다.
+    bare = lambda x: re.sub(r'[^가-힣0-9A-Za-z]', '', x)
+    if bare(text).startswith(bare(item['title'])[:20]) \
+            and len(text) < len(item['title']) + 15:
+        return ''
+    return text if len(text) <= width else text[:width].rstrip() + '…'
 
 
 def main():
