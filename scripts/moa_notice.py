@@ -73,7 +73,7 @@ def notices(today):
 
 
 # 공고 제목에서 «어디»를 뗀다 — 「사당동 202-29번지 일대」
-_WHERE = re.compile(r'[가-힣]+\d*동\s*[0-9]+(?:-[0-9]+)?(?:번지)?(?:\s*(?:일대|일원))?')
+_WHERE = re.compile(r'[가-힣]+\d*동(?:\d+가)?\s*[0-9]+(?:-[0-9]+)?(?:번지)?(?:\s*(?:일대|일원))?')
 
 # 내 구역 단계(모아 축) → 한 마디. lib/features/auction/buy_band.dart 의
 # bandOfStage 와 같은 구간이다.
@@ -93,14 +93,30 @@ def _md(d):
     return f'{int(d[5:7])}/{int(d[8:10])}' if d else '?'
 
 
+def _where(title):
+    """«어디» — 「사당동 202-29번지 일대」. 번지가 없는 공고(「면목역 2의5구역」)는
+    «소규모주택정비 / 모아타운» 앞까지를 위치로 본다."""
+    # 포털 원문에 「면목3？8동」처럼 가운뎃점이 깨져 들어온다.
+    title = title.replace('？', '·')
+    w = _WHERE.search(title)
+    if w:
+        return w.group(0)
+    head = re.split(r'\s*(?:소규모주택정비|모아타운|모아주택)', title, 1)[0].strip()
+    return head or title[:24]
+
+
 def _what(title):
     """공고가 «무엇»인지 짧게. 제목을 44자에서 자르면 「변경(안」처럼
     괄호 한가운데서 끊겨 깨진 것처럼 보였다 — 잘라 쓰지 않고 뜻만 뽑는다."""
-    if '관리계획' in title:
-        return '관리계획 변경' if '변경' in title else '관리계획 수립'
-    t = re.sub(r'\([^)]*\)?', '', _WHERE.sub('', title))
-    t = re.sub(r'\s+', ' ', t).strip(' ·-')
-    return t if len(t) <= 30 else t[:30].rsplit(' ', 1)[0] + '…'
+    if '조합설립' in title:
+        what = '조합설립 인가 공람'
+    elif '관리계획' in title:
+        what = '관리계획 변경' if '변경' in title else '관리계획 수립'
+    else:
+        what = '주민공람'
+    if re.search(r'재\s*공람|\(재\)', title):
+        what += ' (재공람)'
+    return what
 
 
 def slack_lines(today, zones_by_key=None):
@@ -122,8 +138,7 @@ def slack_lines(today, zones_by_key=None):
         tag = {'new': f'🆕 *공람 시작* ({when})',
                'soon': f'⏰ *공람 마감 {when}*',
                'open': f'📄 공람 중 ({when})'}[kind]
-        w = _WHERE.search(title)
-        where = w.group(0) if w else _what(title)
+        where = _where(title)
         band = ''
         if zones_by_key:
             # 제목의 «동 + 번지» 로 내 구역과 맞춰본다
@@ -133,9 +148,7 @@ def slack_lines(today, zones_by_key=None):
                 if z and _band(z.get('stage')):
                     band = ' · ' + _band(z.get('stage'))
         lines.append(f'{tag} · {gu} {where}'.replace('  ', ' '))
-        detail = _what(title) if w else ''
-        lines.append('    ' + ' · '.join(
-            x for x in [detail, f'{_md(bgn)} → {_md(end)}'] if x) + band)
+        lines.append(f'    {_what(title)} · {_md(bgn)} → {_md(end)}{band}')
     return lines
 
 
