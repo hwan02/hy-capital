@@ -102,8 +102,7 @@ class _FreedomHero extends ConsumerWidget {
             children: [
           LayoutBuilder(builder: (context, c) {
             final narrow = c.maxWidth < 760;
-            // 링 게이지는 뺐다 — 옆 숫자와 같은 말을 한 번 더 했고, 게이지만
-            // 추정 평균을 써서 숫자가 서로 달랐다(18% vs 20%). 숫자만 남긴다.
+            // 원형 게이지만 — 같은 숫자를 글자로 한 번 더 쓰지 않는다.
             final info = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -122,12 +121,7 @@ class _FreedomHero extends ConsumerWidget {
                   ],
                 ),
                 const Gap(14),
-                // «실제로 찍힌 것»만 — 평균(추정: 예상 월수익·연배당÷12·누적 순익)은
-                // 뺐다. 실적이 아니라서 판단을 흐렸다(2026-09-29).
-                _miniStat('이번 달 실적', '${Won.compact(m.thisMonthCashflow)}원',
-                    '${m.thisMonthScore.toStringAsFixed(0)}%'),
-                const Gap(14),
-                _miniStat('자유 기준선 (월 목표)', '${Won.compact(m.freedomTarget)}원', null),
+                _FreedomGauge(m: m),
               ],
             );
             final hasMonthly = flows.any((f) => f.nonSalary > 0);
@@ -179,38 +173,61 @@ class _FreedomHero extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _miniStat(String label, String value, String? delta) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: AppFont.label)),
-        const Gap(4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(value,
-                style: const TextStyle(
-                    fontSize: AppFont.display, fontWeight: FontWeight.w900)),
-            if (delta != null) ...[
-              const Gap(8),
-              Text(delta,
+/// 이번 달 실적 / 월 목표. 가운데 숫자와 %는 모두 «이번 달 실적» 기준 —
+/// 전엔 %만 추정 평균(freedomScore)이라 옆 숫자와 달랐다(18% vs 20%).
+class _FreedomGauge extends StatelessWidget {
+  final DashboardMetrics m;
+  const _FreedomGauge({required this.m});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (m.thisMonthScore / 100).clamp(0.0, 1.0);
+    final cur = (m.thisMonthCashflow / 10000).round();
+    final tgt = (m.freedomTarget / 10000).round();
+    return SizedBox(
+      height: 156,
+      width: 156,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            height: 156,
+            width: 156,
+            child: CircularProgressIndicator(
+              value: pct,
+              strokeWidth: 13,
+              backgroundColor: AppColors.surfaceAlt,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+              strokeCap: StrokeCap.round,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$cur',
+                  style: const TextStyle(
+                      fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1)),
+              const Gap(2),
+              Text('/ $tgt만',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: AppFont.body)),
+              const Gap(3),
+              Text('${m.thisMonthScore.toStringAsFixed(0)}% 달성',
                   style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: AppFont.section,
+                      fontSize: AppFont.body,
                       fontWeight: FontWeight.w800)),
             ],
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 프리덤 스코어 옆 월별 현금흐름(월급 제외) — 사업별로 쌓은 막대.
+/// 프리덤 스코어 옆 월별 현금흐름(월급은 뺀 사업 수익) — 사업별로 쌓은 막대.
 /// 카드의 남는 폭을 다 쓴다. 이번 달은 진하게, 지난달들은 옅게.
 class _MonthlyBars extends StatelessWidget {
   final List<MonthlyCashflow> flows;
@@ -250,7 +267,7 @@ class _MonthlyBars extends StatelessWidget {
             runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('월별 현금흐름 · 월급 제외',
+              const Text('월별 현금흐름',
                   style: TextStyle(
                       fontSize: AppFont.label,
                       color: AppColors.textSecondary,
