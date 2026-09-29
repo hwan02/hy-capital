@@ -72,27 +72,70 @@ def notices(today):
     return out
 
 
+# 공고 제목에서 «어디»를 뗀다 — 「사당동 202-29번지 일대」
+_WHERE = re.compile(r'[가-힣]+\d*동\s*[0-9]+(?:-[0-9]+)?(?:번지)?(?:\s*(?:일대|일원))?')
+
+# 내 구역 단계(모아 축) → 한 마디. lib/features/auction/buy_band.dart 의
+# bandOfStage 와 같은 구간이다.
+def _band(stage):
+    s = stage or 0
+    if s in (3, 4, 5):
+        return '🟢 매수적기'
+    if s in (7, 8):
+        return '🟡 막차(조합설립 전)'
+    if s >= 9:
+        return '🚫 승계불가'
+    return ''
+
+
+def _md(d):
+    """2026-09-17 → 9/17"""
+    return f'{int(d[5:7])}/{int(d[8:10])}' if d else '?'
+
+
+def _what(title):
+    """공고가 «무엇»인지 짧게. 제목을 44자에서 자르면 「변경(안」처럼
+    괄호 한가운데서 끊겨 깨진 것처럼 보였다 — 잘라 쓰지 않고 뜻만 뽑는다."""
+    if '관리계획' in title:
+        return '관리계획 변경' if '변경' in title else '관리계획 수립'
+    t = re.sub(r'\([^)]*\)?', '', _WHERE.sub('', title))
+    t = re.sub(r'\s+', ' ', t).strip(' ·-')
+    return t if len(t) <= 30 else t[:30].rsplit(' ', 1)[0] + '…'
+
+
 def slack_lines(today, zones_by_key=None):
-    """daily_slack 이 쓰는 줄 목록. 없으면 빈 목록."""
+    """daily_slack 이 쓰는 줄 목록. 없으면 빈 목록.
+
+    한 공고 = 두 줄.
+        ⏰ *공람 마감 D-1* · 동작구 사당동 202-29번지 일대
+            관리계획 변경 · 9/17 → 10/1 · 🟢 매수적기
+
+    날짜 사이에 「~」를 쓰지 않는다. 슬랙은 ~…~ 를 «취소선»으로 읽어서
+    「2026-09-17~2026-10-01 … ~」 가 줄을 넘어 그어지며 깨져 보였다.
+    """
     rows = notices(today)
     if not rows:
         return []
     lines = []
     for kind, gu, title, bgn, end, left in rows:
-        tag = {'new': '🆕 *공람 시작*', 'soon': '⏰ *공람 마감 임박*',
-               'open': '📄 공람 중'}[kind]
         when = '오늘 마감' if left == 0 else f'D-{left}'
+        tag = {'new': f'🆕 *공람 시작* ({when})',
+               'soon': f'⏰ *공람 마감 {when}*',
+               'open': f'📄 공람 중 ({when})'}[kind]
+        w = _WHERE.search(title)
+        where = w.group(0) if w else _what(title)
         band = ''
         if zones_by_key:
             # 제목의 «동 + 번지» 로 내 구역과 맞춰본다
             m = re.search(r'([가-힣]+)\d*동\s*([0-9]+(?:-[0-9]+)?)', title)
             if m:
                 z = zones_by_key.get(f'{m.group(1)}동 {m.group(2)}')
-                if z:
-                    band = {1: ' · 🟢내 매수A', 2: ' · 🟡내 매수B'}.get(
-                        z.get('stage'), ' · 🚫진입불가')
-        lines.append(f'{tag} — {gu} {title[:44]}')
-        lines.append(f'    공람 {bgn}~{end} · {when}{band}')
+                if z and _band(z.get('stage')):
+                    band = ' · ' + _band(z.get('stage'))
+        lines.append(f'{tag} · {gu} {where}'.replace('  ', ' '))
+        detail = _what(title) if w else ''
+        lines.append('    ' + ' · '.join(
+            x for x in [detail, f'{_md(bgn)} → {_md(end)}'] if x) + band)
     return lines
 
 

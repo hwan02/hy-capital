@@ -250,9 +250,9 @@ def slack_lines(fresh, limit=10):
                    reverse=False)
     lines = []
     for i in fresh[:limit]:
-        # 여러 매체가 받아쓴 건 «크게 난 소식»이라는 뜻이라 표시해 준다.
-        more = f" (+{i['also']}곳)" if i.get('also') else ''
-        head = f"*{i['title'][:70]}*{more}"
+        # 「(+7곳)」은 붙이지 않는다 — 몇 곳이 받아썼는지는 읽는 사람에게
+        # 쓸모가 없었다. 순서(많이 받아쓴 것이 위)로만 쓴다.
+        head = f"*{i['title'][:70]}*"
         gist = summary(i)
         lines.append(f"{head}\n{gist}" if gist else head)
     # 잘린 건수는 말하지 않는다. 하루치만 보므로 잘린 건 다시 안 온다 —
