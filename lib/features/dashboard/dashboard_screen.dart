@@ -184,7 +184,6 @@ class _FreedomGauge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pct = (m.thisMonthScore / 100).clamp(0.0, 1.0);
-    final cur = (m.thisMonthCashflow / 10000).round();
     final tgt = (m.freedomTarget / 10000).round();
     return SizedBox(
       height: 156,
@@ -206,9 +205,16 @@ class _FreedomGauge extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('$cur',
-                  style: const TextStyle(
-                      fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1)),
+              // 단위까지 붙여 «203만». 큰 금액(1,083만 등)은 링 안에 맞게 줄인다.
+              SizedBox(
+                width: 118,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(Won.compact(m.thisMonthCashflow),
+                      style: const TextStyle(
+                          fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1)),
+                ),
+              ),
               const Gap(2),
               Text('/ $tgt만',
                   style: const TextStyle(
