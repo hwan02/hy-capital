@@ -79,6 +79,22 @@ DAYS = 1
 NOISE = re.compile(r'(분양권|청약 경쟁률|오피스텔 분양|광고|부고|인사)')
 
 
+def _kst_day(pub):
+    """RSS 날짜 → «한국» 날짜. 구글은 GMT(「Tue, 29 Sep 2026 21:10:00 GMT」)로
+    준다 — 앞 16자만 떼면 한국 9/30 오전 6시 기사가 9/29 로 찍혔다."""
+    from email.utils import parsedate_to_datetime
+    try:
+        d = parsedate_to_datetime(pub)
+        if d.tzinfo is None:
+            return d.date()
+        return d.astimezone(datetime.timezone(datetime.timedelta(hours=9))).date()
+    except (TypeError, ValueError):
+        try:
+            return datetime.datetime.strptime(pub[:16], '%a, %d %b %Y').date()
+        except ValueError:
+            return None
+
+
 def _fetch(q):
     url = RSS.format(q=urllib.parse.quote(q))
     req = u.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -106,8 +122,7 @@ def _parse(xml, topic):
         day = None
         if pub:
             try:
-                day = datetime.datetime.strptime(
-                    pub[:16], '%a, %d %b %Y').date()
+                day = _kst_day(pub)
             except ValueError:
                 day = None
         out.append({'url': link, 'title': title, 'source': source,
@@ -139,7 +154,7 @@ def _site_items(name, url):
         pub = pick('pubDate')
         if pub:
             try:
-                day = datetime.datetime.strptime(pub[:16], '%a, %d %b %Y').date()
+                day = _kst_day(pub)
             except ValueError:
                 day = None
         out.append({'url': link, 'title': title, 'source': name,
@@ -200,6 +215,20 @@ def _same(a, b):
     return len(a & b) / min(len(a), len(b))
 
 
+# 「어디 얘기인가」 — 중곡1동 · 창3동 · 상봉13구역 · 홍제동 9-81.
+# 같은 소식을 매체마다 제목을 딴판으로 쓴다(「중곡1동 A구역, 최고 35층…」
+# vs 「중곡1동 254-15…중랑천 품은 2,200세대」 — 제목 겹침 0.31). 제목만
+# 비교하면 못 묶어서, «같은 동·구역 + 제목이 조금이라도(PLACE_THR) 겹치면»
+# 같은 소식으로 본다. 동만 같다고 묶으면 안 된다 — 「홍제동 9-81 신통기획
+# 확정」과 「홍제동 모아타운 동의서 위조」는 다른 소식이다(겹침 0.08).
+PLACE_THR = 0.25
+_PLACE = re.compile(r'[가-힣]{1,5}\d*동(?:\d+가)?(?![가-힣])|[가-힣]{1,5}\d+구역')
+
+
+def _places(title):
+    return set(_PLACE.findall(title))
+
+
 def _dedupe(items, thr=0.45):
     """한 사건을 매체 10곳이 받아쓴다 — 「상계한신3차 정비구역 지정 요청」이
     한 번에 7건 들어왔다. 그대로 보내면 슬랙이 같은 말로 도배된다.
@@ -207,7 +236,10 @@ def _dedupe(items, thr=0.45):
     kept = []
     for i in items:
         sh = _shingles(i['title'])
-        hit = next((k for k in kept if _same(sh, k['_sh']) >= thr), None)
+        pl = _places(i['title'])
+        hit = next((k for k in kept if _same(sh, k['_sh']) >= thr
+                    or (pl & _places(k['title'])
+                        and _same(sh, k['_sh']) >= PLACE_THR)), None)
         if hit:
             hit['also'] += 1
             continue
@@ -219,14 +251,46 @@ def _dedupe(items, thr=0.45):
     return kept
 
 
+# 이미 보낸 «소식»으로 볼 기간. 주소가 달라도 이 안에 보낸 것과 같은
+# 소식이면 뺀다 — 제목이 비슷하거나(SENT_THR) 같은 동·구역(PLACE_DAYS 안).
+SENT_DAYS = 7
+PLACE_DAYS = 3
+SENT_THR = 0.45
+
+
 def new_items(get, post, today=None):
-    """이미 보낸 것을 뺀 «진짜 새» 기사. get/post 는 daily_slack 이 준다."""
+    """이미 보낸 것을 뺀 «진짜 새» 기사. get/post 는 daily_slack 이 준다.
+
+    【주소만 보면 같은 소식이 또 온다】 (2026-10-01)
+    전에는 news_digest.url 만 비교했다. 그런데 한 소식을 다음 날 다른
+    매체가 또 쓰면 주소가 달라서 «새 기사»가 됐다 — 9/30 에 보낸 중곡1동
+    ·창3동·「더블 역세권」이 10/1 에 매체만 바꿔 다시 왔다.
+    이제 최근 보낸 제목과 비교해서 같은 소식이면 뺀다.
+    """
     items = collect(today)
     if not items:
         return []
-    sent = {r['url'] for r in get('/rest/v1/news_digest?select=url')}
-    fresh = [i for i in items if i['url'] not in sent]
-    return fresh
+    d0 = datetime.date.fromisoformat(today) if isinstance(today, str) \
+        else (today or today_kst())
+    since = (d0 - datetime.timedelta(days=SENT_DAYS)).isoformat()
+    rows = get('/rest/v1/news_digest?select=url,title,published_on'
+               f'&or=(published_on.gte.{since},published_on.is.null)')
+    urls = {r['url'] for r in rows}
+    place_since = (d0 - datetime.timedelta(days=PLACE_DAYS)).isoformat()
+    past = [(_shingles(r['title'] or ''), _places(r['title'] or ''),
+             (r.get('published_on') or '') >= place_since) for r in rows]
+
+    def seen(i):
+        if i['url'] in urls:
+            return True
+        sh, pl = _shingles(i['title']), _places(i['title'])
+        for psh, ppl, recent in past:
+            sim = _same(sh, psh)
+            if sim >= SENT_THR or (recent and pl & ppl and sim >= PLACE_THR):
+                return True
+        return False
+
+    return [i for i in items if not seen(i)]
 
 
 def slack_lines(fresh, limit=10):
