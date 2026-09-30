@@ -306,19 +306,79 @@ _BYLINE = re.compile(
     r'(?:[가-힣]{2,4}\s*(?:선임|수석|전문)?기자\s*=?\s*)?')
 
 
-def summary(item, width=110):
-    """기사 리드의 첫 문장. 못 가져오거나 제목과 상관없는 글이면 ''.
+def _first_sentence(text):
+    """첫 문장 «통째로». 「…했다.」 까지. 끝을 못 찾으면 None.
 
-    og:description 은 대부분 기사 첫 문단이다. 다만 매체에 따라 사이트
-    소개문(「매일 아침 배달되는 서울시 온라인뉴스…」)이 들어 있어서,
-    제목과 겹치는 조각이 거의 없으면 요약이 아니라고 보고 버린다.
+    리드 문단은 마침표 뒤에 띄어쓰기 없이 다음 문장이 붙어 오기도 한다
+    (「…올렸다.중랑구는」) — 그래서 공백을 조건으로 걸지 않는다.
+    """
+    cut = re.search(r'^(.+?다)[.。]', text)
+    return cut.group(1) + '.' if cut else None
+
+
+def _blocks(page):
+    """기사 페이지 → 문단 목록. 스크립트·스타일은 통째로 버린다.
+
+    문단(p·div·li·br …) 경계를 살려 둔다. 한 덩어리로 합치면 메뉴 글자
+    («홈 > 부동산 > …»)가 첫 문장 앞에 들러붙는다.
+    """
+    page = re.sub(r'(?is)<(script|style|noscript|head)[^>]*>.*?</\1>', ' ', page)
+    page = re.sub(r'(?i)<br\s*/?>|</?(?:p|div|li|h\d|tr|section|article|figcaption)\b[^>]*>',
+                  '\n', page)
+    text = html.unescape(re.sub(r'<[^>]+>', ' ', page))
+    return [re.sub(r'\s+', ' ', b).strip() for b in text.split('\n') if b.strip()]
+
+
+def _from_body(page, title, lead):
+    """본문에서 요약 문장을 찾는다.
+
+    ① 요약란(lead)의 앞머리가 본문에 있으면 거기서부터 문장 끝까지.
+       — 매체가 요약란을 150자쯤에서 잘라 보낸 경우.
+    ② 없으면 «본문 첫 문단»의 첫 문장. 페이지 순서대로 보며, 길고(60자+)
+       완결 문장이 있고 제목과 어느 정도 겹치는(0.25+) 첫 문단을 리드로
+       본다. 메뉴·관련기사 목록은 짧거나 「…다.」가 없어서 걸러진다.
+    """
+    blocks = _blocks(page)
+    head = re.sub(r'[.…]+$', '', lead or '')[:30]
+    if len(head) >= 15:
+        for b in blocks:
+            at = b.find(head)
+            if at >= 0:
+                t = _first_sentence(b[at:])
+                if t:
+                    return t
+    ts = _shingles(title)
+    for b in blocks:
+        if len(b) < 60:
+            continue
+        b = _BYLINE.sub('', b, count=1).strip()
+        t = _first_sentence(b)
+        if t and 20 <= len(t) <= 400 and _same(_shingles(b), ts) >= 0.25:
+            return t
+    return None
+
+
+def summary(item):
+    """기사 리드의 첫 문장 «전체». 못 가져오거나 제목과 상관없는 글이면 ''.
+
+    【중간에 자르지 않는다】 (2026-10-01)
+    전에는 110자에서 「…」로 잘랐다. 그러면 결국 기사를 열어봐야 해서
+    요약이 쓸모가 없었다. 이제는 첫 문장을 끝(「…다.」)까지 싣는다.
+
+    og:description 은 대부분 기사 첫 문단인데, 매체가 그걸 150자쯤에서
+    «자기가» 잘라 보내기도 한다. 그럴 땐 본문에서 그 앞머리를 찾아
+    문장 끝까지 이어 붙인다. 그래도 끝을 못 찾으면 요약을 싣지 않는다 —
+    잘린 문장보다 제목만 있는 게 낫다.
+
+    매체에 따라 사이트 소개문(「매일 아침 배달되는 서울시 온라인뉴스…」)이
+    들어 있어서, 제목과 겹치는 조각이 거의 없으면 요약이 아니라고 본다.
     """
     url = original(item['url'])
     if not url:
         return ''
     try:
         with u.urlopen(u.Request(url, headers=UA), timeout=8) as r:
-            raw = r.read(400_000)
+            raw = r.read(600_000)
         cs = re.search(rb'charset=["\']?([\w-]+)', raw[:5000])
         page = raw.decode(cs.group(1).decode() if cs else 'utf-8', 'ignore')
     except Exception:  # noqa: BLE001
@@ -327,22 +387,25 @@ def summary(item, width=110):
                    r'[^>]*content=["\']([^"\']+)', page)
          or re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*'
                       r'(?:property|name)=["\'](?:og:)?description', page))
-    if not m:
+    lead = ''
+    if m:
+        lead = re.sub(r'\s+', ' ', html.unescape(m.group(1))).strip()
+        lead = _BYLINE.sub('', lead, count=1).strip()
+        if _same(_shingles(lead), _shingles(item['title'])) < 0.3:
+            lead = ''          # 사이트 소개문 — 요약이 아니다
+
+    text = _first_sentence(lead) if lead else None
+    if not text:
+        # 요약란이 잘렸거나 · 부제만 있거나 · 아예 없다 — 본문에서 찾는다.
+        text = _from_body(page, item['title'], lead)
+    if not text:
         return ''
-    text = re.sub(r'\s+', ' ', html.unescape(m.group(1))).strip()
-    text = _BYLINE.sub('', text, count=1).strip()
-    if _same(_shingles(text), _shingles(item['title'])) < 0.3:
-        return ''
-    # 첫 문장. 「…했다.」 로 끝나는 데서 자른다 — 리드 문단은 마침표 뒤에
-    # 띄어쓰기 없이 다음 문장이 붙어 오기도 한다(「…올렸다.중랑구는」).
-    cut = re.search(r'^(.+?다)[.。]', text)
-    text = cut.group(1) + '.' if cut else text
     # 제목을 그대로 되풀이한 리드는 요약이 아니다.
     bare = lambda x: re.sub(r'[^가-힣0-9A-Za-z]', '', x)
     if bare(text).startswith(bare(item['title'])[:20]) \
             and len(text) < len(item['title']) + 15:
         return ''
-    return text if len(text) <= width else text[:width].rstrip() + '…'
+    return text
 
 
 def main():
