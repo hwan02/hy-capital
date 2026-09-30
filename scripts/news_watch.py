@@ -301,7 +301,7 @@ def slack_lines(fresh, limit=10):
     «무슨 일이 있었나»를 알면 된다. 그래서 기사 첫 문장(리드)을 붙인다.
     더 보고 싶은 건 제목으로 검색하면 된다.
 
-    요약은 기사 원문의 og:description(리드 문단)에서 첫 문장을 딴다.
+    요약은 기사 본문에서 «제목에 없는 사실»을 담은 문장 두 개다(summary).
     못 가져오면 제목만 보낸다 — 요약이 없다고 기사를 버리지 않는다.
     """
     # «여러 매체가 받아쓴 것»을 위로 올린다.
@@ -393,49 +393,57 @@ def _blocks(page):
     return [re.sub(r'\s+', ' ', b).strip() for b in text.split('\n') if b.strip()]
 
 
-def _from_body(page, title, lead):
-    """본문에서 요약 문장을 찾는다.
+# 요약 문장 고르기 — «제목에 없는 사실»을 싣는 문장에 점수를 준다.
+_INFO = re.compile(
+    r'예정|계획|목표|착공|입주|분양|인가|심의|공람|고시|동의|용적률|층|가구|세대|억|%'
+    r'|내년|올해|연내|상반기|하반기|추진위|조합|시공|이주|철거|관리처분|사업시행'
+    r'|신탁|공공|임대|역세권|지정|선정|후보지|해제|요건|기준')
+# 본문이 끝났다는 표시 — 여기서부터는 저작권·관련기사·많이 본 뉴스.
+_END = re.compile(r'무단|ⓒ|©|저작권|Copyright|기사제보|구독|관련기사|많이 본')
 
-    ① 요약란(lead)의 앞머리가 본문에 있으면 거기서부터 문장 끝까지.
-       — 매체가 요약란을 150자쯤에서 잘라 보낸 경우.
-    ② 없으면 «본문 첫 문단»의 첫 문장. 페이지 순서대로 보며, 길고(60자+)
-       완결 문장이 있고 제목과 어느 정도 겹치는(0.25+) 첫 문단을 리드로
-       본다. 메뉴·관련기사 목록은 짧거나 「…다.」가 없어서 걸러진다.
+
+def _sentences(page, title):
+    """기사 본문의 완결 문장들, 나온 순서대로.
+
+    본문 시작 = 길고(60자+) 완결 문장이 있고 제목과 겹치는(0.25+) 첫 문단.
+    메뉴·관련기사 목록은 짧거나 「…다.」가 없어서 여기서 걸러진다.
     """
     blocks = _blocks(page)
-    head = re.sub(r'[.…]+$', '', lead or '')[:30]
-    if len(head) >= 15:
-        for b in blocks:
-            at = b.find(head)
-            if at >= 0:
-                t = _first_sentence(b[at:])
-                if t:
-                    return t
     ts = _shingles(title)
-    for b in blocks:
-        if len(b) < 60:
+    start = next((k for k, b in enumerate(blocks)
+                  if len(b) >= 60
+                  and _first_sentence(_BYLINE.sub('', b, count=1))
+                  and _same(_shingles(b), ts) >= 0.25), None)
+    if start is None:
+        return []
+    out = []
+    for b in blocks[start:start + 60]:
+        if _END.search(b) and len(b) < 200:
+            break
+        if len(b) < 40:
             continue
-        b = _BYLINE.sub('', b, count=1).strip()
-        t = _first_sentence(b)
-        if t and 20 <= len(t) <= 400 and _same(_shingles(b), ts) >= 0.25:
-            return t
-    return None
+        b = _BYLINE.sub('', b, count=1)
+        out += [m.group(0).strip()
+                for m in re.finditer(r'[^.?!。]{15,400}?다[.。]', b)]
+        if len(out) > 40:
+            break
+    return out
 
 
-def summary(item):
-    """기사 리드의 첫 문장 «전체». 못 가져오거나 제목과 상관없는 글이면 ''.
+def summary(item, k=2):
+    """기사 본문에서 «제목에 없는 사실»을 담은 문장 두 개.
 
-    【중간에 자르지 않는다】 (2026-10-01)
-    전에는 110자에서 「…」로 잘랐다. 그러면 결국 기사를 열어봐야 해서
-    요약이 쓸모가 없었다. 이제는 첫 문장을 끝(「…다.」)까지 싣는다.
-
-    og:description 은 대부분 기사 첫 문단인데, 매체가 그걸 150자쯤에서
-    «자기가» 잘라 보내기도 한다. 그럴 땐 본문에서 그 앞머리를 찾아
-    문장 끝까지 이어 붙인다. 그래도 끝을 못 찾으면 요약을 싣지 않는다 —
-    잘린 문장보다 제목만 있는 게 낫다.
-
-    매체에 따라 사이트 소개문(「매일 아침 배달되는 서울시 온라인뉴스…」)이
-    들어 있어서, 제목과 겹치는 조각이 거의 없으면 요약이 아니라고 본다.
+    【첫 문장은 요약이 아니었다】 (2026-10-01)
+    처음엔 og:description(리드) 첫 문장을 실었는데, 리드는 원래 제목을
+    풀어 쓴 문장이라 «제목을 조금 길게 쓴 것»밖에 안 됐다.
+    이제 본문 문장마다 점수를 매겨 두 개를 고른다.
+      + 제목에 없는 글자 조각이 많을수록 (새 정보)
+      + 숫자 · 정비 절차/규모 낱말(인가·공람·용적률·가구·억 …)이 많을수록
+      − 제목과 60% 넘게 겹치면 제외 (리드 되풀이)
+      − 「“…” 라고 말했다」 식 인용 (말은 많고 사실은 적다)
+      − 너무 짧거나(30자-) 너무 긴(180자+) 문장
+    고른 두 문장은 기사에 나온 순서대로 붙인다. 문장은 자르지 않는다.
+    본문을 못 읽으면 요약 없이 제목만 나간다.
     """
     url = original(item['url'])
     if not url:
@@ -447,29 +455,21 @@ def summary(item):
         page = raw.decode(cs.group(1).decode() if cs else 'utf-8', 'ignore')
     except Exception:  # noqa: BLE001
         return ''
-    m = (re.search(r'<meta[^>]+(?:property|name)=["\'](?:og:)?description["\']'
-                   r'[^>]*content=["\']([^"\']+)', page)
-         or re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*'
-                      r'(?:property|name)=["\'](?:og:)?description', page))
-    lead = ''
-    if m:
-        lead = re.sub(r'\s+', ' ', html.unescape(m.group(1))).strip()
-        lead = _BYLINE.sub('', lead, count=1).strip()
-        if _same(_shingles(lead), _shingles(item['title'])) < 0.3:
-            lead = ''          # 사이트 소개문 — 요약이 아니다
-
-    text = _first_sentence(lead) if lead else None
-    if not text:
-        # 요약란이 잘렸거나 · 부제만 있거나 · 아예 없다 — 본문에서 찾는다.
-        text = _from_body(page, item['title'], lead)
-    if not text:
-        return ''
-    # 제목을 그대로 되풀이한 리드는 요약이 아니다.
-    bare = lambda x: re.sub(r'[^가-힣0-9A-Za-z]', '', x)
-    if bare(text).startswith(bare(item['title'])[:20]) \
-            and len(text) < len(item['title']) + 15:
-        return ''
-    return text
+    title = item['title']
+    ts = _shingles(title)
+    scored = []
+    for i, sent in enumerate(_sentences(page, title)):
+        sh = _shingles(sent)
+        if not sh or _same(sh, ts) >= 0.6:
+            continue
+        new = len(sh - ts) / len(sh)
+        info = len(re.findall(r'\d', sent)) * 0.15 + len(_INFO.findall(sent)) * 0.5
+        if re.search(r'[“"].*[”"].*(말했|강조|덧붙|전했)', sent):
+            info -= 1
+        fit = 0 if 30 <= len(sent) <= 180 else -0.8
+        scored.append((new * 1.5 + min(info, 3) + fit - i * 0.03, i, sent))
+    top = sorted(sorted(scored, reverse=True)[:k], key=lambda x: x[1])
+    return ' '.join(sent for _, _, sent in top)
 
 
 def main():
