@@ -395,14 +395,18 @@ class _MoneyFlowSummary extends ConsumerWidget {
       ];
     }
 
-    // 들어오는 돈 = 수동 기록(비모듈 라벨) + 자동(이번 달 모듈 수익).
-    // 자금 흐름 페이지와 동일한 moduleIncomeThisMonthProvider 사용 → 값 일치.
+    // 들어온 돈 = 수동 기록(비모듈 라벨) + 자동(«같은 달» 모듈 수익).
+    // 전에는 모듈 수익만 달력상 이번 달 것을 붙여서, 카드는 9월인데
+    // 10월(아직 기록 전) 에어비앤비·배당을 찾느라 월급만 남았다.
     final incomeBy = <String, double>{};
     for (final e in scope
         .where((e) => e.isIn && !kAutoIncomeLabels.contains(e.label))) {
       incomeBy[e.label] = (incomeBy[e.label] ?? 0) + e.amount;
     }
-    final autoIncome = ref.watch(moduleIncomeThisMonthProvider).value ?? const {};
+    final byMonth = ref.watch(moduleIncomeByMonthProvider).value ?? const {};
+    final autoIncome = lm == null
+        ? const <String, double>{}
+        : byMonth[lm.toIso8601String().substring(0, 10)] ?? const {};
     autoIncome.forEach((k, v) {
       if (v > 0) incomeBy[k] = (incomeBy[k] ?? 0) + v;
     });
