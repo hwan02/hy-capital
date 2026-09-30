@@ -477,44 +477,65 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
   );
 });
 
-/// 자금 흐름 '들어오는 돈' 자동 연동 — 이번 달 각 사업 엔진 수익.
-/// 항상 현재 달 기준(고정). 라벨 → 금액.
-final moduleIncomeThisMonthProvider =
-    FutureProvider<Map<String, double>>((ref) async {
+/// 자금 흐름 '들어온 돈' 자동 연동 — 각 사업 엔진 수익.
+///
+/// 월별 모듈 수익 — {'2026-09-01': {'에어비앤비': …, '배당': …, '숏폼': …, '토지': …}}.
+///
+/// 자금 흐름은 월 탭을 고를 수 있는데, 전에는 모듈 수익을 «달력상 이번 달»
+/// 것만 가져왔다. 그래서 10/1 에 열면(10월은 아직 기록 전) 에어비앤비·배당이
+/// 통째로 빠졌고, 9월 탭을 눌러도 9월 모듈 수익이 안 붙었다.
+/// 모든 달을 한 번에 받아 두고 화면이 고른 달 것을 꺼내 쓴다.
+final moduleIncomeByMonthProvider =
+    FutureProvider<Map<String, Map<String, double>>>((ref) async {
   final sb = ref.watch(supabaseProvider);
-  final now = DateTime.now();
-  final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
 
   // 필요한 것만 병렬 조회 (대시보드 지표 체인에 의존하지 않음).
   final rateF = ref.watch(usdKrwProvider.future);
   final dividendsF = ref.watch(dividendProvider.future);
-  final amF = sb.from('airbnb_monthly').select('net_profit').eq('month', m0);
+  final amF = sb.from('airbnb_monthly').select('month,net_profit');
   final entF = sb
       .from('monthly_entries')
-      .select('category,ref_id,amount')
-      .eq('month', m0);
+      .select('month,category,ref_id,amount')
+      .inFilter('category', ['shorts', 'dividend', 'land']);
 
   final rate = await rateF;
   final dividends = await dividendsF;
   final divById = {for (final d in dividends) d.id: d};
 
-  double airbnb = 0, shorts = 0, dividend = 0, land = 0;
-  final am = await amF;
-  airbnb = am.fold(0.0, (s, r) => s + ((r['net_profit'] as num?)?.toDouble() ?? 0));
-  final ent = await entF;
-  for (final r in ent) {
+  final out = <String, Map<String, double>>{};
+  void add(Object? month, String label, double v) {
+    if (month == null || v == 0) return;
+    final k = '${month.toString().substring(0, 7)}-01';
+    final m = out.putIfAbsent(
+        k, () => {'에어비앤비': 0, '배당': 0, '숏폼': 0, '토지': 0});
+    m[label] = (m[label] ?? 0) + v;
+  }
+
+  for (final r in await amF) {
+    add(r['month'], '에어비앤비', (r['net_profit'] as num?)?.toDouble() ?? 0);
+  }
+  for (final r in await entF) {
     final amt = (r['amount'] as num?)?.toDouble() ?? 0;
     switch (r['category']) {
       case 'shorts':
-        shorts += amt;
+        add(r['month'], '숏폼', amt);
       case 'dividend':
         final d = divById[r['ref_id']];
-        if (d != null) dividend += d.krw(amt * d.shares, rate);
+        if (d != null) add(r['month'], '배당', d.krw(amt * d.shares, rate));
       case 'land':
-        land += amt;
+        add(r['month'], '토지', amt);
     }
   }
-  return {'에어비앤비': airbnb, '배당': dividend, '숏폼': shorts, '토지': land};
+  return out;
+});
+
+/// 이번 달 모듈 수익 — 위 월별 표에서 이번 달만.
+final moduleIncomeThisMonthProvider =
+    FutureProvider<Map<String, double>>((ref) async {
+  final all = await ref.watch(moduleIncomeByMonthProvider.future);
+  final now = DateTime.now();
+  final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
+  return all[m0] ?? {'에어비앤비': 0, '배당': 0, '숏폼': 0, '토지': 0};
 });
 
 /// 자금 흐름 자동 연동 라벨(이 라벨의 수동 입력은 자동값으로 대체).
@@ -601,6 +622,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(airbnbMonthlyProvider);
   ref.invalidate(airbnbTransactionsProvider);
   ref.invalidate(monthlyEntriesProvider);
+  ref.invalidate(moduleIncomeByMonthProvider);
   ref.invalidate(moduleIncomeThisMonthProvider);
   ref.invalidate(nonSalaryCashflowThisMonthProvider);
   ref.invalidate(planPhasesProvider);

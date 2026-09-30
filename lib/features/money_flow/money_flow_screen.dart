@@ -133,10 +133,17 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
           loading: AsyncStatus.loading,
           error: AsyncStatus.error,
           data: (all) {
-            // 월 목록
+            // 사업 엔진 수익(에어비앤비·배당·숏폼·토지)은 각 모듈에 월별로
+            // 따로 쌓인다. 고른 달(전체면 모든 달) 것을 붙인다.
+            final moduleByMonth =
+                ref.watch(moduleIncomeByMonthProvider).value ?? const {};
+
+            // 월 목록 — 모듈 수익만 있는 달도 탭을 띄운다.
             final monthSet = <String>{
               for (final e in all)
                 DateTime(e.date.year, e.date.month).toIso8601String().substring(0, 10),
+              for (final k in moduleByMonth.keys)
+                if (moduleByMonth[k]!.values.any((v) => v != 0)) k,
               // 이번 달은 기록이 없어도 탭을 띄운다(기본 선택이라).
               if (_month != null) _month!.toIso8601String().substring(0, 10),
             };
@@ -149,9 +156,15 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 .toList();
             final expense = scope.where((e) => !e.isIn).toList();
 
-            // 들어오는 돈 = 수동(비모듈) + 자동(이번 달 모듈 수익, 0 제외).
-            final autoIncome =
-                ref.watch(moduleIncomeThisMonthProvider).value ?? const {};
+            // 들어온 돈 = 수동(비모듈) + 자동(고른 달의 모듈 수익, 0 제외).
+            final autoIncome = <String, double>{};
+            moduleByMonth.forEach((k, m) {
+              final d = DateTime.parse(k);
+              if (_month == null ||
+                  (d.year == _month!.year && d.month == _month!.month)) {
+                m.forEach((l, v) => autoIncome[l] = (autoIncome[l] ?? 0) + v);
+              }
+            });
             final incomeBy = <String, double>{};
             for (final e in manualIncome) {
               incomeBy[e.label] = (incomeBy[e.label] ?? 0) + e.amount;
@@ -265,6 +278,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 if (months.length > 1 && _month == null) ...[
                   _MonthlyFlowBars(
                     entries: all,
+                    moduleByMonth: moduleByMonth,
                     onTap: (m) => setState(() => _month = m),
                   ),
                   const Gap(16),
@@ -516,16 +530,24 @@ class _DonutCard extends StatelessWidget {
 /// 월별 순흐름 막대 (클릭 → 해당 월).
 class _MonthlyFlowBars extends StatelessWidget {
   final List<FlowEntry> entries;
+  final Map<String, Map<String, double>> moduleByMonth;
   final void Function(DateTime) onTap;
-  const _MonthlyFlowBars({required this.entries, required this.onTap});
+  const _MonthlyFlowBars(
+      {required this.entries, required this.moduleByMonth, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final byMonth = <String, double>{};
     for (final e in entries) {
       final k = DateTime(e.date.year, e.date.month).toIso8601String().substring(0, 10);
+      // 모듈 라벨의 수동 입력은 위 도넛처럼 자동값으로 대체한다.
+      if (e.isIn && kAutoIncomeLabels.contains(e.label)) continue;
       byMonth[k] = (byMonth[k] ?? 0) + e.signed;
     }
+    moduleByMonth.forEach((k, m) {
+      final v = m.values.fold(0.0, (s, x) => s + x);
+      if (v != 0) byMonth[k] = (byMonth[k] ?? 0) + v;
+    });
     final keys = byMonth.keys.toList()..sort();
     final recent = keys.length > 10 ? keys.sublist(keys.length - 10) : keys;
     final maxAbs =
