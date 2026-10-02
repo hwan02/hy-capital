@@ -1307,7 +1307,40 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
               icon: const Icon(Icons.chevron_right_rounded),
             ),
           ]),
-          const Gap(8),
+          const Gap(6),
+          Wrap(spacing: 14, runSpacing: 6, alignment: WrapAlignment.center,
+              children: [
+            _Legend(
+                Container(
+                  width: 14,
+                  height: 18,
+                  decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(color: AppColors.primary)),
+                  child: const Icon(Icons.check_rounded,
+                      size: 10, color: AppColors.primary),
+                ),
+                '다 읽은 날'),
+            const _Legend(_StartTag(color: _bookColor), '시작한 날'),
+            _Legend(
+                Container(
+                    width: 18,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: _bookColor,
+                        borderRadius: BorderRadius.circular(2))),
+                '읽은 기간'),
+            _Legend(
+                Container(
+                    width: 18,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: _bookColor.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2))),
+                '읽는 중'),
+          ]),
+          const Gap(10),
           Row(children: [
             for (final (i, w) in const ['일', '월', '화', '수', '목', '금', '토'].indexed)
               Expanded(
@@ -1352,7 +1385,11 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               onTap: () => widget.onEdit(s.book),
               child: Row(children: [
-                _Thumb(bytes: _cover(s.book), color: s.color, w: 34, h: 48),
+                _Thumb(
+                    bytes: _cover(s.book),
+                    color: s.color,
+                    w: 40,
+                    h: 57),
                 const Gap(12),
                 Expanded(
                   child: Column(
@@ -1367,120 +1404,214 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
                       const Gap(2),
                       Text(
                           s.ongoing
-                              ? '${_md(s.from)} 시작 · 읽는 중'
+                              ? '${_md(s.from)} 시작 → 읽는 중 · ${s.to.difference(s.from).inDays + 1}일째'
                               : (s.from == s.to
-                                  ? '${_md(s.to)} 읽음'
-                                  : '${_md(s.from)} ~ ${_md(s.to)}'),
+                                  ? '${_md(s.to)} 하루에 읽음'
+                                  : '${_md(s.from)} → ${_md(s.to)} · ${s.to.difference(s.from).inDays + 1}일'),
                           style: const TextStyle(
                               fontSize: AppFont.caption,
-                              color: AppColors.textFaint)),
+                              color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
-                Pill('${s.nth}회독', color: s.color),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Pill(s.ongoing ? '읽는 중' : '완독',
+                      color: s.ongoing ? AppColors.gold : AppColors.primary),
+                  if (s.nth > 1) ...[
+                    const Gap(4),
+                    Text('${s.nth}회독',
+                        style: const TextStyle(
+                            fontSize: AppFont.micro,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textFaint)),
+                  ],
+                ]),
               ]),
             ),
           ),
     ]);
   }
 
-  /// 하루 칸 — 그날 읽던 책을 색 막대로. 시작한 날은 막대 왼쪽이 둥글고,
-  /// 다 읽은 날은 ✓.
+  /// 하루 칸.
+  ///
+  /// 처음엔 표지를 20×28 로 붙였더니 거의 안 보였고, 시작한 날과 다 읽은 날이
+  /// 똑같이 생겨 구분이 안 됐다(2026-10-02). 그래서 모양을 아예 갈랐다.
+  ///   · 다 읽은 날  = 칸을 채우는 큰 표지 + 초록 ✓ 배지
+  ///   · 시작한 날   = 날짜 옆 ▶ (책 색). 표지는 안 쓴다
+  ///   · 읽는 기간   = 아래 막대 (다 읽은 회독은 진하게, 읽는 중이면 흐리게)
   Widget _dayCell(DateTime? d, List<_Span> spans, DateTime today) {
-    if (d == null) return const SizedBox(height: 84);
+    const cellH = 104.0;
+    if (d == null) return const SizedBox(height: cellH);
     final on = spans.where((s) => s.covers(d)).toList()
       ..sort((a, b) => a.from.compareTo(b.from));
+    final finished = on.where((s) => !s.ongoing && s.to == d).toList();
+    // 같은 날 시작해서 끝낸 책은 «다 읽음»으로만 보인다.
+    final started =
+        on.where((s) => s.from == d && !(s.to == d && !s.ongoing)).toList();
     final isToday = d == today;
     final picked = _day == d;
-    final finishedHere = on.any((s) => !s.ongoing && s.to == d);
-    // 표지는 «다 읽은 날»에, 아직 읽는 중이면 «시작한 날»에 붙인다.
-    // 기간 전체에 붙이면 칸이 표지로 도배된다 — 기간은 막대가 보여준다.
-    final covers = [
-      ...on.where((s) => !s.ongoing && s.to == d),
-      ...on.where((s) => s.ongoing && s.from == d),
-    ];
-    return InkWell(
+    final titles = [
+      for (final s in finished) '✓ ${s.book.title}',
+      for (final s in started) '▶ ${s.book.title} 시작',
+    ].join('\n');
+
+    final cell = InkWell(
       onTap: () => setState(() => _day = picked ? null : d),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        height: 84,
+        height: cellH,
         margin: const EdgeInsets.all(1.5),
-        padding: const EdgeInsets.fromLTRB(3, 3, 3, 3),
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: picked ? _bookColor.withValues(alpha: 0.18) : null,
+          color: picked
+              ? _bookColor.withValues(alpha: 0.18)
+              : (finished.isNotEmpty
+                  ? AppColors.primary.withValues(alpha: 0.06)
+                  : null),
           border: Border.all(
               color: isToday ? _bookColor : Colors.transparent, width: 1.2),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text('${d.day}',
-                  style: TextStyle(
-                      fontSize: AppFont.micro,
-                      fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
-                      color: d.isAfter(today)
-                          ? AppColors.textFaint
-                          : AppColors.textSecondary)),
-              const Spacer(),
-              if (finishedHere)
-                const Icon(Icons.check_rounded,
-                    size: 12, color: AppColors.primary),
-            ]),
-            const Gap(3),
-            if (covers.isNotEmpty) ...[
-              // 폰에서는 칸이 46px 남짓 — 들어가는 만큼만 놓고 나머지는 +n.
-              LayoutBuilder(builder: (context, c) {
-                final room = ((c.maxWidth + 2) / 22).floor().clamp(1, 3);
-                final fit = covers.length > room ? room - 1 : covers.length;
-                final n = fit < 1 ? 1 : fit;
-                return Row(children: [
-                  for (final s in covers.take(n)) ...[
-                    _Thumb(
-                        bytes: _cover(s.book),
-                        color: s.color,
-                        w: 20,
-                        h: 28,
-                        faded: s.ongoing),
-                    const Gap(2),
-                  ],
-                  if (covers.length > n)
-                    Flexible(
-                      child: Text('+${covers.length - n}',
-                          maxLines: 1,
-                          overflow: TextOverflow.clip,
-                          style: const TextStyle(
-                              fontSize: AppFont.micro,
-                              color: AppColors.textFaint)),
-                    ),
-                ]);
-              }),
+        child: LayoutBuilder(builder: (context, c) {
+          final wide = c.maxWidth >= 70;
+          final coverW = (c.maxWidth - 8).clamp(24.0, 46.0);
+          final coverH = coverW * 1.42;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 날짜 + 시작 표시
+              Row(children: [
+                Text('${d.day}',
+                    style: TextStyle(
+                        fontSize: AppFont.micro,
+                        fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
+                        color: d.isAfter(today)
+                            ? AppColors.textFaint
+                            : AppColors.textSecondary)),
+                const Spacer(),
+                if (started.isNotEmpty)
+                  wide
+                      ? _StartTag(color: started.first.color,
+                          extra: started.length - 1)
+                      : Icon(Icons.play_arrow_rounded,
+                          size: 14, color: started.first.color),
+              ]),
+              const Gap(2),
+              // 다 읽은 책 표지
+              Expanded(
+                child: finished.isEmpty
+                    ? const SizedBox.shrink()
+                    : Center(
+                        child: Stack(clipBehavior: Clip.none, children: [
+                          _Thumb(
+                              bytes: _cover(finished.first.book),
+                              color: finished.first.color,
+                              w: coverW,
+                              h: coverH > c.maxHeight - 34
+                                  ? c.maxHeight - 34
+                                  : coverH),
+                          Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(1.5),
+                              decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle),
+                              child: const Icon(Icons.check_rounded,
+                                  size: 11, color: Colors.white),
+                            ),
+                          ),
+                          if (finished.length > 1)
+                            Positioned(
+                              right: -5,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border:
+                                        Border.all(color: AppColors.primary)),
+                                child: Text('+${finished.length - 1}',
+                                    style: const TextStyle(
+                                        fontSize: AppFont.micro,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.primary)),
+                              ),
+                            ),
+                        ]),
+                      ),
+              ),
               const Gap(3),
-            ],
-            for (final s in on.take(covers.isEmpty ? 3 : 2))
-              Container(
-                height: 5,
-                margin: EdgeInsets.only(
-                    bottom: 2,
-                    left: s.from == d ? 2 : 0,
-                    right: s.to == d ? 2 : 0),
-                decoration: BoxDecoration(
-                  color: s.color.withValues(alpha: s.ongoing ? 0.55 : 0.9),
-                  borderRadius: BorderRadius.horizontal(
-                    left: Radius.circular(s.from == d ? 3 : 0),
-                    right: Radius.circular(s.to == d ? 3 : 0),
+              // 읽는 기간 막대
+              for (final s in on.take(2))
+                Container(
+                  height: 4,
+                  margin: EdgeInsets.only(
+                      bottom: 2,
+                      left: s.from == d ? 2 : 0,
+                      right: s.to == d ? 2 : 0),
+                  decoration: BoxDecoration(
+                    color: s.color.withValues(alpha: s.ongoing ? 0.4 : 0.95),
+                    borderRadius: BorderRadius.horizontal(
+                      left: Radius.circular(s.from == d ? 3 : 0),
+                      right: Radius.circular(s.to == d ? 3 : 0),
+                    ),
                   ),
                 ),
-              ),
-            if (covers.isEmpty && on.length > 3)
-              Text('+${on.length - 3}',
-                  style: const TextStyle(
-                      fontSize: AppFont.micro, color: AppColors.textFaint)),
-          ],
-        ),
+            ],
+          );
+        }),
       ),
     );
+    return titles.isEmpty ? cell : Tooltip(message: titles, child: cell);
+  }
+}
+
+/// 「▶ 시작」 — 그날 읽기 시작한 책. 여러 권이면 +n.
+class _StartTag extends StatelessWidget {
+  final Color color;
+  final int extra;
+  const _StartTag({required this.color, this.extra = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(2, 1, 5, 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.play_arrow_rounded, size: 11, color: color),
+        Text(extra > 0 ? '시작 +$extra' : '시작',
+            style: TextStyle(
+                fontSize: AppFont.micro,
+                fontWeight: FontWeight.w800,
+                color: color)),
+      ]),
+    );
+  }
+}
+
+/// 범례 한 칸.
+class _Legend extends StatelessWidget {
+  final Widget mark;
+  final String label;
+  const _Legend(this.mark, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      mark,
+      const Gap(5),
+      Text(label,
+          style: const TextStyle(
+              fontSize: AppFont.micro, color: AppColors.textSecondary)),
+    ]);
   }
 }
 
@@ -1510,7 +1641,13 @@ class _Thumb extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(3),
           color: color.withValues(alpha: 0.18),
-          border: Border.all(color: color.withValues(alpha: 0.7), width: 1),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 4,
+                offset: const Offset(1, 2)),
+          ],
         ),
         child: bytes != null
             ? Image.memory(bytes!, fit: BoxFit.cover, gaplessPlayback: true)
