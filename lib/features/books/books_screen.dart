@@ -1621,19 +1621,16 @@ class _Thumb extends StatelessWidget {
   final Color color;
   final double w;
   final double h;
-  final bool faded; // 아직 읽는 중
   const _Thumb({
     required this.bytes,
     required this.color,
     required this.w,
     required this.h,
-    this.faded = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: faded ? 0.6 : 1,
+    return SizedBox(
       child: Container(
         width: w,
         height: h,
