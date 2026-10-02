@@ -65,14 +65,19 @@ class BooksScreen extends ConsumerStatefulWidget {
 class _BooksScreenState extends ConsumerState<BooksScreen> {
   String _category = '부동산';
   bool _todoOnly = false;
+  bool _calendar = false; // 나무 ↔ 달력
 
   Future<void> _save(Book b, Map<String, dynamic> patch) async {
+    final books = ref.read(supabaseProvider).from('books');
     try {
-      await ref
-          .read(supabaseProvider)
-          .from('books')
-          .update(patch)
-          .eq('id', b.id);
+      try {
+        await books.update(patch).eq('id', b.id);
+      } catch (e) {
+        // 0059(reads 칸) 실행 전이면 회독 목록만 빼고 저장한다 —
+        // 상태·날짜는 예전 칸에도 같이 들어가므로 읽기 기록은 남는다.
+        if (!patch.containsKey('reads') || !'$e'.contains('reads')) rethrow;
+        await books.update({...patch}..remove('reads')).eq('id', b.id);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -82,17 +87,20 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     ref.invalidate(booksProvider);
   }
 
-  /// 안 읽음 → 읽는 중 → 읽음 → 안 읽음. 한 번 눌러 넘긴다.
+  /// 안 읽음 → 읽는 중 → 읽음 → (다시 읽기) 읽는 중 …  한 번 눌러 넘긴다.
+  ///
+  /// 전에는 «읽음»에서 누르면 «안 읽음»으로 지워졌다. 책은 여러 번 읽는다 —
+  /// 이제 다 읽은 책을 누르면 새 회독이 시작된다. 기록을 지우려면 수정 창에서.
   Future<void> _cycle(Book b) async {
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    switch (b.status) {
-      case 'todo':
-        await _save(b, {'status': 'reading', 'started_on': today});
-      case 'reading':
-        await _save(b, {'status': 'done', 'read_on': today});
-      default:
-        await _save(b, {'status': 'todo', 'read_on': null, 'started_on': null});
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final reads = [...b.reads];
+    if (reads.isNotEmpty && reads.last.ongoing) {
+      reads[reads.length - 1] = reads.last.copyWith(end: today, done: true);
+    } else {
+      reads.add(BookRead(start: today));
     }
+    await _save(b, Book.readsPatch(reads));
   }
 
   Future<void> _pickCover(Book b) async {
@@ -152,6 +160,25 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                   const Gap(16),
                 ],
 
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  ModuleTab(
+                      label: '나무',
+                      icon: Icons.park_rounded,
+                      color: _bookColor,
+                      selected: !_calendar,
+                      onTap: () => setState(() => _calendar = false)),
+                  ModuleTab(
+                      label: '달력',
+                      icon: Icons.calendar_month_rounded,
+                      color: _bookColor,
+                      selected: _calendar,
+                      onTap: () => setState(() => _calendar = true)),
+                ]),
+                const Gap(16),
+
+                if (_calendar)
+                  _ReadingCalendar(books: books, onEdit: _editBook)
+                else ...[
                 _Summary(
                   books: books,
                   todoOnly: _todoOnly,
@@ -194,6 +221,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                           color: AppColors.textFaint,
                           fontSize: AppFont.caption)),
                 ),
+                ],
               ],
             );
           },
@@ -589,14 +617,17 @@ class _BookCard extends StatelessWidget {
                           ? (book.readOn == null
                               ? '읽음'
                               : '${Dates.ymd(book.readOn!)} 읽음')
-                          : (book.startedOn == null
-                              ? '읽는 중'
-                              : '${Dates.ymd(book.startedOn!)} 시작'),
+                          : '${book.timesRead > 0 ? '${book.timesRead + 1}회독 ' : ''}'
+                              '${book.startedOn == null ? '읽는 중' : '${Dates.ymd(book.startedOn!)} 시작'}',
                       style: TextStyle(
                           fontSize: AppFont.caption,
                           fontWeight: FontWeight.w700,
                           color: done ? AppColors.primary : color),
                     ),
+                    if (book.timesRead >= 2) ...[
+                      const Gap(8),
+                      Pill('${book.timesRead}회독', color: AppColors.primary),
+                    ],
                     if (book.rating != null) ...[
                       const Gap(10),
                       for (var i = 0; i < book.rating!; i++)
@@ -630,7 +661,7 @@ class _BookCard extends StatelessWidget {
               tooltip: switch (book.status) {
                 'todo' => '읽기 시작',
                 'reading' => '다 읽음',
-                _ => '안 읽음으로',
+                _ => '다시 읽기 (${book.timesRead + 1}회독)',
               },
               onPressed: onCycle,
               visualDensity: VisualDensity.compact,
@@ -804,32 +835,32 @@ class _BookDialogState extends State<_BookDialog> {
   late int _level = widget.book?.level ?? 1;
   late int _rating = widget.book?.rating ?? 0;
 
-  // 예전에 읽은 책은 날짜를 «직접» 넣어야 한다.
+  // 회독 기록 — 예전에 읽은 책은 날짜를 «직접» 넣어야 한다.
   // 목록의 순환 버튼은 오늘 날짜만 박으므로 여기서 고친다.
-  late String _status = widget.book?.status ?? 'todo';
-  late DateTime? _startedOn = widget.book?.startedOn;
-  late DateTime? _readOn = widget.book?.readOn;
+  // 상태(안 읽음·읽는 중·읽음)는 마지막 회독에서 저절로 정해진다.
+  late final List<BookRead> _reads = [...?widget.book?.reads];
 
-  Future<void> _pick(bool start) async {
+  Future<void> _pick(int i, bool start) async {
     final now = DateTime.now();
-    final cur = start ? _startedOn : _readOn;
+    final r = _reads[i];
     final d = await showDatePicker(
       context: context,
-      initialDate: cur ?? now,
+      initialDate: (start ? r.start : r.end) ?? now,
       firstDate: DateTime(now.year - 30),
       lastDate: now,
-      helpText: start ? '읽기 시작한 날' : '다 읽은 날',
+      helpText: start ? '${i + 1}회독 시작한 날' : '${i + 1}회독 다 읽은 날',
     );
     if (d == null) return;
     setState(() {
-      if (start) {
-        _startedOn = d;
-      } else {
-        _readOn = d;
-        // 다 읽은 날을 넣으면 상태도 따라간다 — 따로 누르게 하지 않는다.
-        if (_status != 'done') _status = 'done';
-      }
+      // 다 읽은 날을 넣으면 그 회독은 «읽음»이 된다.
+      _reads[i] = start ? r.copyWith(start: d) : r.copyWith(end: d, done: true);
     });
+  }
+
+  String get _statusLabel {
+    if (_reads.isEmpty) return '안 읽음';
+    final done = _reads.where((r) => r.done).length;
+    return _reads.last.done ? '읽음 · $done회독' : '${_reads.length}회독 읽는 중';
   }
 
   @override
@@ -904,47 +935,84 @@ class _BookDialogState extends State<_BookDialog> {
               const Divider(height: 1, color: AppColors.border),
               const Gap(12),
               Row(children: [
-                const Text('상태',
+                const Text('읽은 기록',
                     style: TextStyle(
                         fontSize: AppFont.label,
                         color: AppColors.textSecondary)),
-                const Gap(12),
-                for (final (k, label) in const [
-                  ('todo', '안 읽음'),
-                  ('reading', '읽는 중'),
-                  ('done', '읽음'),
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: Text(label,
-                          style: const TextStyle(fontSize: AppFont.caption)),
-                      selected: _status == k,
-                      onSelected: (_) => setState(() => _status = k),
-                      selectedColor: _bookColor.withValues(alpha: 0.25),
-                      backgroundColor: AppColors.surfaceAlt,
-                      side: BorderSide(
-                          color: _status == k ? _bookColor : AppColors.border),
-                    ),
+                const Gap(10),
+                Pill(_statusLabel, color: _bookColor),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _reads.add(BookRead(
+                      start: DateTime(DateTime.now().year,
+                          DateTime.now().month, DateTime.now().day)))),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('회독 추가'),
+                  style: TextButton.styleFrom(foregroundColor: _bookColor),
+                ),
+              ]),
+              const Gap(6),
+              if (_reads.isEmpty)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('아직 기록이 없다 — 「회독 추가」로 시작',
+                      style: TextStyle(
+                          fontSize: AppFont.caption,
+                          color: AppColors.textFaint)),
+                ),
+              for (var i = 0; i < _reads.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 44,
+                        child: Text('${i + 1}회독',
+                            style: const TextStyle(
+                                fontSize: AppFont.label,
+                                fontWeight: FontWeight.w800,
+                                color: _bookColor)),
+                      ),
+                      _DateChip(
+                        label: '시작',
+                        value: _reads[i].start,
+                        onTap: () => _pick(i, true),
+                        onClear: () => setState(() =>
+                            _reads[i] = _reads[i].copyWith(clearStart: true)),
+                      ),
+                      _DateChip(
+                        label: '읽은 날',
+                        value: _reads[i].end,
+                        onTap: () => _pick(i, false),
+                        onClear: () => setState(() =>
+                            _reads[i] = _reads[i].copyWith(clearEnd: true)),
+                      ),
+                      // 날짜를 몰라도 «다 읽었다»는 남길 수 있다.
+                      if (_reads[i].end == null)
+                        FilterChip(
+                          label: const Text('다 읽음',
+                              style: TextStyle(fontSize: AppFont.caption)),
+                          selected: _reads[i].done,
+                          onSelected: (v) => setState(
+                              () => _reads[i] = _reads[i].copyWith(done: v)),
+                          selectedColor: _bookColor.withValues(alpha: 0.25),
+                          backgroundColor: AppColors.surfaceAlt,
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                      IconButton(
+                        tooltip: '이 회독 지우기',
+                        onPressed: () => setState(() => _reads.removeAt(i)),
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            size: 17, color: AppColors.textFaint),
+                      ),
+                    ],
                   ),
-              ]),
-              const Gap(10),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                _DateChip(
-                  label: '시작',
-                  value: _startedOn,
-                  onTap: () => _pick(true),
-                  onClear: () => setState(() => _startedOn = null),
                 ),
-                _DateChip(
-                  label: '읽은 날',
-                  value: _readOn,
-                  onTap: () => _pick(false),
-                  onClear: () => setState(() => _readOn = null),
-                ),
-              ]),
-              const Gap(4),
-              const Text('예전에 읽은 책은 여기서 날짜를 직접 넣는다',
+              const Text('예전에 읽은 책은 여기서 날짜를 직접 넣는다 · 여러 번 읽었으면 회독을 추가',
                   style: TextStyle(
                       fontSize: AppFont.micro, color: AppColors.textFaint)),
               const Gap(12),
@@ -1041,9 +1109,7 @@ class _BookDialogState extends State<_BookDialog> {
               'link': _link.text.trim(),
               if (widget.book != null) ...{
                 'rating': _rating == 0 ? null : _rating,
-                'status': _status,
-                'started_on': _startedOn?.toIso8601String().substring(0, 10),
-                'read_on': _readOn?.toIso8601String().substring(0, 10),
+                ...Book.readsPatch(_reads),
               },
             });
           },
@@ -1107,6 +1173,275 @@ class _DateChip extends StatelessWidget {
             else
               const Gap(4),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// 달력 — 언제 무엇을 읽었나
+// ══════════════════════════════════════════════════════════
+
+/// 회독 하나를 달력에 놓을 기간으로.
+class _Span {
+  final Book book;
+  final int nth; // 몇 회독
+  final DateTime from;
+  final DateTime to;
+  final bool ongoing;
+  final Color color;
+  const _Span(this.book, this.nth, this.from, this.to, this.ongoing, this.color);
+
+  bool covers(DateTime d) => !d.isBefore(from) && !d.isAfter(to);
+  bool overlaps(DateTime a, DateTime b) => !to.isBefore(a) && !from.isAfter(b);
+}
+
+const _spanColors = [
+  AppColors.primary, AppColors.sky, AppColors.gold, AppColors.rose,
+  AppColors.violet, Color(0xFF14B8A6), Color(0xFFFB923C), Color(0xFFE879F9),
+];
+
+class _ReadingCalendar extends StatefulWidget {
+  final List<Book> books;
+  final void Function(Book) onEdit;
+  const _ReadingCalendar({required this.books, required this.onEdit});
+
+  @override
+  State<_ReadingCalendar> createState() => _ReadingCalendarState();
+}
+
+class _ReadingCalendarState extends State<_ReadingCalendar> {
+  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _day; // 누른 날 — 그날 읽던 책만 아래에 보인다
+
+  static DateTime _only(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// 날짜가 있는 회독만 달력에 오른다. 시작만 있으면 «읽는 중»(오늘까지),
+  /// 끝만 있으면 그 하루.
+  List<_Span> _spans() {
+    final today = _only(DateTime.now());
+    final withReads = widget.books.where((b) => b.reads.isNotEmpty).toList()
+      ..sort((a, b) => a.title.compareTo(b.title));
+    final out = <_Span>[];
+    for (var i = 0; i < withReads.length; i++) {
+      final b = withReads[i];
+      final color = _spanColors[i % _spanColors.length];
+      for (var n = 0; n < b.reads.length; n++) {
+        final r = b.reads[n];
+        final from = r.start ?? r.end;
+        if (from == null) continue;
+        final to = r.end ?? (r.done ? from : today);
+        out.add(_Span(b, n + 1, _only(from),
+            _only(to.isBefore(from) ? from : to), !r.done, color));
+      }
+    }
+    return out;
+  }
+
+  String _md(DateTime d) => '${d.month}/${d.day}';
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = _spans();
+    final first = _month;
+    final last = DateTime(_month.year, _month.month + 1, 0);
+    final inMonth = spans.where((s) => s.overlaps(first, last)).toList()
+      ..sort((a, b) => a.from.compareTo(b.from));
+    final finished = inMonth
+        .where((s) => !s.ongoing && !s.to.isBefore(first) && !s.to.isAfter(last))
+        .length;
+    final reading = inMonth.where((s) => s.ongoing).length;
+    final today = _only(DateTime.now());
+
+    // 일요일 시작. 첫 칸 앞을 비운다.
+    final lead = first.weekday % 7;
+    final cells = <DateTime?>[
+      for (var i = 0; i < lead; i++) null,
+      for (var d = 1; d <= last.day; d++) DateTime(_month.year, _month.month, d),
+    ];
+    while (cells.length % 7 != 0) {
+      cells.add(null);
+    }
+
+    final shown = _day == null
+        ? inMonth
+        : inMonth.where((s) => s.covers(_day!)).toList();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      GlassCard(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+        child: Column(children: [
+          Row(children: [
+            IconButton(
+              tooltip: '이전 달',
+              onPressed: () => setState(() {
+                _month = DateTime(_month.year, _month.month - 1);
+                _day = null;
+              }),
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Expanded(
+              child: Column(children: [
+                Text('${_month.year}년 ${_month.month}월',
+                    style: const TextStyle(
+                        fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+                const Gap(2),
+                Text('다 읽음 $finished권 · 읽는 중 $reading권',
+                    style: const TextStyle(
+                        fontSize: AppFont.caption, color: AppColors.textFaint)),
+              ]),
+            ),
+            IconButton(
+              tooltip: '다음 달',
+              onPressed: () => setState(() {
+                _month = DateTime(_month.year, _month.month + 1);
+                _day = null;
+              }),
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ]),
+          const Gap(8),
+          Row(children: [
+            for (final (i, w) in const ['일', '월', '화', '수', '목', '금', '토'].indexed)
+              Expanded(
+                child: Center(
+                  child: Text(w,
+                      style: TextStyle(
+                          fontSize: AppFont.micro,
+                          fontWeight: FontWeight.w700,
+                          color: i == 0
+                              ? AppColors.rose
+                              : (i == 6 ? AppColors.sky : AppColors.textFaint))),
+                ),
+              ),
+          ]),
+          const Gap(6),
+          for (var w = 0; w < cells.length ~/ 7; w++)
+            Row(children: [
+              for (var c = 0; c < 7; c++)
+                Expanded(child: _dayCell(cells[w * 7 + c], spans, today)),
+            ]),
+        ]),
+      ),
+      const Gap(14),
+      SectionHeader(
+        _day == null ? '이번 달 읽은 책' : '${_md(_day!)} 읽던 책',
+        trailing: _day == null
+            ? null
+            : TextButton(
+                onPressed: () => setState(() => _day = null),
+                child: const Text('달 전체 보기')),
+      ),
+      const Gap(8),
+      if (shown.isEmpty)
+        const EmptyState(
+            icon: Icons.calendar_month_rounded,
+            message: '이 기간에 읽은 기록이 없어요.\n책 수정 창에서 회독 날짜를 넣으면 여기 표시됩니다.')
+      else
+        for (final s in shown)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              onTap: () => widget.onEdit(s.book),
+              child: Row(children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration:
+                      BoxDecoration(color: s.color, shape: BoxShape.circle),
+                ),
+                const Gap(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.book.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w700)),
+                      const Gap(2),
+                      Text(
+                          s.ongoing
+                              ? '${_md(s.from)} 시작 · 읽는 중'
+                              : (s.from == s.to
+                                  ? '${_md(s.to)} 읽음'
+                                  : '${_md(s.from)} ~ ${_md(s.to)}'),
+                          style: const TextStyle(
+                              fontSize: AppFont.caption,
+                              color: AppColors.textFaint)),
+                    ],
+                  ),
+                ),
+                Pill('${s.nth}회독', color: s.color),
+              ]),
+            ),
+          ),
+    ]);
+  }
+
+  /// 하루 칸 — 그날 읽던 책을 색 막대로. 시작한 날은 막대 왼쪽이 둥글고,
+  /// 다 읽은 날은 ✓.
+  Widget _dayCell(DateTime? d, List<_Span> spans, DateTime today) {
+    if (d == null) return const SizedBox(height: 56);
+    final on = spans.where((s) => s.covers(d)).toList()
+      ..sort((a, b) => a.from.compareTo(b.from));
+    final isToday = d == today;
+    final picked = _day == d;
+    final finishedHere = on.any((s) => !s.ongoing && s.to == d);
+    return InkWell(
+      onTap: () => setState(() => _day = picked ? null : d),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        height: 56,
+        margin: const EdgeInsets.all(1.5),
+        padding: const EdgeInsets.fromLTRB(3, 3, 3, 3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: picked ? _bookColor.withValues(alpha: 0.18) : null,
+          border: Border.all(
+              color: isToday ? _bookColor : Colors.transparent, width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text('${d.day}',
+                  style: TextStyle(
+                      fontSize: AppFont.micro,
+                      fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
+                      color: d.isAfter(today)
+                          ? AppColors.textFaint
+                          : AppColors.textSecondary)),
+              const Spacer(),
+              if (finishedHere)
+                const Icon(Icons.check_rounded,
+                    size: 12, color: AppColors.primary),
+            ]),
+            const Gap(3),
+            for (final s in on.take(3))
+              Container(
+                height: 5,
+                margin: EdgeInsets.only(
+                    bottom: 2,
+                    left: s.from == d ? 2 : 0,
+                    right: s.to == d ? 2 : 0),
+                decoration: BoxDecoration(
+                  color: s.color.withValues(alpha: s.ongoing ? 0.55 : 0.9),
+                  borderRadius: BorderRadius.horizontal(
+                    left: Radius.circular(s.from == d ? 3 : 0),
+                    right: Radius.circular(s.to == d ? 3 : 0),
+                  ),
+                ),
+              ),
+            if (on.length > 3)
+              Text('+${on.length - 3}',
+                  style: const TextStyle(
+                      fontSize: AppFont.micro, color: AppColors.textFaint)),
+          ],
         ),
       ),
     );

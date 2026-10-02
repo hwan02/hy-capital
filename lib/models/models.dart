@@ -1783,6 +1783,38 @@ class ShortsSlotRow {
 
 /// 읽는 «순서»를 가진 책. 목록이 아니라 나무다 —
 /// 뿌리(입문) → 줄기(분야) → 가지(개별 책).
+/// 책을 한 번 읽은 기록(회독). 시작·끝 날짜는 모를 수도 있다 —
+/// 예전에 읽은 책은 날짜 없이 «읽음»만 남는다(done).
+class BookRead {
+  final DateTime? start;
+  final DateTime? end;
+  final bool done;
+  const BookRead({this.start, this.end, bool done = false})
+      : done = done || end != null;
+
+  bool get ongoing => !done;
+
+  factory BookRead.fromMap(Map m) => BookRead(
+        start: _date(m['start']),
+        end: _date(m['end']),
+        done: m['done'] == true,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'start': start?.toIso8601String().substring(0, 10),
+        'end': end?.toIso8601String().substring(0, 10),
+        'done': done,
+      };
+
+  BookRead copyWith({DateTime? start, DateTime? end, bool clearStart = false,
+          bool clearEnd = false, bool? done}) =>
+      BookRead(
+        start: clearStart ? null : (start ?? this.start),
+        end: clearEnd ? null : (end ?? this.end),
+        done: done ?? (clearEnd ? false : this.done),
+      );
+}
+
 class Book {
   final String id;
   final String category; // 부동산 …
@@ -1801,6 +1833,10 @@ class Book {
   final String? memo;
   final String? why; // 이 자리에 왜 있나
 
+  /// 회독 기록, 오래된 것부터. 한 권을 여러 번 읽는다.
+  /// status · started_on · read_on 은 «마지막 회독»을 따라간다.
+  final List<BookRead> reads;
+
   Book({
     required this.id,
     required this.category,
@@ -1818,10 +1854,14 @@ class Book {
     this.rating,
     this.memo,
     this.why,
+    this.reads = const [],
   });
 
   bool get isDone => status == 'done';
   bool get isReading => status == 'reading';
+
+  /// 다 읽은 횟수.
+  int get timesRead => reads.where((r) => r.done).length;
 
   factory Book.fromMap(Map<String, dynamic> m) => Book(
         id: m['id'],
@@ -1841,7 +1881,35 @@ class Book {
         rating: m['rating'] == null ? null : _i(m['rating']),
         memo: m['memo'],
         why: m['why'],
+        reads: _reads(m),
       );
+
+  /// reads 가 비어 있으면(0059 마이그레이션 전 · 옛 책) 예전 칸에서 만든다.
+  static List<BookRead> _reads(Map<String, dynamic> m) {
+    final raw = m['reads'];
+    if (raw is List && raw.isNotEmpty) {
+      return [for (final r in raw) if (r is Map) BookRead.fromMap(r)];
+    }
+    final status = m['status'] ?? 'todo';
+    if (status == 'todo') return const [];
+    return [
+      BookRead(
+          start: _date(m['started_on']),
+          end: _date(m['read_on']),
+          done: status == 'done'),
+    ];
+  }
+
+  /// 회독 목록 → 저장할 칸들. 상태·날짜는 마지막 회독을 따른다.
+  static Map<String, dynamic> readsPatch(List<BookRead> reads) {
+    final last = reads.isEmpty ? null : reads.last;
+    return {
+      'reads': [for (final r in reads) r.toMap()],
+      'status': last == null ? 'todo' : (last.done ? 'done' : 'reading'),
+      'started_on': last?.start?.toIso8601String().substring(0, 10),
+      'read_on': last?.end?.toIso8601String().substring(0, 10),
+    };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
