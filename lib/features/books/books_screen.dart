@@ -1197,9 +1197,12 @@ class _Span {
   bool overlaps(DateTime a, DateTime b) => !to.isBefore(a) && !from.isAfter(b);
 }
 
+// 책마다 다른 색. 초록(AppColors.primary)은 «완독 ✓» 전용이라 빼 둔다 —
+// 책 색이 초록이면 「읽는 중」 배지가 완독처럼 보였다. 청록도 초록과
+// 헷갈려 뺐다.
 const _spanColors = [
-  AppColors.primary, AppColors.sky, AppColors.gold, AppColors.rose,
-  AppColors.violet, Color(0xFF14B8A6), Color(0xFFFB923C), Color(0xFFE879F9),
+  AppColors.sky, AppColors.gold, AppColors.rose, AppColors.violet,
+  Color(0xFFFB923C), Color(0xFFE879F9), Color(0xFF22D3EE), Color(0xFF94A3B8),
 ];
 
 class _ReadingCalendar extends StatefulWidget {
