@@ -373,13 +373,25 @@ class _MoneyFlowSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entries = ref.watch(flowEntriesProvider).asData?.value ?? [];
+    final byMonth = ref.watch(moduleIncomeByMonthProvider).value ?? const {};
 
     // 가장 최근 데이터가 있는 달을 이번 달로 본다.
+    //
+    // «수동 기록과 모듈 수익을 같이» 본다. 전에는 수동 기록(flowEntries)만
+    // 보고 달을 정해서, 10월 에어비앤비 정산을 넣어도 수동 기록이 9월에
+    // 멈춰 있으면 카드가 9월에 그대로 머물렀다. 모듈 수익만 보던 때는
+    // 그 반대로 틀렸으므로(아직 기록 전인 달로 넘어가 월급만 남았다),
+    // 둘 중 «늦은 쪽»을 쓴다.
     DateTime? latest;
-    for (final e in entries) {
-      final m = DateTime(e.date.year, e.date.month);
-      if (latest == null || m.isAfter(latest)) latest = m;
+    void bump(DateTime m) {
+      if (latest == null || m.isAfter(latest!)) latest = m;
     }
+    for (final e in entries) {
+      bump(DateTime(e.date.year, e.date.month));
+    }
+    byMonth.forEach((k, v) {
+      if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
+    });
     final lm = latest;
     final scope = lm == null
         ? <FlowEntry>[]
@@ -403,7 +415,6 @@ class _MoneyFlowSummary extends ConsumerWidget {
         .where((e) => e.isIn && !kAutoIncomeLabels.contains(e.label))) {
       incomeBy[e.label] = (incomeBy[e.label] ?? 0) + e.amount;
     }
-    final byMonth = ref.watch(moduleIncomeByMonthProvider).value ?? const {};
     final autoIncome = lm == null
         ? const <String, double>{}
         : byMonth[lm.toIso8601String().substring(0, 10)] ?? const {};
