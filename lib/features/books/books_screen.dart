@@ -1215,6 +1215,12 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? _day; // 누른 날 — 그날 읽던 책만 아래에 보인다
 
+  // 표지는 base64 라 칸마다 풀면 느리다 — 책마다 한 번만 푼다.
+  // 표지를 바꾸면 cover 문자열이 달라지므로 그걸 키로 쓴다.
+  final _covers = <String, Uint8List?>{};
+  Uint8List? _cover(Book b) =>
+      _covers.putIfAbsent('${b.id}:${b.cover?.length}', () => _bytes(b.cover));
+
   static DateTime _only(DateTime d) => DateTime(d.year, d.month, d.day);
 
   /// 날짜가 있는 회독만 달력에 오른다. 시작만 있으면 «읽는 중»(오늘까지),
@@ -1346,13 +1352,8 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               onTap: () => widget.onEdit(s.book),
               child: Row(children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration:
-                      BoxDecoration(color: s.color, shape: BoxShape.circle),
-                ),
-                const Gap(10),
+                _Thumb(bytes: _cover(s.book), color: s.color, w: 34, h: 48),
+                const Gap(12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1386,17 +1387,23 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
   /// 하루 칸 — 그날 읽던 책을 색 막대로. 시작한 날은 막대 왼쪽이 둥글고,
   /// 다 읽은 날은 ✓.
   Widget _dayCell(DateTime? d, List<_Span> spans, DateTime today) {
-    if (d == null) return const SizedBox(height: 56);
+    if (d == null) return const SizedBox(height: 84);
     final on = spans.where((s) => s.covers(d)).toList()
       ..sort((a, b) => a.from.compareTo(b.from));
     final isToday = d == today;
     final picked = _day == d;
     final finishedHere = on.any((s) => !s.ongoing && s.to == d);
+    // 표지는 «다 읽은 날»에, 아직 읽는 중이면 «시작한 날»에 붙인다.
+    // 기간 전체에 붙이면 칸이 표지로 도배된다 — 기간은 막대가 보여준다.
+    final covers = [
+      ...on.where((s) => !s.ongoing && s.to == d),
+      ...on.where((s) => s.ongoing && s.from == d),
+    ];
     return InkWell(
       onTap: () => setState(() => _day = picked ? null : d),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        height: 56,
+        height: 84,
         margin: const EdgeInsets.all(1.5),
         padding: const EdgeInsets.fromLTRB(3, 3, 3, 3),
         decoration: BoxDecoration(
@@ -1422,7 +1429,36 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
                     size: 12, color: AppColors.primary),
             ]),
             const Gap(3),
-            for (final s in on.take(3))
+            if (covers.isNotEmpty) ...[
+              // 폰에서는 칸이 46px 남짓 — 들어가는 만큼만 놓고 나머지는 +n.
+              LayoutBuilder(builder: (context, c) {
+                final room = ((c.maxWidth + 2) / 22).floor().clamp(1, 3);
+                final fit = covers.length > room ? room - 1 : covers.length;
+                final n = fit < 1 ? 1 : fit;
+                return Row(children: [
+                  for (final s in covers.take(n)) ...[
+                    _Thumb(
+                        bytes: _cover(s.book),
+                        color: s.color,
+                        w: 20,
+                        h: 28,
+                        faded: s.ongoing),
+                    const Gap(2),
+                  ],
+                  if (covers.length > n)
+                    Flexible(
+                      child: Text('+${covers.length - n}',
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                          style: const TextStyle(
+                              fontSize: AppFont.micro,
+                              color: AppColors.textFaint)),
+                    ),
+                ]);
+              }),
+              const Gap(3),
+            ],
+            for (final s in on.take(covers.isEmpty ? 3 : 2))
               Container(
                 height: 5,
                 margin: EdgeInsets.only(
@@ -1437,12 +1473,51 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
                   ),
                 ),
               ),
-            if (on.length > 3)
+            if (covers.isEmpty && on.length > 3)
               Text('+${on.length - 3}',
                   style: const TextStyle(
                       fontSize: AppFont.micro, color: AppColors.textFaint)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 작은 표지. 표지가 없으면 책등 색만 칠한다(칸이 작아 제목은 못 넣는다).
+class _Thumb extends StatelessWidget {
+  final Uint8List? bytes;
+  final Color color;
+  final double w;
+  final double h;
+  final bool faded; // 아직 읽는 중
+  const _Thumb({
+    required this.bytes,
+    required this.color,
+    required this.w,
+    required this.h,
+    this.faded = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: faded ? 0.6 : 1,
+      child: Container(
+        width: w,
+        height: h,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(3),
+          color: color.withValues(alpha: 0.18),
+          border: Border.all(color: color.withValues(alpha: 0.7), width: 1),
+        ),
+        child: bytes != null
+            ? Image.memory(bytes!, fit: BoxFit.cover, gaplessPlayback: true)
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: Container(width: w * 0.18, color: color),
+              ),
       ),
     );
   }
