@@ -1380,6 +1380,16 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               onTap: () => widget.onEdit(s.book),
               child: Row(children: [
+                // 달력 막대·▶ 배지와 같은 색 — 어느 줄이 어느 책인지 짝짓는다.
+                Container(
+                  width: 4,
+                  height: 57,
+                  decoration: BoxDecoration(
+                    color: s.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Gap(10),
                 _Thumb(
                     bytes: _cover(s.book),
                     color: s.color,
@@ -1410,8 +1420,10 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
                   ),
                 ),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  // 읽는 중 = 그 책 색(달력의 ▶·막대), 완독 = 초록(달력의 ✓).
+                  // 전에는 읽는 중이 전부 노랑이라 달력 색과 안 맞았다.
                   Pill(s.ongoing ? '읽는 중' : '완독',
-                      color: s.ongoing ? AppColors.gold : AppColors.primary),
+                      color: s.ongoing ? s.color : AppColors.primary),
                   if (s.nth > 1) ...[
                     const Gap(4),
                     Text('${s.nth}회독',
