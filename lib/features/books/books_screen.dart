@@ -1230,8 +1230,16 @@ class _ReadingCalendarState extends State<_ReadingCalendar> {
   /// 끝만 있으면 그 하루.
   List<_Span> _spans() {
     final today = _only(DateTime.now());
+    // 색은 «처음 읽기 시작한 순서»로 준다. 제목순으로 주면 새 책이 끼어들
+    // 때마다 기존 책 색이 한 칸씩 밀려, 지난달 달력 색이 바뀌었다.
+    DateTime firstDay(Book b) =>
+        b.reads.map((r) => r.start ?? r.end).whereType<DateTime>().fold(
+            DateTime(9999), (m, d) => d.isBefore(m) ? d : m);
     final withReads = widget.books.where((b) => b.reads.isNotEmpty).toList()
-      ..sort((a, b) => a.title.compareTo(b.title));
+      ..sort((a, b) {
+        final c = firstDay(a).compareTo(firstDay(b));
+        return c != 0 ? c : a.id.compareTo(b.id);
+      });
     final out = <_Span>[];
     for (var i = 0; i < withReads.length; i++) {
       final b = withReads[i];
