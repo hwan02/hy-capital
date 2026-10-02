@@ -106,6 +106,22 @@ final dividendProvider = FutureProvider<List<DividendHolding>>((ref) async {
   return rows.map<DividendHolding>(DividendHolding.fromMap).toList();
 });
 
+/// 배당 기록 한 줄의 «원화 금액».
+///
+/// 기록에는 주당 분배금(amount)만 있고 총액은 «× 보유 수량 × 환율»로 계산해
+/// 왔다. 그래서 종목을 팔고 지우면 수량이 사라져 지난 배당까지 0 이 됐다
+/// (2026-10-02 — 경매 자금 마련으로 전 종목 매도 후 삭제).
+/// 이제 기록할 때 원화 총액(krw)을 같이 남기고, 있으면 그걸 쓴다.
+/// 없을 때(옛 기록)만 지금 보유 종목으로 계산한다.
+double dividendKrw(Map<String, dynamic> row,
+    Map<String, DividendHolding> divById, double rate) {
+  final krw = (row['krw'] as num?)?.toDouble();
+  if (krw != null) return krw;
+  final d = divById[row['ref_id']];
+  final amt = (row['amount'] as num?)?.toDouble() ?? 0;
+  return d == null ? 0 : d.krw(amt * d.shares, rate);
+}
+
 final goalsProvider = FutureProvider<List<Goal>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb.from('goals').select().order('sort_order');
@@ -286,7 +302,7 @@ final monthlyCashflowProvider =
   final amF = sb.from('airbnb_monthly').select('month,net_profit');
   final entF = sb
       .from('monthly_entries')
-      .select('category,ref_id,month,amount')
+      .select()
       .inFilter('category', ['dividend', 'shorts']);
 
   final rate = await rateF;
@@ -312,8 +328,7 @@ final monthlyCashflowProvider =
     if (r['category'] == 'shorts') {
       shortsBy[k] = (shortsBy[k] ?? 0) + amt;
     } else {
-      final d = divById[r['ref_id']];
-      if (d != null) divBy[k] = (divBy[k] ?? 0) + d.krw(amt * d.shares, rate);
+      divBy[k] = (divBy[k] ?? 0) + dividendKrw(r, divById, rate);
     }
   }
   for (final s in snaps) {
@@ -429,7 +444,7 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
   final now = DateTime.now();
   final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
   final amF = sb.from('airbnb_monthly').select('net_profit').eq('month', m0);
-  final entF = sb.from('monthly_entries').select('category,ref_id,amount').eq('month', m0);
+  final entF = sb.from('monthly_entries').select().eq('month', m0);
 
   final snaps = await snapsF;
   final profile = await profileF;
@@ -451,10 +466,8 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
       if (cat == 'shorts') {
         shortsThisMonth += amt;
       } else if (cat == 'dividend') {
-        final d = dividends.where((x) => x.id == r['ref_id']);
-        if (d.isNotEmpty) {
-          dividendThisMonth += d.first.krw(amt * d.first.shares, rate);
-        }
+        dividendThisMonth +=
+            dividendKrw(r, {for (final d in dividends) d.id: d}, rate);
       }
     }
   } catch (_) {}
@@ -495,7 +508,7 @@ final moduleIncomeByMonthProvider =
   final amF = sb.from('airbnb_monthly').select('month,net_profit');
   final entF = sb
       .from('monthly_entries')
-      .select('month,category,ref_id,amount')
+      .select()
       .inFilter('category', ['shorts', 'dividend', 'land']);
 
   final rate = await rateF;
@@ -520,8 +533,7 @@ final moduleIncomeByMonthProvider =
       case 'shorts':
         add(r['month'], '숏폼', amt);
       case 'dividend':
-        final d = divById[r['ref_id']];
-        if (d != null) add(r['month'], '배당', d.krw(amt * d.shares, rate));
+        add(r['month'], '배당', dividendKrw(r, divById, rate));
       case 'land':
         add(r['month'], '토지', amt);
     }

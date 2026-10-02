@@ -34,6 +34,7 @@ class DividendScreen extends ConsumerWidget {
   Future<void> _refreshPrices(
       BuildContext context, WidgetRef ref, List<DividendHolding> holdings) async {
     final sb = ref.read(supabaseProvider);
+    final rate = ref.read(usdKrwProvider).asData?.value ?? 1400;
     final withSym =
         holdings.where((d) => (d.symbol ?? '').trim().isNotEmpty).toList();
     void snack(String m) {
@@ -76,6 +77,8 @@ class DividendScreen extends ConsumerWidget {
             'ref_name': d.ticker,
             'month': m0,
             'amount': div,
+            // 원화 총액도 남긴다 — 종목을 지워도 이 달 배당은 남아야 한다.
+            'krw': d.krw(div * d.shares, rate).round(),
           }, onConflict: 'user_id,category,ref_id,month');
         }
       }
@@ -97,14 +100,11 @@ class DividendScreen extends ConsumerWidget {
 
     double actualThisMonthKrw(List<DividendHolding> holdings) {
       var sum = 0.0;
-      for (final d in holdings) {
-        for (final e in entries) {
-          if (e.refId == d.id &&
-              e.month.year == now.year &&
-              e.month.month == now.month) {
-            sum += d.krw(e.amount * d.shares, rate);
-          }
-        }
+      final byId = {for (final d in holdings) d.id: d};
+      for (final e in entries) {
+        if (e.month.year != now.year || e.month.month != now.month) continue;
+        final d = byId[e.refId];
+        sum += e.krw ?? (d == null ? 0 : d.krw(e.amount * d.shares, rate));
       }
       return sum;
     }
@@ -119,6 +119,7 @@ class DividendScreen extends ConsumerWidget {
           error: AsyncStatus.error,
           data: (holdings) {
             if (holdings.isEmpty) {
+              // 종목을 다 팔아도 지난 배당 기록은 보여준다.
               return Column(
                 children: [
                   const EmptyState(icon: Icons.savings, message: '보유 종목이 없습니다'),
@@ -128,6 +129,10 @@ class DividendScreen extends ConsumerWidget {
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('종목 추가'),
                   ),
+                  if (entries.isNotEmpty) ...[
+                    const Gap(20),
+                    _DividendMonthly(holdings: holdings, entries: entries, rate: rate),
+                  ],
                 ],
               );
             }
@@ -493,6 +498,7 @@ class _DividendMonthly extends ConsumerWidget {
         'ref_name': d.ticker,
         'month': monthStr,
         'amount': v,
+        'krw': d.krw((v as num).toDouble() * d.shares, rate).round(),
       });
     }
     if (rows.isNotEmpty) {
@@ -508,9 +514,10 @@ class _DividendMonthly extends ConsumerWidget {
     final usdById = {for (final d in holdings) d.id: d.isUsd};
     final byMonth = <String, double>{};
     for (final e in entries) {
-      final krw = e.amount *
-          (sharesById[e.refId] ?? 0) *
-          ((usdById[e.refId] ?? false) ? rate : 1);
+      final krw = e.krw ??
+          e.amount *
+              (sharesById[e.refId] ?? 0) *
+              ((usdById[e.refId] ?? false) ? rate : 1);
       final key = Dates.ym(e.month);
       byMonth[key] = (byMonth[key] ?? 0) + krw;
     }
@@ -532,7 +539,8 @@ class _DividendMonthly extends ConsumerWidget {
                   foregroundColor: AppColors.primary,
                   side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
                 ),
-                onPressed: () => _input(context, ref),
+                // 종목이 없으면 입력할 게 없다(지난 기록만 보여준다).
+                onPressed: holdings.isEmpty ? null : () => _input(context, ref),
                 icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('월 입력'),
               ),

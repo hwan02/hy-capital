@@ -819,6 +819,10 @@ class MonthlyEntry {
   final DateTime month;
   final double amount;
 
+  /// 기록 당시 원화 총액(배당 = 주당 × 수량 × 환율). 옛 기록은 null.
+  /// 종목을 지워도 지난 배당이 남게 하려고 같이 저장한다.
+  final double? krw;
+
   MonthlyEntry({
     required this.id,
     required this.category,
@@ -826,6 +830,7 @@ class MonthlyEntry {
     this.refName,
     required this.month,
     required this.amount,
+    this.krw,
   });
 
   factory MonthlyEntry.fromMap(Map<String, dynamic> m) => MonthlyEntry(
@@ -835,6 +840,7 @@ class MonthlyEntry {
         refName: m['ref_name'],
         month: DateTime.parse(m['month']),
         amount: _d(m['amount']),
+        krw: m['krw'] == null ? null : _d(m['krw']),
       );
 }
 
