@@ -74,7 +74,10 @@ extension BuyBandInfo on BuyBand {
           '조합설립인가 지남 — 조합원 지위 양도 제한. 낙찰받아도 승계가 안 되고 '
               '현금청산 대상이다. 단 «국가·지자체·금융기관 채무»로 넘어간 '
               '경매·공매 물건은 법정 예외라 승계가 된다 — 채권자를 먼저 본다.',
-        BuyBand.unknown => '주소가 등록된 구역과 매칭되지 않았다. 구역부터 확인한다.',
+        BuyBand.unknown =>
+          '구역을 못 찾았거나, 찾았어도 «포털 대상지 목록에 없는» 구역이다. '
+              '해제됐거나 표의 오기일 수 있다 — 구청 정비과에 «이 구역이 아직 '
+              '살아 있는지» 전화로 확인한다.',
       };
 
   Color get color => switch (this) {
@@ -156,9 +159,15 @@ BuyBand bandOfSinStage(int stage) => switch (stage) {
     };
 
 /// 구역 → 매수 구간. 종류에 따라 축이 다르다.
+/// «포털 대상지 목록에 없는» 구역은 단계가 뭐든 보류다. 서울시 표에만 남아
+/// 있는 구역일 수 있다 — 자양2동 681 은 2026.07.16 해제됐는데 표에는 두 달
+/// 뒤까지 「관리계획 수립 중」으로 실려 있었다. 그걸 저점으로 읽고 매수 후보로
+/// 올렸던 적이 있다. 지우지는 않고 «판단을 멈춘다».
 BuyBand bandOfZone(Zone? z) => z == null
     ? BuyBand.unknown
-    : (z.isSin ? bandOfSinStage(z.stage) : bandOfStage(z.stage));
+    : z.portalMissing
+        ? BuyBand.unknown
+        : (z.isSin ? bandOfSinStage(z.stage) : bandOfStage(z.stage));
 
 /// 이 구간에서 «다음에 팔 자리»는 어디인가 — 모아·신통을 나눠서.
 String sellLineOf(BuyBand b) => switch (b) {

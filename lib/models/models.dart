@@ -1395,6 +1395,7 @@ class Zone {
     this.locChecks = const {},
     this.docs = const [],
     this.subs = const [],
+    this.portalListed,
     this.visitPlan = false,
     this.visitOn,
     this.visitMemo,
@@ -1446,6 +1447,14 @@ class Zone {
     12: '준공',
   };
 
+  /// 서울도시공간포털 «대상지 목록»에 이 구역이 있나.
+  /// false 면 해제·오기 의심이다 — 자양2동 681 은 2026.07.16 해제됐는데
+  /// 서울시 표에는 두 달 뒤까지 남아 있었다. null 은 아직 대조 전.
+  final bool? portalListed;
+
+  /// 포털 미등재 = «판단 보류». 지우지는 않지만 매수 후보로 세지 않는다.
+  bool get portalMissing => portalListed == false;
+
   bool get isSin => kind == '신통기획';
 
   /// 축의 마지막 칸. 라벨 맵에서 바로 뽑는다 — 칸을 늘릴 때 여기를 고치는 걸
@@ -1493,6 +1502,7 @@ class Zone {
                     (k, v) => MapEntry(k.toString(), (v ?? '').toString())))
                 .toList() ??
             const [],
+        portalListed: m['portal_listed'] as bool?,
         subs: (m['subs'] as List?)
                 ?.map((e) => (e as Map).map(
                     (k, v) => MapEntry(k.toString(), (v ?? '').toString())))

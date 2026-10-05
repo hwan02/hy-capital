@@ -167,8 +167,8 @@ def main():
 
     tok, uid = login()
 
-    have = sb("/rest/v1/zones?select=id,name,district,stage,memo,rights_date,"
-              "propel_dt,stage_source", token=tok)
+    have = sb("/rest/v1/zones?select=id,name,kind,district,stage,memo,rights_date,"
+              "propel_dt,stage_source,portal_listed", token=tok)
     by = {key(z['name'], z.get('district')): z for z in have}
 
     # 오늘 날짜로 찍는다. 예전엔 날짜가 코드에 박혀 있어서(9/12) 매일 돌아도
@@ -237,7 +237,38 @@ def main():
                 sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH", patch, token=tok)
             same += 1
 
+    # ── 포털 «대상지 목록»에 없는 구역 표시 ────────────────
+    # 자양2동 681 은 2026.07.16 해제됐는데 서울시 표(2026-09-08)에는 그대로
+    # 남아 있었고, 그걸 믿고 매수 후보로 올렸다. 포털에 주민제안이 안 나온다고
+    # 단정했던 게 화근이다 — 세어보니 주민제안 44곳 중 23곳이 포털에 있다.
+    # 즉 «포털에 없다»는 건 빠뜨린 게 아니라 신호다.
+    #
+    # 지우지는 않는다. 포털이 늦게 올리는 경우도 있어 「없다 = 해제」는 아니다.
+    # 화면에 띄워서 «구청에 전화하게» 만드는 게 목적이다.
+    seen = {key(w['name'], w['district']) for w in want}
+    gone = []
+    for z in have:
+        if (z.get('kind') or '모아타운') != '모아타운':
+            continue
+        listed = key(z['name'], z.get('district')) in seen
+        if z.get('portal_listed') != listed:
+            sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+               {'portal_listed': listed, 'portal_checked_at': checked}, token=tok)
+        elif listed is False:
+            sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
+               {'portal_checked_at': checked}, token=tok)
+        if not listed:
+            gone.append(z)
+            if z.get('portal_listed') is not False:      # 처음 빠진 날만 알린다
+                report('포털', f"⚠ 포털 대상지에 «없음» — {z.get('district') or ''} "
+                               f"{z['name'][:30]} (해제·오기 확인 필요)")
+
     print(f"\n추가 {added} · 단계갱신 {updated} · 그대로 {same}")
+    if gone:
+        print(f"\n⚠ 포털 대상지 목록에 «없는» 모아타운 구역 {len(gone)}곳 "
+              f"— 해제·오기 가능성, 구청 확인 필요")
+        for z in gone:
+            print(f"   {(z.get('district') or '?'):6} {z['name'][:34]}")
 
 
 if __name__ == "__main__":

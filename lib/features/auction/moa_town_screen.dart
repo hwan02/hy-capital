@@ -862,6 +862,13 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                         // 「해제 위험」 칩은 뺐다. 구역별 신호가 아니라 «단계 1~5면
                         // 무조건» 붙어서(48곳) 「초기 단계다」를 한 번 더 말할 뿐이었다.
                         // 뜻은 위 사다리 카드(kDropRiskNote)에 한 번 적혀 있다.
+                        //
+                        // 반면 이건 «구역별» 신호다 — 포털 대상지 목록에 없다.
+                        // 자양2동 681 은 2026.07.16 해제됐는데 서울시 표에는 두 달
+                        // 뒤까지 「관리계획 수립 중」으로 남아 있었고, 그걸 믿고
+                        // 매수 후보로 올렸다. 그 일을 막으려고 띄운다.
+                        if (z.portalMissing)
+                          const Pill('포털 미등재', color: AppColors.rose),
                       ]),
                       const Gap(8),
                       Text(unknown ? '동·번지 확인 전' : z.name,
