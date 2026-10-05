@@ -225,6 +225,34 @@ def login():
     return tok, sb("/auth/v1/user", token=tok)["id"]
 
 
+# 「서울특별시 성동구 응봉동 265-34 제지하층 제02호」 같은 «물건 주소»에서
+# (자치구, 동, 번지)를 뽑는다.
+#
+# 구역 이름용 _parts() 를 그대로 쓰면 틀린다 — 「성동구」의 «동»을 동 이름으로
+# 읽어 버린다(성동구·강동구·마포구…). 자치구를 먼저 떼고 나머지에서 찾아야 한다.
+_ADDR_GU = re.compile(r'([가-힣]{2,5}구)(?:\s|$)')
+# «가» 형태를 먼저 본다 — 「금호동1가 129」를 「금호동」+번지 1 로 읽지 않게.
+_ADDR_DONG = re.compile(
+    r'([가-힣]{1,5}동\d+가|[가-힣]{1,5}\d+가|[가-힣]{1,5}(?:\d+(?:[·,]\d+)*)?동)'
+    r'\s*(\d+(?:-\d+)?)')
+
+
+def parse_addr(addr):
+    """물건 주소 → (자치구, 동, 번지). 못 읽으면 (None, None, None)."""
+    if not addr:
+        return (None, None, None)
+    t = re.sub(r'^\s*서울(?:특별시|시)?\s*', '', addr.strip())
+    g = _ADDR_GU.search(t)
+    gu = g.group(1) if g else None
+    rest = t[g.end():] if g else t
+    d = _ADDR_DONG.search(rest)
+    if not d:
+        return (gu, None, None)
+    dong = re.sub(r'[0-9·,]+(?=동)', '', d.group(1))
+    dong = re.sub(r'본(?=동)', '', dong)
+    return (gu, dong, d.group(2))
+
+
 def bonbun(lot):
     """번지의 «본번». 「592-1」 → 「592」."""
     return (lot or '').split('-')[0]
