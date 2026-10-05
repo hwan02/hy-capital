@@ -665,7 +665,14 @@ class _NextGoalsCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader('목표'),
+          // 목표 화면까지 안 가고 여기서 바로 추가한다(메모 카드와 같은 모양).
+          SectionHeader('목표',
+              trailing: TextButton.icon(
+                onPressed: () => editBuiltinRecord(context, ref, goalsSpec),
+                style: TextButton.styleFrom(foregroundColor: AppColors.violet),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('추가'),
+              )),
           const Gap(14),
           if (active.isEmpty)
             const EmptyState(icon: Icons.flag, message: '목표를 추가해 보세요')
