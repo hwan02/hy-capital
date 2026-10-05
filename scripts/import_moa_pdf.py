@@ -225,6 +225,45 @@ def login():
     return tok, sb("/auth/v1/user", token=tok)["id"]
 
 
+def bonbun(lot):
+    """번지의 «본번». 「592-1」 → 「592」."""
+    return (lot or '').split('-')[0]
+
+
+def loose_match(district, name, portal_index):
+    """느슨한 2차 매칭 — «같은 자치구 · 같은 본번 · 후보가 하나뿐»이면 같다고 본다.
+
+    왜 필요한가. 같은 구역을 출처마다 다르게 부른다 —
+      · 행정동 vs 법정동:  「봉천동 635」(앱) ↔ 「은천동 635-540」(포털)
+        관악구 은천동은 «행정동», 봉천동은 «법정동»이다. 같은 땅이다.
+      · 부번 유무:        「방화동 592」 ↔ 「방화2동 592-1」
+    이걸 ALIAS 에 한 쌍씩 손으로 넣어 왔는데, 새 변형이 나올 때마다 또 넣어야
+    해서 끝이 없다. 본번으로 한 번 더 보면 규칙으로 풀린다.
+
+    «후보가 둘 이상이면 매칭하지 않는다» — 같은 자치구에 같은 본번이 여러 동에
+    있을 수 있어서, 억지로 붙이면 엉뚱한 구역을 살아 있다고 말하게 된다.
+
+    portal_index: {(자치구, 본번): [구역명…]}
+    """
+    _, lot = _parts(name)
+    if not lot:
+        return None
+    hits = portal_index.get((district or '', bonbun(lot)))
+    return hits[0] if hits and len(hits) == 1 else None
+
+
+def portal_index(rows, gu_of, name_of, addr_of=None):
+    """포털 목록 → {(자치구, 본번): [구역명…]}. loose_match 가 쓴다."""
+    idx = {}
+    for r in rows:
+        _, lot = _parts(name_of(r))
+        if not lot and addr_of:
+            _, lot = _parts(addr_of(r) or '')
+        if lot:
+            idx.setdefault((gu_of(r), bonbun(lot)), []).append(name_of(r))
+    return idx
+
+
 def key(district, name):
     d, l = _parts(name)
     d, l = ALIAS.get((district or '', d, l), (d, l))

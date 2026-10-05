@@ -40,7 +40,8 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from import_moa_pdf import ALIAS, _parts, login, open_retry, report  # noqa: E402  로그인·재시도를 함께 쓴다
+from import_moa_pdf import (ALIAS, _parts, login, loose_match,  # noqa: E402
+                            open_retry, portal_index, report)  # noqa: E402  로그인·재시도를 함께 쓴다
 SB = "https://rbksmjnfaqglnzypgxqa.supabase.co"
 ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6"
         "InJia3Ntam5mYXFnbG56eXBneHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzIzNTMs"
@@ -246,11 +247,21 @@ def main():
     # 지우지는 않는다. 포털이 늦게 올리는 경우도 있어 「없다 = 해제」는 아니다.
     # 화면에 띄워서 «구청에 전화하게» 만드는 게 목적이다.
     seen = {key(w['name'], w['district']) for w in want}
+    # 이름 표기가 달라 1차 매칭이 안 된 것을 «본번»으로 한 번 더 본다.
+    # 은천동(행정동)↔봉천동(법정동), 방화동 592↔방화2동 592-1 같은 것들이
+    # 이걸 안 하면 「포털 미등재」로 잘못 떴다 — 은천1·2구역이 그랬다.
+    pidx = portal_index(want, lambda w: w['district'] or '',
+                        lambda w: w['name'], lambda w: w.get('addr'))
     gone = []
     for z in have:
         if (z.get('kind') or '모아타운') != '모아타운':
             continue
         listed = key(z['name'], z.get('district')) in seen
+        if not listed:
+            hit = loose_match(z.get('district'), z['name'], pidx)
+            if hit:
+                listed = True
+                print(f"  ≈ 이름만 다름 — {z['name'][:26]} ↔ {hit[:30]}")
         if z.get('portal_listed') != listed:
             sb(f"/rest/v1/zones?id=eq.{z['id']}", "PATCH",
                {'portal_listed': listed, 'portal_checked_at': checked}, token=tok)
