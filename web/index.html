@@ -31,6 +31,20 @@
 
   <title>hy_capital</title>
   <link rel="manifest" href="manifest.json">
+  <!--
+    한글 «조합 중» 파란 밑줄 없애기.
+
+    Flutter 웹은 키 입력을 받으려고 입력칸 위에 진짜 <textarea>/<input>
+    (.flt-text-editing)을 투명하게 겹쳐 둔다. 글자색은 투명이라 안 보이지만,
+    맥 한글 입력기가 조합 중인 글자 밑에 긋는 밑줄은 브라우저가 따로 그려서
+    파란 줄로 비쳐 보였다(앱 화면의 글자 바로 밑에 겹친다).
+    Flutter 쪽 조합 밑줄은 PlainController 로 이미 지웠고, 이건 브라우저 쪽이다.
+    요소 자체를 완전히 투명하게(opacity 0) 하면 무엇을 그려도 안 보인다 —
+    포커스·입력·한글 조합은 그대로 된다(2026-10-06 확인).
+  -->
+  <style>
+    flutter-view .flt-text-editing { opacity: 0 !important; }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
