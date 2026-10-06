@@ -71,6 +71,9 @@ class FieldSpec {
   /// 예) 저장 값은 '들어오는 돈' 그대로 두고 화면에는 '들어온 돈'으로 보이기.
   final Map<String, String> optionLabels;
 
+  /// longtext 칸의 «처음 높이»(줄 수). 기본 2줄. 메모처럼 길게 쓰는 칸은 키운다.
+  final int? minLines;
+
   const FieldSpec({
     required this.key,
     required this.label,
@@ -78,6 +81,7 @@ class FieldSpec {
     this.required = false,
     this.options = const [],
     this.optionLabels = const {},
+    this.minLines,
   });
 
   /// select 옵션 하나의 표시 글자.

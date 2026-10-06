@@ -183,8 +183,13 @@ const memoSpec = BuiltinSpec(
   title: '메모',
   accent: AppColors.gold,
   fields: [
+    // 메모는 길게 쓴다 — 2줄 칸이면 쓰는 동안 한 줄씩 밀려 답답했다.
     FieldSpec(
-        key: 'body', label: '메모', type: FieldType.longtext, required: true),
+        key: 'body',
+        label: '메모',
+        type: FieldType.longtext,
+        required: true,
+        minLines: 8),
     FieldSpec(key: 'pinned', label: '위에 고정', type: FieldType.boolean),
   ],
 );

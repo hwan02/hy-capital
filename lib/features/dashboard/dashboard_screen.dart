@@ -1136,12 +1136,10 @@ class _Memos extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // 여러 줄 메모는 접어 둔다 — 카드가 길어지면
-                                // 대시보드의 다른 것이 밀려난다.
+                                // 전부 보여준다. 3줄에서 자르니 메모를 다시
+                                // 열어봐야 해서 메모 카드의 의미가 없었다.
                                 Text(
                                   m.body.trim(),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       fontSize: AppFont.body,
                                       height: 1.45,

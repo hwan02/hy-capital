@@ -288,7 +288,7 @@ class _RecordFormState extends State<_RecordForm> {
           controller: _controllers[f.key],
           // 긴 텍스트는 내용만큼 늘어난다 — 3줄로 못박으면 안에서
           // 스크롤되고 테두리가 글자와 안 맞는다.
-          minLines: 2,
+          minLines: f.minLines ?? 2,
           maxLines: null,
           decoration: InputDecoration(
             labelText: f.label,
