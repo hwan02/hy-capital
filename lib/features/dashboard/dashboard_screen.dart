@@ -1084,6 +1084,69 @@ class _Memos extends ConsumerWidget {
     ref.invalidate(memosProvider);
   }
 
+  /// 메모 전체 — 카드에서 잘린 것을 여기서 끝까지 읽는다. 글자 선택(복사) 가능.
+  Future<void> _showMemo(BuildContext context, WidgetRef ref, Memo m) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        titlePadding: const EdgeInsets.fromLTRB(22, 18, 10, 0),
+        title: Row(children: [
+          Icon(m.pinned ? Icons.push_pin_rounded : Icons.sticky_note_2_rounded,
+              size: 18, color: AppColors.gold),
+          const Gap(8),
+          Text('메모 · ${Dates.md(m.createdAt)}',
+              style: const TextStyle(fontSize: AppFont.section)),
+          const Spacer(),
+          IconButton(
+            tooltip: '닫기',
+            onPressed: () => Navigator.pop(ctx),
+            icon: const Icon(Icons.close_rounded, size: 20),
+          ),
+        ]),
+        content: ConstrainedBox(
+          // 폰(375px)에서 넘치지 않게 — 다이얼로그 여백을 빼고 잡는다.
+          constraints: BoxConstraints(
+            minWidth: (MediaQuery.of(ctx).size.width - 140).clamp(0.0, 360.0),
+            maxWidth: 560,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.6,
+          ),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              m.body.trim(),
+              style: const TextStyle(
+                  fontSize: AppFont.body,
+                  height: 1.65,
+                  color: AppColors.textPrimary),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.rose),
+            child: const Text('삭제'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'edit'),
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: const Color(0xFF1B1400)),
+            child: const Text('수정'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return;
+    if (action == 'edit') {
+      await editBuiltinRecord(context, ref, memoSpec,
+          initial: {'body': m.body, 'pinned': m.pinned}, id: m.id);
+    } else if (action == 'delete') {
+      await deleteBuiltinRecord(context, ref, memoSpec, m.id,
+          name: m.firstLine);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(memosProvider);
@@ -1132,25 +1195,32 @@ class _Memos extends ConsumerWidget {
                             constraints: const BoxConstraints(),
                           ),
                           const Gap(10),
+                          // 카드에는 6줄까지(전엔 3줄이라 너무 짧았다). 넘치면
+                          // «…»로 접고, 누르면 전체를 팝업으로 연다 — 다 펼치면
+                          // 긴 메모 하나가 대시보드를 밀어낸다.
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 전부 보여준다. 3줄에서 자르니 메모를 다시
-                                // 열어봐야 해서 메모 카드의 의미가 없었다.
-                                Text(
-                                  m.body.trim(),
-                                  style: const TextStyle(
-                                      fontSize: AppFont.body,
-                                      height: 1.45,
-                                      color: AppColors.textPrimary),
-                                ),
-                                const Gap(2),
-                                Text(Dates.md(m.createdAt),
+                            child: InkWell(
+                              onTap: () => _showMemo(context, ref, m),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    m.body.trim(),
+                                    maxLines: 6,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                        fontSize: AppFont.caption,
-                                        color: AppColors.textFaint)),
-                              ],
+                                        fontSize: AppFont.body,
+                                        height: 1.5,
+                                        color: AppColors.textPrimary),
+                                  ),
+                                  const Gap(2),
+                                  Text(Dates.md(m.createdAt),
+                                      style: const TextStyle(
+                                          fontSize: AppFont.caption,
+                                          color: AppColors.textFaint)),
+                                ],
+                              ),
                             ),
                           ),
                           RecordMenu(
