@@ -307,8 +307,9 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
 
   /// 구역에 «자료 링크»(구청 공고·기사 등)를 붙인다. PDF는 스토리지 URL을 넣으면 된다.
   Future<void> _addZoneDoc(Zone z) async {
-    final titleCtl = TextEditingController();
-    final urlCtl = TextEditingController();
+    // 한글 조합 중 밑줄을 안 그리는 컨트롤러 — 앱의 모든 입력칸이 이걸 쓴다.
+    final titleCtl = PlainController();
+    final urlCtl = PlainController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(

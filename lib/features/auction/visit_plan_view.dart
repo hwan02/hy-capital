@@ -15,6 +15,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
 import 'buy_band.dart';
+import '../../core/edit/plain_controller.dart';
 
 const _visitColor = AppColors.gold;
 
@@ -51,7 +52,8 @@ class _VisitPlanViewState extends ConsumerState<VisitPlanView> {
   }
 
   Future<void> _editMemo(Zone z) async {
-    final c = TextEditingController(text: z.visitMemo ?? '');
+    // 한글 조합 중 밑줄을 안 그리는 컨트롤러 — 앱의 모든 입력칸이 이걸 쓴다.
+    final c = PlainController(text: z.visitMemo ?? '');
     final ok = await showDialog<bool>(
       context: context,
       // builder 의 context 로 pop 해야 «다이얼로그»가 닫힌다.

@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 에어비앤비 호점 상세 — 거래 장부 + 통계(비용 세분화) + 월 선택.
 class AirbnbDetailScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,8 @@ class AirbnbDetailScreen extends ConsumerStatefulWidget {
 class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
   DateTime? _month; // null = 전체
   String _query = ''; // 거래 검색어
+  // 검색칸도 한글을 친다 — 조합 중 밑줄이 안 나게 PlainController 를 쓴다.
+  final _searchCtl = PlainController();
 
   static const _txnFields = [
     FieldSpec(key: 'txn_date', label: '날짜', type: FieldType.date, required: true),
@@ -84,6 +87,17 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
     ref.invalidate(airbnbTransactionsProvider(widget.unitId));
     ref.invalidate(airbnbMonthlyProvider(widget.unitId));
   }
+
+  @override
+
+  void dispose() {
+
+    _searchCtl.dispose();
+
+    super.dispose();
+
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +210,7 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
                           )),
                       const Gap(12),
                       TextField(
+                        controller: _searchCtl,
                         onChanged: (v) => setState(() => _query = v),
                         decoration: InputDecoration(
                           isDense: true,
@@ -205,7 +220,10 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
                               ? null
                               : IconButton(
                                   icon: const Icon(Icons.close_rounded, size: 18),
-                                  onPressed: () => setState(() => _query = ''),
+                                  onPressed: () {
+                                    _searchCtl.clear();
+                                    setState(() => _query = '');
+                                  },
                                 ),
                         ),
                       ),

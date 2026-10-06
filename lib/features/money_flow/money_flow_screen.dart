@@ -14,6 +14,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../plan/plan_roadmap.dart';
+import '../../core/edit/plain_controller.dart';
 
 /// 자금 흐름 — 날짜별 유입/지출 거래 장부 (에어비앤비 상세와 동일 구조).
 /// 월 탭(전체+각 월) · 유입/지출/순흐름 · 월별 막대 · 거래 내역(추가/검색).
@@ -28,6 +29,8 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
   // 기본은 이번 달. null = 전체
   DateTime? _month = DateTime(DateTime.now().year, DateTime.now().month);
   String _query = '';
+  // 검색칸도 한글을 친다 — 조합 중 밑줄이 안 나게 PlainController 를 쓴다.
+  final _searchCtl = PlainController();
   bool _unpaidOnly = false; // 아직 안 낸 지출만 보기
 
   static const _palette = [
@@ -119,6 +122,17 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
     await ref.read(supabaseProvider).from('flow_entries').delete().eq('id', e.id);
     ref.invalidate(flowEntriesProvider);
   }
+
+  @override
+
+  void dispose() {
+
+    _searchCtl.dispose();
+
+    super.dispose();
+
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +316,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                           )),
                       const Gap(12),
                       TextField(
+                        controller: _searchCtl,
                         onChanged: (v) => setState(() => _query = v),
                         decoration: InputDecoration(
                           isDense: true,
@@ -311,7 +326,10 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                               ? null
                               : IconButton(
                                   icon: const Icon(Icons.close_rounded, size: 18),
-                                  onPressed: () => setState(() => _query = ''),
+                                  onPressed: () {
+                                    _searchCtl.clear();
+                                    setState(() => _query = '');
+                                  },
                                 ),
                         ),
                       ),
