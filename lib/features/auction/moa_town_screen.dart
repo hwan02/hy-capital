@@ -165,7 +165,16 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String get _kind => widget.kind;
   bool get _sin => widget.kind == '신통기획';
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
-  int _stageF = -1;
+  // 처음 열면 «매수적기» — 이 화면에 들어오는 이유가 «지금 살 구역 찾기»라서.
+  int _stageF = 1;
+
+  @override
+  void didUpdateWidget(covariant MoaTownView old) {
+    super.didUpdateWidget(old);
+    // 모아타운 ↔ 신통 탭을 오가면 같은 State 가 재사용된다 — 탭을 바꿀 때도
+    // 매수적기로 다시 시작한다.
+    if (old.kind != widget.kind) _stageF = 1;
+  }
 
   /// 필터는 «단계 번호»가 아니라 «밴드»로 건다.
   /// 모아 4 와 신통 5 가 둘 다 매수 A 이므로 번호로는 못 거른다.
