@@ -392,6 +392,12 @@ class _MoneyFlowSummary extends ConsumerWidget {
     byMonth.forEach((k, v) {
       if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
     });
+    // 에어비앤비 부가세·월세(자동)만 있는 달도 «데이터가 있는 달»이다 —
+    // 10일 월세가 들어갔는데 카드가 지난달에 머물면 안 보인다.
+    final airbnbOut = ref.watch(airbnbOutflowByMonthProvider).value ?? const {};
+    airbnbOut.forEach((k, v) {
+      if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
+    });
     final lm = latest;
     final scope = lm == null
         ? <FlowEntry>[]
@@ -418,13 +424,25 @@ class _MoneyFlowSummary extends ConsumerWidget {
     final autoIncome = lm == null
         ? const <String, double>{}
         : byMonth[lm.toIso8601String().substring(0, 10)] ?? const {};
+    // 에어비앤비 부가세·월세 — 투자한 돈에 따로 보이고, 순수익에서 이미
+    // 빠진 만큼 들어온 돈의 에어비앤비에 되돌린다(자금 흐름 화면과 같다).
+    final autoOut = lm == null
+        ? const <String, double>{}
+        : airbnbOut[lm.toIso8601String().substring(0, 10)] ?? const {};
+    final airbnbBack = autoOut.values.fold(0.0, (s, v) => s + v);
     autoIncome.forEach((k, v) {
-      if (v > 0) incomeBy[k] = (incomeBy[k] ?? 0) + v;
+      final add = k == '에어비앤비' ? v + airbnbBack : v;
+      if (add > 0) incomeBy[k] = (incomeBy[k] ?? 0) + add;
     });
+    if (airbnbBack > 0 && !autoIncome.containsKey('에어비앤비')) {
+      incomeBy['에어비앤비'] = (incomeBy['에어비앤비'] ?? 0) + airbnbBack;
+    }
     final outBy = <String, double>{};
     for (final e in scope.where((e) => !e.isIn)) {
+      if (autoOut.containsKey(e.label)) continue; // 자동값으로 대체
       outBy[e.label] = (outBy[e.label] ?? 0) + e.amount;
     }
+    autoOut.forEach((k, v) => outBy[k] = (outBy[k] ?? 0) + v);
     final inSlices = colorize(incomeBy);
     final outSlices = colorize(outBy);
     final totalIn = inSlices.fold(0.0, (s, a) => s + a.value);

@@ -550,6 +550,41 @@ final moduleIncomeThisMonthProvider =
   return all[m0] ?? {'에어비앤비': 0, '배당': 0, '숏폼': 0, '토지': 0};
 });
 
+/// 에어비앤비에서 «투자한 돈»으로 따로 보여줄 지출 — 월별.
+/// {'2026-10-01': {'에어비앤비 부가세': …, '에어비앤비 월세': …}}
+///
+/// 에어비앤비 거래 중
+///   · 메모에 «부가세»가 들어간 줄의 변동비 → 에어비앤비 부가세
+///   · 메모에 «월세»가 들어간 줄의 고정비   → 에어비앤비 월세
+///     (매월 10일 scripts/airbnb_rent.py 가 «월세 (자동)»으로 넣는다)
+///
+/// 이 돈은 에어비앤비 순수익에서 이미 빠져 있다. 자금 흐름에서 «투자한 돈»에
+/// 보여주는 만큼 «들어온 돈»의 에어비앤비에 다시 더해야 두 번 빠지지 않는다.
+const kAirbnbVatLabel = '에어비앤비 부가세';
+const kAirbnbRentLabel = '에어비앤비 월세';
+final airbnbOutflowByMonthProvider =
+    FutureProvider<Map<String, Map<String, double>>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('airbnb_transactions')
+      .select('txn_date,variable_cost,fixed_cost,memo')
+      .or('memo.ilike.%부가세%,memo.ilike.%월세%');
+  final out = <String, Map<String, double>>{};
+  for (final r in rows) {
+    final memo = (r['memo'] as String?) ?? '';
+    final k = '${(r['txn_date'] as String).substring(0, 7)}-01';
+    void add(String label, Object? v) {
+      final n = (v as num?)?.toDouble() ?? 0;
+      if (n <= 0) return;
+      final m = out.putIfAbsent(k, () => {});
+      m[label] = (m[label] ?? 0) + n;
+    }
+    if (memo.contains('부가세')) add(kAirbnbVatLabel, r['variable_cost']);
+    if (memo.contains('월세')) add(kAirbnbRentLabel, r['fixed_cost']);
+  }
+  return out;
+});
+
 /// 자금 흐름 자동 연동 라벨(이 라벨의 수동 입력은 자동값으로 대체).
 const kAutoIncomeLabels = {'에어비앤비', '배당', '숏폼', '토지'};
 
@@ -635,6 +670,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(airbnbTransactionsProvider);
   ref.invalidate(monthlyEntriesProvider);
   ref.invalidate(moduleIncomeByMonthProvider);
+  ref.invalidate(airbnbOutflowByMonthProvider);
   ref.invalidate(moduleIncomeThisMonthProvider);
   ref.invalidate(nonSalaryCashflowThisMonthProvider);
   ref.invalidate(planPhasesProvider);

@@ -151,6 +151,9 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
             // 따로 쌓인다. 고른 달(전체면 모든 달) 것을 붙인다.
             final moduleByMonth =
                 ref.watch(moduleIncomeByMonthProvider).value ?? const {};
+            // 에어비앤비 부가세·월세 — 투자한 돈으로 따로 보인다.
+            final airbnbOut =
+                ref.watch(airbnbOutflowByMonthProvider).value ?? const {};
 
             // 월 목록 — 모듈 수익만 있는 달도 탭을 띄운다.
             final monthSet = <String>{
@@ -158,6 +161,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 DateTime(e.date.year, e.date.month).toIso8601String().substring(0, 10),
               for (final k in moduleByMonth.keys)
                 if (moduleByMonth[k]!.values.any((v) => v != 0)) k,
+              for (final k in airbnbOut.keys) k,
               // 이번 달은 기록이 없어도 탭을 띄운다(기본 선택이라).
               if (_month != null) _month!.toIso8601String().substring(0, 10),
             };
@@ -179,6 +183,21 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 m.forEach((l, v) => autoIncome[l] = (autoIncome[l] ?? 0) + v);
               }
             });
+            // 투자한 돈 자동분 — 고른 달(전체면 모든 달)의 에어비앤비 부가세·월세.
+            final autoOut = <String, double>{};
+            airbnbOut.forEach((k, m) {
+              final d = DateTime.parse(k);
+              if (_month == null ||
+                  (d.year == _month!.year && d.month == _month!.month)) {
+                m.forEach((l, v) => autoOut[l] = (autoOut[l] ?? 0) + v);
+              }
+            });
+            // 이 돈은 에어비앤비 순수익에서 이미 빠져 있다. 투자한 돈에 따로
+            // 보여주는 만큼 들어온 돈의 에어비앤비에 되돌려야 순흐름이 맞는다.
+            final airbnbBack = autoOut.values.fold(0.0, (s, v) => s + v);
+            if (airbnbBack > 0) {
+              autoIncome['에어비앤비'] = (autoIncome['에어비앤비'] ?? 0) + airbnbBack;
+            }
             final incomeBy = <String, double>{};
             for (final e in manualIncome) {
               incomeBy[e.label] = (incomeBy[e.label] ?? 0) + e.amount;
@@ -187,7 +206,15 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
               if (v > 0) incomeBy[k] = (incomeBy[k] ?? 0) + v;
             });
             final totalIn = incomeBy.values.fold(0.0, (s, v) => s + v);
-            final totalOut = expense.fold(0.0, (s, e) => s + e.amount);
+            // 투자한 돈 = 수동 기록 + 자동(에어비앤비 부가세·월세).
+            // 같은 이름으로 손으로 넣은 것은 자동값으로 대체(중복 방지).
+            final outBy = <String, double>{};
+            for (final e in expense) {
+              if (autoOut.containsKey(e.label)) continue;
+              outBy[e.label] = (outBy[e.label] ?? 0) + e.amount;
+            }
+            autoOut.forEach((k, v) => outBy[k] = (outBy[k] ?? 0) + v);
+            final totalOut = outBy.values.fold(0.0, (s, v) => s + v);
 
             List<_Slice> colorize(Map<String, double> by) {
               final out = <_Slice>[
@@ -199,14 +226,6 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                     _Slice(out[i].label, out[i].value, _palette[i % _palette.length]);
               }
               return out;
-            }
-
-            List<_Slice> slices(List<FlowEntry> list) {
-              final by = <String, double>{};
-              for (final e in list) {
-                by[e.label] = (by[e.label] ?? 0) + e.amount;
-              }
-              return colorize(by);
             }
 
             return Column(
@@ -246,7 +265,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                       stacked: st);
                   _DonutCard outD(bool st) => _DonutCard(
                       title: '투자한 돈',
-                      slices: slices(expense),
+                      slices: colorize(outBy),
                       total: totalOut,
                       color: AppColors.sky,
                       emptyMsg: '투자 없음',

@@ -98,6 +98,15 @@ jobs:
         continue-on-error: true
         run: python3 scripts/sync_cleanup.py
 
+      # ── 에어비앤비 월세 ──────────────────────────────────
+      # 매월 10일 이후 그 달 월세를 고정비로 한 번 넣는다(이미 있으면 건너뜀).
+      # 자금 흐름·대시보드 «투자한 돈»의 「에어비앤비 월세」가 여기서 온다.
+      - name: 에어비앤비 — 월세 고정비
+        id: rent
+        if: always()
+        continue-on-error: true
+        run: python3 scripts/airbnb_rent.py
+
       # ── 알림 ─────────────────────────────────────────────
       # 하루 한 번만. 예약이 늦어 손으로 먼저 돌렸는데 예약분이 뒤늦게
       # 뜨면 같은 알림이 두 번 온다. 오늘(KST) 이미 끝난 실행이 있으면
@@ -143,10 +152,12 @@ jobs:
           p='${{ steps.portal.outcome }}'
           a='${{ steps.sinarch.outcome }}'
           c='${{ steps.cleanup.outcome }}'
+          r='${{ steps.rent.outcome }}'
           echo "서울도시공간포털: $p"
           echo "신통 아카이브:    $a"
           echo "정비몽땅:         $c"
-          if [ "$p" != 'success' ] || [ "$a" != 'success' ] || [ "$c" != 'success' ]; then
+          echo "에어비앤비 월세:  $r"
+          if [ "$p" != 'success' ] || [ "$a" != 'success' ] || [ "$c" != 'success' ] || [ "$r" != 'success' ]; then
             echo '::error::동기화 실패 — 위 스텝 로그를 본다. 슬랙 알림은 별개로 나갔다.'
             exit 1
           fi

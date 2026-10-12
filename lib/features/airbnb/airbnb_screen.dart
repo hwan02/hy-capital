@@ -21,6 +21,7 @@ Map<String, dynamic> _unitToMap(AirbnbUnit u) => {
       'expected_open': u.expectedOpen?.toIso8601String().substring(0, 10),
       'monthly_profit': u.monthlyProfit,
       'monthly_target': u.monthlyTarget,
+      'monthly_rent': u.monthlyRent,
     };
 
 class AirbnbScreen extends ConsumerStatefulWidget {

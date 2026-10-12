@@ -106,6 +106,7 @@ class AirbnbUnit {
   final DateTime? expectedOpen;
   final double monthlyProfit;
   final double monthlyTarget;
+  final double monthlyRent; // 매월 10일 자동 고정비
   final double roi;
   final double occupancy;
 
@@ -118,6 +119,7 @@ class AirbnbUnit {
     required this.expectedOpen,
     required this.monthlyProfit,
     required this.monthlyTarget,
+    this.monthlyRent = 0,
     required this.roi,
     required this.occupancy,
   });
@@ -134,6 +136,7 @@ class AirbnbUnit {
         expectedOpen: _date(m['expected_open']),
         monthlyProfit: _d(m['monthly_profit']),
         monthlyTarget: _d(m['monthly_target']),
+        monthlyRent: _d(m['monthly_rent']),
         roi: _d(m['roi']),
         occupancy: _d(m['occupancy']),
       );

@@ -79,6 +79,9 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
     }
     ref.invalidate(airbnbTransactionsProvider(widget.unitId));
     ref.invalidate(airbnbMonthlyProvider(widget.unitId));
+    // 부가세·월세 메모 줄은 자금 흐름·대시보드의 «투자한 돈»에도 들어간다.
+    ref.invalidate(airbnbOutflowByMonthProvider);
+    ref.invalidate(moduleIncomeByMonthProvider);
   }
 
   Future<void> _delete(AirbnbTransaction t) async {
@@ -86,6 +89,8 @@ class _AirbnbDetailState extends ConsumerState<AirbnbDetailScreen> {
     await ref.read(supabaseProvider).from('airbnb_transactions').delete().eq('id', t.id);
     ref.invalidate(airbnbTransactionsProvider(widget.unitId));
     ref.invalidate(airbnbMonthlyProvider(widget.unitId));
+    ref.invalidate(airbnbOutflowByMonthProvider);
+    ref.invalidate(moduleIncomeByMonthProvider);
   }
 
   @override

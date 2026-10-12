@@ -45,6 +45,8 @@ const airbnbSpec = BuiltinSpec(
     FieldSpec(key: 'expected_open', label: '예상 오픈일', type: FieldType.date),
     FieldSpec(key: 'monthly_profit', label: '이번 달 순이익', type: FieldType.money),
     FieldSpec(key: 'monthly_target', label: '월 목표 순이익', type: FieldType.money),
+    // 매월 10일 «월세 (자동)» 고정비로 들어간다(scripts/airbnb_rent.py).
+    FieldSpec(key: 'monthly_rent', label: '월세 (매월 10일 자동 고정비)', type: FieldType.money),
   ],
 );
 
