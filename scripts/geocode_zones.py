@@ -37,7 +37,11 @@ ADDR = 'https://dapi.kakao.com/v2/local/search/address.json'
 KEYWORD = 'https://dapi.kakao.com/v2/local/search/keyword.json'
 
 # 「화곡1동 354」「면목3·8동 453-1」「금호동1가 129」「신림동 610-220」
-LOT = re.compile(r'([가-힣]+?)[0-9·？]*동(\d+가)?\s*(\d+(?:-\d+)?)')
+# 「원효로4가 110-1」처럼 «동» 없이 «가»로 끝나는 법정동도 받는다.
+# 「번동2지역」「상봉13구역」의 숫자는 번지가 아니다 — 뒤에 지역·구역 등이
+# 붙으면 버린다(처음엔 「번동 2」로 찾아 엉뚱한 곳이 찍혔다).
+LOT = re.compile(r'([가-힣]+?)(?:[0-9·？]*동(\d+가)?|(\d+가))\s*(\d+(?:-\d+)?)'
+                 r'(?!\d|\s*(?:지역|구역|지구|단지|차|호))')
 
 
 def kakao_key():
@@ -58,29 +62,53 @@ def kakao(url, query, key):
     return docs[0] if docs else None
 
 
-def lot_query(z):
-    """«서울 강서구 화곡동 957-1» — 법정동 + 지번. 못 찾으면 None."""
+def lot_queries(z):
+    """«서울 강서구 화곡동 957-1» 꼴 검색어들 — 법정동 + 지번. 출처마다 하나씩."""
+    out = []
     for src in [z.get('name') or '', z.get('stage_source') or '',
                 *(z.get('aliases') or [])]:
-        m = LOT.search(src.replace('？', '·'))
-        if not m:
-            continue
-        stem = m.group(1)
-        if len(stem) > 2 and stem.endswith('본'):   # 망우본동 → 망우동
-            stem = stem[:-1]
-        dong = f"{stem}동{m.group(2) or ''}"
-        return f"서울 {z.get('district') or ''} {dong} {m.group(3)}".replace('  ', ' ')
-    return None
+        for m in LOT.finditer(src.replace('？', '·')):
+            stem = m.group(1)
+            if m.group(3):                              # 원효로4가
+                dong = f'{stem}{m.group(3)}'
+            else:
+                if len(stem) > 2 and stem.endswith('본'):   # 망우본동 → 망우동
+                    stem = stem[:-1]
+                dong = f"{stem}동{m.group(2) or ''}"
+            q = f"서울 {z.get('district') or ''} {dong} {m.group(4)}".replace('  ', ' ')
+            if q not in out:
+                out.append(q)
+    return out
+
+
+def lot_query(z):
+    qs = lot_queries(z)
+    return qs[0] if qs else None
+
+
+# 키워드 검색에 방해만 되는 말.
+NOISE = re.compile(r'일대|일원|일재|번지|주택재개발사업|재개발사업|신속통합기획|후보지|'
+                   r'모아타운|정비예정구역|[()（）]')
 
 
 def find(z, key):
-    """(lat, lng, 쓴 검색어) 또는 None."""
+    """(lat, lng, 쓴 검색어) 또는 None.
+
+    대표 번지(「봉천동 635 일대」)는 실제 필지가 635-1·635-2…로 쪼개져 있어
+    그대로는 안 찾아지는 일이 많다. 정확한 번지 → -1 → -2 → -3 순으로 본다.
+    """
     gu = z.get('district') or ''
     tries = []
-    q = lot_query(z)
-    if q:
+    for q in lot_queries(z):
         tries.append((ADDR, q))
-    tries.append((KEYWORD, f"서울 {gu} {re.sub(r'[(（].*?[)）]', '', z['name'])}".strip()))
+        head, lot = q.rsplit(' ', 1)
+        base = lot.split('-')[0]
+        # 본번만 남겨 -1·-2·-3 도 본다(「297-28」이 없으면 「297-1」).
+        tries += [(ADDR, f'{head} {base}-{n}') for n in (1, 2, 3)
+                  if f'{base}-{n}' != lot]
+    name = NOISE.sub(' ', z['name']).replace(gu, ' ')
+    name = re.sub(r'\s+', ' ', name).strip()
+    tries.append((KEYWORD, f"서울 {gu} {name}".strip()))
     for url, query in tries:
         try:
             d = kakao(url, query, key)
@@ -105,6 +133,7 @@ def main():
         return
     tok, _ = login()
     path = '/rest/v1/zones?select=id,name,district,stage_source,aliases'
+    redo = redo or os.environ.get('GEOCODE_ALL') == '1'
     try:
         zones = sb(path + ('' if redo else '&lat=is.null'), token=tok)
     except urllib.error.HTTPError as e:

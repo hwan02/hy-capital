@@ -39,6 +39,10 @@ on:
         description: '오늘 이미 보냈어도 슬랙을 한 번 더 보낸다'
         type: boolean
         default: false
+      regeocode:
+        description: '구역 좌표를 전부 다시 찾는다(찾는 규칙을 고쳤을 때)'
+        type: boolean
+        default: false
 
 # 「오늘 이미 보냈나」를 보려고 이 워크플로의 실행 목록을 읽는다.
 permissions:
@@ -107,6 +111,7 @@ jobs:
         continue-on-error: true
         env:
           KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          GEOCODE_ALL: ${{ inputs.regeocode && '1' || '' }}
         run: python3 scripts/geocode_zones.py
 
       # ── 에비 월세 ────────────────────────────────────
