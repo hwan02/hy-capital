@@ -374,6 +374,12 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
   final base = initial ?? DateTime.now();
   var month = DateTime(base.year, base.month);
   DateTime? selected = initial;
+  // 더블클릭은 «직접» 잰다. GestureDetector(onTap + onDoubleTap)는 웹에서
+  // 마우스 더블클릭을 «탭 두 번»으로 받아 선택만 되고 안 닫혔다.
+  // 같은 날을 0.4초 안에 두 번 누르면 더블클릭으로 본다.
+  DateTime? lastTapDay;
+  final tapClock = Stopwatch()..start();
+  Duration lastTapAt = Duration.zero;
   bool same(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
   return showDialog<DateTime>(
@@ -473,8 +479,21 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
                         final date = DateTime(month.year, month.month, d);
                         final isSel = selected != null && same(selected!, date);
                         return GestureDetector(
-                          onTap: () => setState(() => selected = date),
-                          onDoubleTap: () => Navigator.pop(ctx, date),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            final now = tapClock.elapsed;
+                            final dbl = lastTapDay != null &&
+                                same(lastTapDay!, date) &&
+                                now - lastTapAt <
+                                    const Duration(milliseconds: 400);
+                            lastTapDay = date;
+                            lastTapAt = now;
+                            if (dbl) {
+                              Navigator.pop(ctx, date);
+                            } else {
+                              setState(() => selected = date);
+                            }
+                          },
                           child: Container(
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
