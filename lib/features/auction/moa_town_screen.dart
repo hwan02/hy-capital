@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -70,58 +69,6 @@ Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
       'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
   await launchUrl(uri, mode: LaunchMode.externalApplication);
-}
-
-/// 구역의 «법정동» 이름 — 행크옥션 소재지(읍/면/동)에서 고르는 이름.
-/// 「화곡1동 354」·「묵2동 243-7」처럼 행정동 번호가 붙어 있으면 뗀다(화곡동·묵동).
-/// 신통은 이름에 동이 없을 때가 많아(신림10구역) 단계 출처의
-/// 「신림동 610-220 일대」에서 찾는다.
-String? _legalDong(Zone z) {
-  // 「금호동1가」는 «가»까지가 법정동 이름이다.
-  final rx = RegExp(r'([가-힣]+?)[0-9·]*동(\d+가)?(?![가-힣])');
-  for (final src in [z.name, z.stageSource ?? '']) {
-    final m = rx.firstMatch(src.replaceAll('？', '·'));
-    if (m == null) continue;
-    var stem = m.group(1)!;
-    // 「망우본동·면목본동」은 행정동 — 법정동은 망우동·면목동.
-    if (stem.length > 2 && stem.endsWith('본')) {
-      stem = stem.substring(0, stem.length - 1);
-    }
-    return '$stem동${m.group(2) ?? ''}';
-  }
-  return null;
-}
-
-/// 행크옥션 경매검색을 열고 구역의 동 이름을 클립보드에 넣는다.
-///
-/// 경매검색 화면은 주소로 조건(지역·물건종류·특수조건)을 받지 않는다 —
-/// 주소에서 읽는 건 사건번호·진행상태·페이지뿐이다(2026-10-12 확인).
-/// 그래서 검색 화면만 열고, 소재지에 넣을 동 이름을 복사해 둔다.
-Future<void> _openHank(BuildContext context, Zone z) async {
-  final dong = _legalDong(z);
-  // 복사·새 탭은 브라우저가 막을 수 있다(권한·팝업 차단). 하나가 실패해도
-  // 나머지는 하고, 안내는 꼭 띄운다 — 처음엔 복사에서 던져서 아무것도 안 됐다.
-  var copied = false;
-  if (dong != null) {
-    try {
-      await Clipboard.setData(ClipboardData(text: dong));
-      copied = true;
-    } catch (_) {}
-  }
-  try {
-    await launchUrl(
-        Uri.parse('https://www.hauction.co.kr/search/auction?page=1'),
-        webOnlyWindowName: '_blank');
-  } catch (_) {}
-  if (!context.mounted) return;
-  final where = '서울 › ${z.district ?? ''}${dong == null ? '' : ' › $dong'}';
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    duration: const Duration(seconds: 6),
-    content: Text(dong == null
-        ? '행크옥션 소재지에서 «$where»를 골라주세요'
-        : '${copied ? '「$dong」 복사됨' : '「$dong」'} — 소재지: $where · '
-            '물건종류 «다세대/빌라» · 특수조건 «정비구역»'),
-  ));
 }
 
 class MoaTownView extends ConsumerStatefulWidget {
@@ -1038,10 +985,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 구역 지도
             _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
                 () => _openNaver(_zoneSeed(z)), _teal),
-            // 행크옥션 경매검색 — 조건은 주소로 못 넘겨서 동 이름을 복사해 둔다.
-            _actionRow(Icons.gavel_rounded,
-                '행크옥션 경매검색${_legalDong(z) == null ? '' : ' (${_legalDong(z)} 복사)'}',
-                () => _openHank(context, z), AppColors.gold),
             // 세부구역 — A2-1·A3-1… 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
             if (z.subs.isNotEmpty) ...[
               const Gap(12),
