@@ -99,17 +99,27 @@ String? _legalDong(Zone z) {
 /// 그래서 검색 화면만 열고, 소재지에 넣을 동 이름을 복사해 둔다.
 Future<void> _openHank(BuildContext context, Zone z) async {
   final dong = _legalDong(z);
+  // 복사·새 탭은 브라우저가 막을 수 있다(권한·팝업 차단). 하나가 실패해도
+  // 나머지는 하고, 안내는 꼭 띄운다 — 처음엔 복사에서 던져서 아무것도 안 됐다.
+  var copied = false;
   if (dong != null) {
-    await Clipboard.setData(ClipboardData(text: dong));
+    try {
+      await Clipboard.setData(ClipboardData(text: dong));
+      copied = true;
+    } catch (_) {}
   }
-  await launchUrl(Uri.parse('https://www.hauction.co.kr/search/auction?page=1'),
-      webOnlyWindowName: '_blank');
+  try {
+    await launchUrl(
+        Uri.parse('https://www.hauction.co.kr/search/auction?page=1'),
+        webOnlyWindowName: '_blank');
+  } catch (_) {}
   if (!context.mounted) return;
+  final where = '서울 › ${z.district ?? ''}${dong == null ? '' : ' › $dong'}';
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     duration: const Duration(seconds: 6),
     content: Text(dong == null
-        ? '행크옥션을 열었어요 — 소재지에서 «${z.district ?? ''}»를 골라주세요'
-        : '「$dong」 복사됨 — 소재지: 서울 › ${z.district ?? ''} › $dong · '
+        ? '행크옥션 소재지에서 «$where»를 골라주세요'
+        : '${copied ? '「$dong」 복사됨' : '「$dong」'} — 소재지: $where · '
             '물건종류 «다세대/빌라» · 특수조건 «정비구역»'),
   ));
 }
