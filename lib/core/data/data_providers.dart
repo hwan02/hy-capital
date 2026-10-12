@@ -563,6 +563,8 @@ final moduleIncomeThisMonthProvider =
 // 이름은 자금 흐름에 손으로 넣던 이름(「에비 부가세」)에 맞춘다 — 같은 달에
 // 손으로도 넣으면 자동값 하나로 합쳐진다(이름이 다르면 두 번 잡혔다).
 const kAirbnbVatLabel = '에비 부가세';
+/// 이 달부터 자동으로 잡는다. 그 전 달은 손으로 넣은 기록 그대로.
+const kAirbnbAutoFrom = '2026-10-01';
 const kAirbnbRentLabel = '에비 월세';
 final airbnbOutflowByMonthProvider =
     FutureProvider<Map<String, Map<String, double>>>((ref) async {
@@ -575,6 +577,8 @@ final airbnbOutflowByMonthProvider =
   for (final r in rows) {
     final memo = (r['memo'] as String?) ?? '';
     final k = '${(r['txn_date'] as String).substring(0, 7)}-01';
+    // 9월까지는 자금 흐름에 손으로 다 넣었다 — 그 달들은 건드리지 않는다.
+    if (k.compareTo(kAirbnbAutoFrom) < 0) continue;
     void add(String label, Object? v) {
       final n = (v as num?)?.toDouble() ?? 0;
       if (n <= 0) return;
