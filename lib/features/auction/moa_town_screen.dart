@@ -801,7 +801,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                   : AppColors.textFaint),
                         // 「해제 위험」 칩은 뺐다. 구역별 신호가 아니라 «단계 1~5면
                         // 무조건» 붙어서(48곳) 「초기 단계다」를 한 번 더 말할 뿐이었다.
-                        // 뜻은 위 사다리 카드(kDropRiskNote)에 한 번 적혀 있다.
                         //
                         // 반면 이건 «구역별» 신호다 — 포털 대상지 목록에 없다.
                         // 자양2동 681 은 2026.07.16 해제됐는데 서울시 표에는 두 달
@@ -1402,29 +1401,6 @@ class _StageLadder extends StatelessWidget {
                   height: 1.6)),
           const Gap(14),
           _RuleTable(sin: _sin),
-          // 초기 단계 «해제 위험» — 이 설명은 «여기 한 번만» 적는다.
-          // 구역 카드마다 같은 문단을 붙였더니 화면이 이 글로 덮여 안 읽혔다.
-          // 카드에는 「해제 위험」 칩 하나만 달고, 뜻은 여기서 읽는다.
-          const Gap(10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.warning_amber_rounded,
-                  size: 14, color: AppColors.gold),
-              const Gap(8),
-              const Expanded(
-                child: Text('「해제 위험」 칩이 붙은 구역 — $kDropRiskNote',
-                    style: TextStyle(
-                        fontSize: AppFont.label,
-                        color: AppColors.gold,
-                        height: 1.6)),
-              ),
-            ]),
-          ),
         ],
       ),
     );
