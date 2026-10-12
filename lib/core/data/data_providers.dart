@@ -551,17 +551,19 @@ final moduleIncomeThisMonthProvider =
 });
 
 /// 에어비앤비에서 «투자한 돈»으로 따로 보여줄 지출 — 월별.
-/// {'2026-10-01': {'에어비앤비 부가세': …, '에어비앤비 월세': …}}
+/// {'2026-10-01': {'에비 부가세': …, '에비 월세': …}}
 ///
 /// 에어비앤비 거래 중
-///   · 메모에 «부가세»가 들어간 줄의 변동비 → 에어비앤비 부가세
-///   · 메모에 «월세»가 들어간 줄의 고정비   → 에어비앤비 월세
+///   · 메모에 «부가세»가 들어간 줄의 변동비 → 에비 부가세
+///   · 메모에 «월세»가 들어간 줄의 고정비   → 에비 월세
 ///     (매월 10일 scripts/airbnb_rent.py 가 «월세 (자동)»으로 넣는다)
 ///
 /// 이 돈은 에어비앤비 순수익에서 이미 빠져 있다. 자금 흐름에서 «투자한 돈»에
 /// 보여주는 만큼 «들어온 돈»의 에어비앤비에 다시 더해야 두 번 빠지지 않는다.
-const kAirbnbVatLabel = '에어비앤비 부가세';
-const kAirbnbRentLabel = '에어비앤비 월세';
+// 이름은 자금 흐름에 손으로 넣던 이름(「에비 부가세」)에 맞춘다 — 같은 달에
+// 손으로도 넣으면 자동값 하나로 합쳐진다(이름이 다르면 두 번 잡혔다).
+const kAirbnbVatLabel = '에비 부가세';
+const kAirbnbRentLabel = '에비 월세';
 final airbnbOutflowByMonthProvider =
     FutureProvider<Map<String, Map<String, double>>>((ref) async {
   final sb = ref.watch(supabaseProvider);
