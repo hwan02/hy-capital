@@ -75,8 +75,8 @@ int _buySubs(Zone z) =>
 /// 좌표를 받으면 지도를 그리로 옮기고 시/구/동까지 채운다(2026-10-12 확인).
 /// type=연립/다세대 는 행크옥션이 자기 메뉴에서 쓰는 값 그대로다.
 /// 행크옥션 가격 상한 — 지도 «가격» 칸에 붙여넣을 값. 가격은 주소로 못 넘겨서
-/// 버튼을 누를 때 클립보드에 넣어 둔다. 원 단위 숫자라야 숫자 칸에 그대로 붙는다.
-const _hankPriceMax = '250000000'; // 2억 5,000만원
+/// 버튼을 누를 때 클립보드에 넣어 둔다.
+const _hankPriceMax = '2억 5,000만'; // 행크옥션 가격 칸 표기 그대로
 
 Future<void> _openHankMap(BuildContext context, Zone z) async {
   // 복사·새 탭은 브라우저가 막을 수 있다 — 하나가 실패해도 나머지는 한다.
@@ -103,8 +103,8 @@ Future<void> _openHankMap(BuildContext context, Zone z) async {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     duration: const Duration(seconds: 5),
     content: Text(copied
-        ? '2억 5,000만원($_hankPriceMax) 복사됨 — 행크옥션 «가격» 최대 칸에 붙여넣기'
-        : '행크옥션 «가격» 최대 칸에 $_hankPriceMax (2억 5,000만원)'),
+        ? '「$_hankPriceMax」 복사됨 — 행크옥션 «가격» 칸에 붙여넣기'
+        : '행크옥션 «가격» 칸에 「$_hankPriceMax」'),
   ));
 }
 
