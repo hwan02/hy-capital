@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +74,17 @@ int _buySubs(Zone z) =>
 /// 경매검색 탭은 주소로 조건(지역·물건종류)을 받지 않는다. 부동산지도는
 /// 좌표를 받으면 지도를 그리로 옮기고 시/구/동까지 채운다(2026-10-12 확인).
 /// type=연립/다세대 는 행크옥션이 자기 메뉴에서 쓰는 값 그대로다.
-Future<void> _openHankMap(Zone z) async {
+/// 행크옥션 가격 상한 — 지도 «가격» 칸에 붙여넣을 값. 가격은 주소로 못 넘겨서
+/// 버튼을 누를 때 클립보드에 넣어 둔다. 원 단위 숫자라야 숫자 칸에 그대로 붙는다.
+const _hankPriceMax = '250000000'; // 2억 5,000만원
+
+Future<void> _openHankMap(BuildContext context, Zone z) async {
+  // 복사·새 탭은 브라우저가 막을 수 있다 — 하나가 실패해도 나머지는 한다.
+  var copied = false;
+  try {
+    await Clipboard.setData(const ClipboardData(text: _hankPriceMax));
+    copied = true;
+  } catch (_) {}
   final q = Uri(queryParameters: {
     'lat': z.lat!.toStringAsFixed(6),
     'lng': z.lng!.toStringAsFixed(6),
@@ -84,8 +95,17 @@ Future<void> _openHankMap(Zone z) async {
     'isActiveOnbid': 'true',
     'type': '연립/다세대',
   }).query;
-  await launchUrl(Uri.parse('https://www.hauction.co.kr/search/map?$q'),
-      webOnlyWindowName: '_blank');
+  try {
+    await launchUrl(Uri.parse('https://www.hauction.co.kr/search/map?$q'),
+        webOnlyWindowName: '_blank');
+  } catch (_) {}
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    duration: const Duration(seconds: 5),
+    content: Text(copied
+        ? '2억 5,000만원($_hankPriceMax) 복사됨 — 행크옥션 «가격» 최대 칸에 붙여넣기'
+        : '행크옥션 «가격» 최대 칸에 $_hankPriceMax (2억 5,000만원)'),
+  ));
 }
 
 Future<void> _openNaver(String query) async {
@@ -1011,7 +1031,7 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 좌표가 채워진 구역만 — 매일 배치가 카카오 주소검색으로 채운다.
             if (z.lat != null && z.lng != null)
               _actionRow(Icons.gavel_rounded, '행크옥션 지도',
-                  () => _openHankMap(z), AppColors.gold),
+                  () => _openHankMap(context, z), AppColors.gold),
             // 세부구역 — A2-1·A3-1… 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
             if (z.subs.isNotEmpty) ...[
               const Gap(12),
