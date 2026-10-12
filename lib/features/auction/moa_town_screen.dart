@@ -25,7 +25,9 @@ Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 /// 카드의 «다음에 할 일» 한 줄(매도 시점·다음 매수 자리).
 /// 표는 buy_band.dart 에 있다(종류마다 축이 다르다).
 String? _nextMove(Zone z) =>
-    z.isSin ? kSinNextMove[z.stage] : kMoaNextMove[z.stage];
+    z.isSin
+        ? (isRebuild(z.name) ? kSinNextMove : kSinNextMoveRedev)[z.stage]
+        : kMoaNextMove[z.stage];
 
 // 입지 우선 체크 — 매수 밴드(단계)보다 «입지»가 먼저다. (은천 사례 기준)
 // (key, 라벨, 설명)
@@ -195,7 +197,8 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
       chip(-1, '전체', _kindColor(_kind)),
       chip(1, '🟢 매수적기 · $aWhen', AppColors.primary),
       chip(2, '🟢 조합설립 진행중 · 세부구역', AppColors.gold),
-      chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
+      chip(3, _sin ? '🚫 진입 불가(승계 제한)' : '🚫 진입 불가(조합설립↑)',
+          AppColors.rose),
     ]);
   }
 
@@ -1428,13 +1431,19 @@ class _StageLadder extends StatelessWidget {
   }
 
   Widget _rung(int stage, int n, bool isLast) {
-    final band = _sin ? bandOfSinStage(stage) : bandOfStage(stage);
+    // 신통 사다리는 «재개발» 기준으로 그린다 — 기본 화면이 재개발만 보여준다
+    // (아파트 재건축은 숨김). 재건축이 막히는 칸(8 조합설립인가)은 따로 표시.
+    final band = _sin ? bandOfSinStage(stage, redev: true) : bandOfStage(stage);
     final has = n > 0;
     final c = band.color;
-    // 조합설립인가로 넘어가는 칸에서 «문이 닫힌다» — 그 경계를 붉게 표시.
+    // 승계가 막히기 시작하는 칸에서 «문이 닫힌다» — 그 경계를 붉게 표시.
     final gate = band == BuyBand.blocked &&
-        (_sin ? bandOfSinStage(stage - 1) : bandOfStage(stage - 1)) !=
+        (_sin
+                ? bandOfSinStage(stage - 1, redev: true)
+                : bandOfStage(stage - 1)) !=
             BuyBand.blocked;
+    // 신통 «재건축»은 조합설립인가(8)에서 닫힌다 — 보조 표시.
+    final rebuildGate = _sin && stage == 8;
     final box = Container(
       height: 38,
       alignment: Alignment.center,
@@ -1450,6 +1459,11 @@ class _StageLadder extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (gate) ...[
           const Icon(Icons.lock_rounded, size: 13, color: AppColors.rose),
+          const Gap(4),
+        ],
+        if (rebuildGate) ...[
+          Icon(Icons.lock_outline_rounded,
+              size: 13, color: AppColors.rose.withValues(alpha: 0.7)),
           const Gap(4),
         ],
         Flexible(
@@ -1474,8 +1488,14 @@ class _StageLadder extends StatelessWidget {
       // 설명은 툴팁으로 뺀다.
       if (gate)
         Tooltip(
-          message: '여기서 닫힌다 — 이 단계부터 조합원 지위 승계가 막힌다.\n'
+          message: '${_sin ? '여기서 닫힌다(재개발) — 관리처분인가부터 조합원 지위 승계가 막힌다.' : '여기서 닫힌다 — 이 단계부터 조합원 지위 승계가 막힌다.'}\n'
               '예외: 국가·지자체·은행 채무로 넘어간 경매·공매 (HUG는 불가)',
+          child: box,
+        )
+      else if (rebuildGate)
+        Tooltip(
+          message: '재건축은 여기서 닫힌다 — 조합설립인가부터 승계가 막힌다.\n'
+              '재개발은 관리처분인가(10)까지 승계된다. «건조개관»',
           child: box,
         )
       else
