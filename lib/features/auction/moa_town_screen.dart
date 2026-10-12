@@ -77,6 +77,9 @@ Future<void> _openHankMap(Zone z) async {
   final q = Uri(queryParameters: {
     'lat': z.lat!.toStringAsFixed(6),
     'lng': z.lng!.toStringAsFixed(6),
+    // 15 = 300m 축척 — 구역과 그 주변이 한 화면에 든다. 안 주면 100m 축척으로
+    // 너무 확대돼 물건이 0건으로 보였다(신림10: 0건 → 41건).
+    'zoom': '15',
     'isActiveAuction': 'true',
     'isActiveOnbid': 'true',
     'type': '연립/다세대',
