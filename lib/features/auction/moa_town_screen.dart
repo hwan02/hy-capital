@@ -246,7 +246,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     final aWhen = _sin ? '선정 후~확정 전' : '후보지선정~주민공람(통합심의 전)';
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _kindColor(_kind)),
-      chip(0, '🟢 살 수 있는 것', AppColors.primary),
       chip(1, '🟢 매수적기 · $aWhen', AppColors.primary),
       chip(2, '🟢 조합설립 진행중 · 세부구역', AppColors.gold),
       chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
@@ -607,73 +606,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ]),
         const Gap(12),
         _stageChips(),
-        // 왜 이 구간인지 — 「가격이 뛰는 구간」(자료실 2026-08-31) 기준.
-        if (_stageF >= 0) ...[
-          const Gap(8),
-          Builder(builder: (_) {
-            final b = switch (_stageF) {
-              0 => null,
-              1 => BuyBand.early,
-              2 => BuyBand.late_,
-              _ => BuyBand.blocked,
-            };
-            if (b == null) {
-              return const Text(
-                  '★ 조합설립인가 «전»만 산다. 인가가 나면 조합원 지위 양도가 막혀 낙찰받아도 승계가 안 된다.',
-                  style: TextStyle(
-                      fontSize: AppFont.caption,
-                      color: AppColors.primary,
-                      height: 1.55,
-                      fontWeight: FontWeight.w600));
-            }
-            if (b == BuyBand.blocked) {
-              return Text('★ ${b.why}',
-                  style: TextStyle(
-                      fontSize: AppFont.caption,
-                      color: b.color,
-                      height: 1.55,
-                      fontWeight: FontWeight.w600));
-            }
-            Widget row(String tag, String plan) => Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 34,
-                        margin: const EdgeInsets.only(top: 1),
-                        child: Text(tag,
-                            style: TextStyle(
-                                fontSize: AppFont.caption,
-                                color: b.color,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                      Expanded(
-                        child: Text(plan,
-                            style: const TextStyle(
-                                fontSize: AppFont.caption,
-                                color: AppColors.textSecondary,
-                                height: 1.5,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('★ ${b.label} — ${b.short}',
-                    style: TextStyle(
-                        fontSize: AppFont.caption,
-                        color: b.color,
-                        fontWeight: FontWeight.w800)),
-                // 보고 있는 종류만. 둘 다 그리면 신통 탭에서 모아 설명이
-                // 같이 떠서 「왜 모아가 나오나」가 된다.
-                row(_sin ? '신통' : '모아', _sin ? sinPlan(b) : moaPlan(b)),
-              ],
-            );
-          }),
-        ],
         const Gap(16),
         if (dists.isEmpty)
           const Padding(
@@ -688,12 +620,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             ratio: 1.35,
             children: [for (final d in dists) _distTile(d, byDist[d]!)],
           ),
-        const Gap(14),
-        const Text('※ 등록된 신청지입니다. 새 지정은 «세제→정비» 타임라인·슬랙으로 매일 갱신돼요.',
-            style: TextStyle(
-                fontSize: AppFont.caption,
-                color: AppColors.textFaint,
-                height: 1.5)),
       ],
     );
   }
