@@ -1380,6 +1380,10 @@ class Zone {
   final DateTime? visitOn;
   final String? visitMemo;
 
+  /// 구역 대표 지번의 좌표(0062). 행크옥션 부동산지도를 여기로 연다.
+  final double? lat;
+  final double? lng;
+
   Zone({
     required this.id,
     required this.name,
@@ -1402,6 +1406,8 @@ class Zone {
     this.visitPlan = false,
     this.visitOn,
     this.visitMemo,
+    this.lat,
+    this.lng,
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1514,6 +1520,8 @@ class Zone {
         visitPlan: m['visit_plan'] == true,
         visitOn: _date(m['visit_on']),
         visitMemo: m['visit_memo'],
+        lat: (m['lat'] as num?)?.toDouble(),
+        lng: (m['lng'] as num?)?.toDouble(),
       );
 }
 

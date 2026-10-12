@@ -98,6 +98,17 @@ jobs:
         continue-on-error: true
         run: python3 scripts/sync_cleanup.py
 
+      # ── 구역 좌표 ─────────────────────────────────────────
+      # 좌표 없는 구역만 카카오 주소검색으로 채운다(행크옥션 지도 버튼용).
+      # 키가 없으면 아무것도 안 하고 끝난다.
+      - name: 구역 좌표 (카카오)
+        id: geo
+        if: always()
+        continue-on-error: true
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+        run: python3 scripts/geocode_zones.py
+
       # ── 에비 월세 ────────────────────────────────────
       # 매월 10일 이후 그 달 월세를 고정비로 한 번 넣는다(이미 있으면 건너뜀).
       # 에비 고정비라 순수익에서 빠지고, 그게 자금 흐름 «들어온 돈(에비)»에 반영된다.

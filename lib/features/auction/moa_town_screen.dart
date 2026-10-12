@@ -67,6 +67,23 @@ int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).leng
 int _buySubs(Zone z) =>
     z.subs.where((s) => _subInfo(s['status'] ?? '').tag.contains('매수 가능')).length;
 
+/// 행크옥션 «부동산지도»를 구역 위치로 연다 — 연립/다세대 · 경매+공매.
+///
+/// 경매검색 탭은 주소로 조건(지역·물건종류)을 받지 않는다. 부동산지도는
+/// 좌표를 받으면 지도를 그리로 옮기고 시/구/동까지 채운다(2026-10-12 확인).
+/// type=연립/다세대 는 행크옥션이 자기 메뉴에서 쓰는 값 그대로다.
+Future<void> _openHankMap(Zone z) async {
+  final q = Uri(queryParameters: {
+    'lat': z.lat!.toStringAsFixed(6),
+    'lng': z.lng!.toStringAsFixed(6),
+    'isActiveAuction': 'true',
+    'isActiveOnbid': 'true',
+    'type': '연립/다세대',
+  }).query;
+  await launchUrl(Uri.parse('https://www.hauction.co.kr/search/map?$q'),
+      webOnlyWindowName: '_blank');
+}
+
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
       'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
@@ -987,6 +1004,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             // 구역 지도
             _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
                 () => _openNaver(_zoneSeed(z)), _teal),
+            // 좌표가 채워진 구역만 — 매일 배치가 카카오 주소검색으로 채운다.
+            if (z.lat != null && z.lng != null)
+              _actionRow(Icons.gavel_rounded, '행크옥션 지도 (연립/다세대 경매·공매)',
+                  () => _openHankMap(z), AppColors.gold),
             // 세부구역 — A2-1·A3-1… 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
             if (z.subs.isNotEmpty) ...[
               const Gap(12),
