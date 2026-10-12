@@ -34,7 +34,7 @@ const goalsSpec = BuiltinSpec(
 
 const airbnbSpec = BuiltinSpec(
   table: 'airbnb_units',
-  title: '에어비앤비 호점',
+  title: '에비 호점',
   accent: AppColors.sky,
   fields: [
     FieldSpec(key: 'name', label: '호점 이름', type: FieldType.text, required: true),

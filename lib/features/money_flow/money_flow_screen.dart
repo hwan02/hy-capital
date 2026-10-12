@@ -151,7 +151,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
             // 따로 쌓인다. 고른 달(전체면 모든 달) 것을 붙인다.
             final moduleByMonth =
                 ref.watch(moduleIncomeByMonthProvider).value ?? const {};
-            // 에어비앤비 부가세·월세 — 투자한 돈으로 따로 보인다.
+            // 에비 부가세 — 투자한 돈으로 따로 보인다.
             final airbnbOut =
                 ref.watch(airbnbOutflowByMonthProvider).value ?? const {};
 
@@ -183,7 +183,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 m.forEach((l, v) => autoIncome[l] = (autoIncome[l] ?? 0) + v);
               }
             });
-            // 투자한 돈 자동분 — 고른 달(전체면 모든 달)의 에어비앤비 부가세·월세.
+            // 투자한 돈 자동분 — 고른 달(전체면 모든 달)의 에비 부가세.
             final autoOut = <String, double>{};
             airbnbOut.forEach((k, m) {
               final d = DateTime.parse(k);
@@ -192,11 +192,11 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                 m.forEach((l, v) => autoOut[l] = (autoOut[l] ?? 0) + v);
               }
             });
-            // 이 돈은 에어비앤비 순수익에서 이미 빠져 있다. 투자한 돈에 따로
-            // 보여주는 만큼 들어온 돈의 에어비앤비에 되돌려야 순흐름이 맞는다.
+            // 이 돈은 에비 순수익에서 이미 빠져 있다. 투자한 돈에 따로
+            // 보여주는 만큼 들어온 돈의 에비에 되돌려야 순흐름이 맞는다.
             final airbnbBack = autoOut.values.fold(0.0, (s, v) => s + v);
             if (airbnbBack > 0) {
-              autoIncome['에어비앤비'] = (autoIncome['에어비앤비'] ?? 0) + airbnbBack;
+              autoIncome['에비'] = (autoIncome['에비'] ?? 0) + airbnbBack;
             }
             final incomeBy = <String, double>{};
             for (final e in manualIncome) {
@@ -206,7 +206,7 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
               if (v > 0) incomeBy[k] = (incomeBy[k] ?? 0) + v;
             });
             final totalIn = incomeBy.values.fold(0.0, (s, v) => s + v);
-            // 투자한 돈 = 수동 기록 + 자동(에어비앤비 부가세·월세).
+            // 투자한 돈 = 수동 기록 + 자동(에비 부가세).
             // 같은 이름으로 손으로 넣은 것은 자동값으로 대체(중복 방지).
             final outBy = <String, double>{};
             for (final e in expense) {

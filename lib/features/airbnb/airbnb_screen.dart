@@ -50,7 +50,7 @@ class _AirbnbScreenState extends ConsumerState<AirbnbScreen> {
     final async = ref.watch(airbnbProvider);
     const amber = Color(0xFFF59E0B);
     return ModulePage(
-      title: 'Airbnb',
+      title: '에비',
       icon: Icons.house_rounded,
       color: _tab == 0 ? AppColors.sky : amber,
       action: _tab == 0

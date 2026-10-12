@@ -98,10 +98,10 @@ jobs:
         continue-on-error: true
         run: python3 scripts/sync_cleanup.py
 
-      # ── 에어비앤비 월세 ──────────────────────────────────
+      # ── 에비 월세 ────────────────────────────────────
       # 매월 10일 이후 그 달 월세를 고정비로 한 번 넣는다(이미 있으면 건너뜀).
-      # 자금 흐름·대시보드 «투자한 돈»의 「에어비앤비 월세」가 여기서 온다.
-      - name: 에어비앤비 — 월세 고정비
+      # 에비 고정비라 순수익에서 빠지고, 그게 자금 흐름 «들어온 돈(에비)»에 반영된다.
+      - name: 에비 — 월세 고정비
         id: rent
         if: always()
         continue-on-error: true
@@ -156,7 +156,7 @@ jobs:
           echo "서울도시공간포털: $p"
           echo "신통 아카이브:    $a"
           echo "정비몽땅:         $c"
-          echo "에어비앤비 월세:  $r"
+          echo "에비 월세:        $r"
           if [ "$p" != 'success' ] || [ "$a" != 'success' ] || [ "$c" != 'success' ] || [ "$r" != 'success' ]; then
             echo '::error::동기화 실패 — 위 스텝 로그를 본다. 슬랙 알림은 별개로 나갔다.'
             exit 1
