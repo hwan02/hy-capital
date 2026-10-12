@@ -11,6 +11,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 /// 강의 질문 — 내가 하나씩 만든다. 프리셋 없음. 팝업 없이 그 자리에서 편집.
 const _kQuestionColor = Color(0xFFF97316);
@@ -418,13 +419,13 @@ class _SituationCardState extends State<_SituationCard> {
                   onPressed: () => setState(() => _edit = false),
                   child: const Text('취소')),
               const Gap(8),
-              FilledButton.icon(
+              SaveKey(child: FilledButton.icon(
                 style:
                     FilledButton.styleFrom(backgroundColor: _kQuestionColor),
                 onPressed: _doSave,
                 icon: const Icon(Icons.save_rounded, size: 17),
                 label: const Text('저장'),
-              ),
+              )),
             ]),
           ] else
             for (final s in widget.lines)

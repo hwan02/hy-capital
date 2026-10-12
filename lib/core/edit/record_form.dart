@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/money_field.dart';
 import 'field_spec.dart';
 import 'plain_controller.dart';
+import '../widgets/save_key.dart';
 
 /// 정수를 천단위 콤마 문자열로.
 
@@ -210,13 +211,13 @@ class _RecordFormState extends State<_RecordForm> {
                   const Gap(12),
                   Expanded(
                     flex: 2,
-                    child: FilledButton(
+                    child: SaveKey(child: FilledButton(
                       style: FilledButton.styleFrom(
                           backgroundColor: widget.accent,
                           padding: const EdgeInsets.symmetric(vertical: 16)),
                       onPressed: _submit,
                       child: const Text('저장'),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -387,19 +388,56 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left_rounded),
-                onPressed: () => setState(
-                    () => month = DateTime(month.year, month.month - 1)),
+              // « » = 1년, ‹ › = 1달. 몇 년 전 날짜(예전에 읽은 책)를 달 단위로만
+              // 넘기면 수십 번 눌러야 한다.
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  tooltip: '1년 전',
+                  icon: const Icon(Icons.keyboard_double_arrow_left_rounded),
+                  onPressed: () => setState(
+                      () => month = DateTime(month.year - 1, month.month)),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  tooltip: '1달 전',
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  onPressed: () => setState(
+                      () => month = DateTime(month.year, month.month - 1)),
+                ),
+              ]),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('${month.year}년 ${month.month}월',
+                      style: const TextStyle(
+                          fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+                ),
               ),
-              Text('${month.year}년 ${month.month}월',
-                  style: const TextStyle(
-                      fontSize: AppFont.section, fontWeight: FontWeight.w800)),
-              IconButton(
-                icon: const Icon(Icons.chevron_right_rounded),
-                onPressed: () => setState(
-                    () => month = DateTime(month.year, month.month + 1)),
-              ),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  tooltip: '1달 뒤',
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  onPressed: () => setState(
+                      () => month = DateTime(month.year, month.month + 1)),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  tooltip: '1년 뒤',
+                  icon: const Icon(Icons.keyboard_double_arrow_right_rounded),
+                  onPressed: () => setState(
+                      () => month = DateTime(month.year + 1, month.month)),
+                ),
+              ]),
             ],
           ),
           content: SizedBox(
@@ -470,10 +508,10 @@ Future<DateTime?> pickDay(BuildContext context, {DateTime? initial}) {
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('취소')),
-            FilledButton(
+            SaveKey(child: FilledButton(
                 onPressed:
                     selected == null ? null : () => Navigator.pop(ctx, selected),
-                child: const Text('선택')),
+                child: const Text('선택'))),
           ],
         );
       },

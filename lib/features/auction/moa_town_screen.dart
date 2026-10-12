@@ -15,6 +15,7 @@ import 'auction_screen.dart' show quickAddAuction;
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'buy_band.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 /// 모아타운/신통기획 신청지 — 서울 자치구 개요 → 자치구별 구역 리스트 →
 /// 구역 안에서 경매물건 추가·상세(임장)·네이버 지도.
@@ -258,12 +259,12 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           TextButton(
               onPressed: () => Navigator.pop(dctx, false),
               child: const Text('취소')),
-          FilledButton(
+          SaveKey(child: FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: _teal,
                   foregroundColor: const Color(0xFF04211D)),
               onPressed: () => Navigator.pop(dctx, true),
-              child: const Text('저장')),
+              child: const Text('저장'))),
         ],
       ),
     );

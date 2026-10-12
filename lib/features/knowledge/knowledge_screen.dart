@@ -13,6 +13,7 @@ import '../../models/models.dart';
 import 'file_viewer.dart';
 import 'knowledge_files.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 const _amber = Color(0xFFF59E0B);
 
@@ -474,11 +475,11 @@ Future<void> _noteDialog(BuildContext context, WidgetRef ref,
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('취소')),
-          FilledButton(
+          SaveKey(child: FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _amber),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('저장'),
-          ),
+          )),
         ],
       ),
     );

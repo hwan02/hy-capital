@@ -11,6 +11,7 @@ import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/custom.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 /// 모듈 생성/편집 시트를 띄운다.
 Future<void> showModuleEditor(
@@ -243,7 +244,7 @@ class _ModuleEditorState extends ConsumerState<_ModuleEditor> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: FilledButton(
+              child: SaveKey(child: FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: accent),
                 onPressed: _saving ? null : _save,
                 child: _saving
@@ -252,7 +253,7 @@ class _ModuleEditorState extends ConsumerState<_ModuleEditor> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : Text(widget.existing == null ? '모듈 만들기' : '저장'),
-              ),
+              )),
             ),
           ],
         ),

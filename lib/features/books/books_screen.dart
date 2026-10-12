@@ -17,7 +17,7 @@ import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
-import '../../core/edit/record_form.dart' show confirmDelete;
+import '../../core/edit/record_form.dart' show confirmDelete, pickDay;
 import '../../core/format/formatters.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -25,6 +25,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 const _bookColor = Color(0xFFB4844E); // 나무 — 갈색
 
@@ -843,14 +844,9 @@ class _BookDialogState extends State<_BookDialog> {
   Future<void> _pick(int i, bool start) async {
     final now = DateTime.now();
     final r = _reads[i];
-    final d = await showDatePicker(
-      context: context,
-      initialDate: (start ? r.start : r.end) ?? now,
-      firstDate: DateTime(now.year - 30),
-      lastDate: now,
-      helpText: start ? '${i + 1}회독 시작한 날' : '${i + 1}회독 다 읽은 날',
-    );
-    if (d == null) return;
+    // 앱 공용 달력 — 더블클릭하면 바로 선택된다(기본 달력은 더블클릭이 안 먹었다).
+    final d = await pickDay(context, initial: (start ? r.start : r.end) ?? now);
+    if (d == null || !mounted) return;
     setState(() {
       // 다 읽은 날을 넣으면 그 회독은 «읽음»이 된다.
       _reads[i] = start ? r.copyWith(start: d) : r.copyWith(end: d, done: true);
@@ -1086,7 +1082,7 @@ class _BookDialogState extends State<_BookDialog> {
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('취소')),
-        FilledButton(
+        SaveKey(child: FilledButton(
           style: FilledButton.styleFrom(
               backgroundColor: _bookColor,
               foregroundColor: const Color(0xFF1B1400)),
@@ -1114,7 +1110,7 @@ class _BookDialogState extends State<_BookDialog> {
             });
           },
           child: const Text('저장'),
-        ),
+        )),
       ],
     );
   }

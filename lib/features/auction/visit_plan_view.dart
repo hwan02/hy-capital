@@ -16,6 +16,8 @@ import '../../core/widgets/common.dart';
 import '../../models/models.dart';
 import 'buy_band.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
+import '../../core/edit/record_form.dart' show pickDay;
 
 const _visitColor = AppColors.gold;
 
@@ -41,12 +43,7 @@ class _VisitPlanViewState extends ConsumerState<VisitPlanView> {
 
   Future<void> _pickDate(Zone z) async {
     final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: z.visitOn ?? now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 2),
-    );
+    final d = await pickDay(context, initial: z.visitOn ?? now);
     if (d == null) return;
     _save(z, {'visit_on': d.toIso8601String().substring(0, 10)});
   }
@@ -76,12 +73,12 @@ class _VisitPlanViewState extends ConsumerState<VisitPlanView> {
           TextButton(
               onPressed: () => Navigator.pop(dctx, false),
               child: const Text('취소')),
-          FilledButton(
+          SaveKey(child: FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: _visitColor,
                   foregroundColor: const Color(0xFF1B1400)),
               onPressed: () => Navigator.pop(dctx, true),
-              child: const Text('저장')),
+              child: const Text('저장'))),
         ],
       ),
     );
