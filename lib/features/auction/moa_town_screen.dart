@@ -706,9 +706,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           _RefreshBtn(onTap: _refresh),
         ]),
         const Gap(12),
-        // 단계 사다리 — 고른 종류의 절차만 그린다.
-        _StageLadder(zones: zs, sin: _sin),
-        const Gap(14),
         _stageChips(),
         const Gap(14),
         // 「틈」 요약 — 이 자치구에서 지금 살 수 있는 세부구역만 평평하게 모아 앞에 띄운다.
@@ -790,6 +787,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
               key: _keyFor(z.id), child: _zoneCard(z, props, zones)),
           const Gap(10),
         ],
+        // 단계 사다리(사업 진행 순서) — 참고용이라 맨 아래. 들어오자마자
+        // 구역 카드를 바로 누를 수 있게 목록을 위로 올렸다.
+        const Gap(8),
+        _StageLadder(zones: zs, sin: _sin),
       ],
     );
   }
