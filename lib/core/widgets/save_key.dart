@@ -60,25 +60,39 @@ class _SaveKeyState extends State<SaveKey> {
 }
 
 /// 앱 최상단에서 Alt+Enter 를 지켜본다 — [SaveKey] 와 짝.
-class SaveKeyScope extends StatelessWidget {
+///
+/// 포커스 트리(Focus.onKeyEvent)가 아니라 «키보드 자체»에 건다.
+/// 달력처럼 입력칸이 없는 팝업은 포커스를 가진 위젯이 없어서
+/// 키 이벤트가 포커스 트리로 안 올라왔다(배포 화면에서 확인).
+class SaveKeyScope extends StatefulWidget {
   final Widget child;
   const SaveKeyScope({super.key, required this.child});
 
-  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+  @override
+  State<SaveKeyScope> createState() => _SaveKeyScopeState();
+}
+
+class _SaveKeyScopeState extends State<SaveKeyScope> {
+  bool _onKey(KeyEvent e) {
+    if (e is! KeyDownEvent) return false;
     final enter = e.logicalKey == LogicalKeyboardKey.enter ||
         e.logicalKey == LogicalKeyboardKey.numpadEnter;
-    if (!enter || !HardwareKeyboard.instance.isAltPressed) {
-      return KeyEventResult.ignored;
-    }
-    return SaveKey.trigger() ? KeyEventResult.handled : KeyEventResult.ignored;
+    if (!enter || !HardwareKeyboard.instance.isAltPressed) return false;
+    return SaveKey.trigger();
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        onKeyEvent: _onKey,
-        child: child,
-      );
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -78,4 +78,37 @@ void main() {
     await t.pump();
     expect(saved, 0);
   });
+
+  testWidgets('입력칸 없는 팝업(달력)에서도 Alt+Enter = 선택', (t) async {
+    var picked = 0;
+    await t.pumpWidget(app(Builder(
+      builder: (ctx) => Scaffold(
+        body: TextButton(
+          onPressed: () => showDialog(
+            context: ctx,
+            builder: (d) => AlertDialog(
+              content: const Text('달력'),
+              actions: [
+                SaveKey(
+                    child: FilledButton(
+                        onPressed: () {
+                          picked++;
+                          Navigator.pop(d);
+                        },
+                        child: const Text('선택'))),
+              ],
+            ),
+          ),
+          child: const Text('열기'),
+        ),
+      ),
+    )));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await t.pump();
+    await altEnter(t);
+    expect(picked, 1);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
 }
