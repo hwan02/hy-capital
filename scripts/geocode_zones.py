@@ -16,7 +16,7 @@
   KAKAO_REST_KEY : GitHub Actions 시크릿 / env.local.json
   없으면 아무것도 안 하고 끝난다(배치를 빨갛게 만들지 않는다).
 
-    python3 scripts/geocode_zones.py          # 좌표 없는 구역만
+    python3 scripts/geocode_zones.py          # 좌표 없고 아직 안 찾아본 구역만
     python3 scripts/geocode_zones.py --dry    # 찾기만, 저장 안 함
     python3 scripts/geocode_zones.py --all    # 전부 다시
 """
@@ -135,7 +135,11 @@ def main():
     path = '/rest/v1/zones?select=id,name,district,stage_source,aliases'
     redo = redo or os.environ.get('GEOCODE_ALL') == '1'
     try:
-        zones = sb(path + ('' if redo else '&lat=is.null'), token=tok)
+        # 좌표가 없고 «아직 시도 안 한» 구역만. 한 번 못 찾은 구역은 geo_query 에
+        # «못 찾음»을 남겨 다음 날 다시 부르지 않는다 — 카카오 호출을 아낀다
+        # (버튼은 저장된 좌표만 쓰므로 누를 때는 호출이 아예 없다).
+        zones = sb(path + ('' if redo else '&lat=is.null&geo_query=is.null'),
+                   token=tok)
     except urllib.error.HTTPError as e:
         print(f'좌표 칸 없음(0062 실행 전?) — 건너뜀 [HTTP {e.code}]')
         return
@@ -146,6 +150,9 @@ def main():
         if not hit:
             miss += 1
             print(f"  ✖ {z.get('district')} {z['name']} — 못 찾음")
+            if not dry:
+                sb(f"/rest/v1/zones?id=eq.{z['id']}", 'PATCH',
+                   {'geo_query': '못 찾음'}, token=tok)
             continue
         lat, lng, q = hit
         ok += 1
