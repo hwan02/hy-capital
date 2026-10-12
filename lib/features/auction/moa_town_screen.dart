@@ -69,15 +69,15 @@ int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).leng
 int _buySubs(Zone z) =>
     z.subs.where((s) => _subInfo(s['status'] ?? '').tag.contains('매수 가능')).length;
 
+/// 행크옥션 가격 상한 — 지도 «가격» 칸에 붙여넣을 값. 가격은 주소로 못 넘겨서
+/// 버튼을 누를 때 클립보드에 넣어 둔다.
+const _hankPriceMax = '2억 5,000만'; // 행크옥션 가격 칸 표기 그대로
+
 /// 행크옥션 «부동산지도»를 구역 위치로 연다 — 연립/다세대 · 경매+공매.
 ///
 /// 경매검색 탭은 주소로 조건(지역·물건종류)을 받지 않는다. 부동산지도는
 /// 좌표를 받으면 지도를 그리로 옮기고 시/구/동까지 채운다(2026-10-12 확인).
 /// type=연립/다세대 는 행크옥션이 자기 메뉴에서 쓰는 값 그대로다.
-/// 행크옥션 가격 상한 — 지도 «가격» 칸에 붙여넣을 값. 가격은 주소로 못 넘겨서
-/// 버튼을 누를 때 클립보드에 넣어 둔다.
-const _hankPriceMax = '2억 5,000만'; // 행크옥션 가격 칸 표기 그대로
-
 Future<void> _openHankMap(BuildContext context, Zone z) async {
   // 복사·새 탭은 브라우저가 막을 수 있다 — 하나가 실패해도 나머지는 한다.
   var copied = false;
