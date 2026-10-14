@@ -298,7 +298,7 @@ def new_items(get, post, today=None):
 
 
 def slack_lines(fresh, limit=10):
-    """슬랙에 넣을 줄 — «제목(원문 링크) + 요약».
+    """슬랙에 넣을 줄 — «제목(원문 링크) + 요약 + 짧은 주소».
 
     【링크는 제목에 건다】 (2026-10-15)
     9/30 에 링크를 아예 뺐더니, 궁금한 기사를 다시 찾아 들어갈 길이 없었다.
@@ -325,8 +325,12 @@ def slack_lines(fresh, limit=10):
         # (구글 주소는 원문으로 풀어 둔 것이 있으면 그걸 쓴다 — summary 가 채운다.)
         title = i['title'][:70].replace('&', '&amp;').replace('<', '&lt;') \
             .replace('>', '&gt;').replace('|', '｜')
-        head = f"*<{i.get('link') or i['url']}|{title}>*"
-        lines.append(f"{head}\n{gist}" if gist else head)
+        url = i.get('link') or i['url']
+        head = f"*<{url}|{title}>*"
+        # 짧은 주소를 맨 끝 줄에 «글자로» 한 번 더 둔다. 제목 링크는 서식이라
+        # 카톡·메모장처럼 글자만 받는 곳에 복사해 붙이면 떨어져 나갔다(10/15).
+        body = [head] + ([gist] if gist else []) + [short(url)]
+        lines.append('\n'.join(body))
     # 잘린 건수는 말하지 않는다. 하루치만 보므로 잘린 건 다시 안 온다 —
     # 「그 밖에 24건은 생략」은 할 수 있는 게 없는 정보라 소음이었다.
     return lines
@@ -483,6 +487,25 @@ def summary(item, k=2):
         scored.append((new * 1.5 + min(info, 3) + fit - i * 0.03, i, sent))
     top = sorted(sorted(scored, reverse=True)[:k], key=lambda x: x[1])
     return ' '.join(sent for _, _, sent in top)
+
+
+def short(url):
+    """긴 주소를 tinyurl 로 줄인다. 실패하면 원래 주소를 그대로 쓴다.
+
+    원문 주소는 대개 60~120자라 복사용으로 붙이기엔 길다. 짧은 주소(전문지
+    기사 등 45자 이하)는 그대로 둔다. 단축이 안 된다고 뉴스를 못 보내면
+    안 되므로 어떤 실패든 원래 주소로. (is.gd 는 2026-09-23 에 오류가 나서 뺐다)
+    """
+    if len(url) <= 45:
+        return url
+    try:
+        req = u.Request('https://tinyurl.com/api-create.php?url='
+                        + urllib.parse.quote(url, safe=''), headers=UA)
+        with u.urlopen(req, timeout=8) as r:
+            s = r.read().decode().strip()
+        return s if s.startswith('https://tinyurl.com/') else url
+    except Exception:  # noqa: BLE001
+        return url
 
 
 def main():
