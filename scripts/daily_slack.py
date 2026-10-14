@@ -336,8 +336,8 @@ def main():
 
     wd = ['월', '화', '수', '목', '금', '토', '일'][
         datetime.date.fromisoformat(today).weekday()]
-    n = sum(len(rows) for _, rows in sections)  # 총 건수
-    md = [f'*{today[5:].replace("-", "/")} ({wd}) {n}건*']
+    # 머리는 날짜만 — 「14건」 같은 건수는 읽는 사람에게 쓸모가 없었다(10/15).
+    md = [f'*{today[5:].replace("-", "/")} ({wd})*']
     for title, rows in sections:
         md.append('')
         md.append(f'*{title}*')

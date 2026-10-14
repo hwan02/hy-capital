@@ -324,14 +324,20 @@ _NOISE = re.compile(r'시공사|시공자|업체\s*선정|입찰|협력업체|�
 
 def worth(item, gist=''):
     """투자에 쓸 만한 정도. 높을수록 위."""
+    # 점수는 «제목» 위주로 매긴다. 요약은 최대 +1 — 원문을 못 읽어 요약이 빈
+    # 기사가 밀리고, 일반 정책 기사가 요약 속 낱말로 뛰어오르던 것(10/15:
+    # 신림8구역 조합설립인가가 빠지고 «연내 3만호 착공»이 2위).
     title = item['title']
-    text = f"{title} {gist}"
     sc = 0.0
     if re.search(r'모아타운|모아주택|모아통합|신통|신속통합', title):
         sc += 2                                   # 제목이 바로 모아·신통 얘기
-    sc += min(len(set(_STAGE.findall(text))), 3) * 1.2
-    sc += min(len(set(_RULE.findall(text))), 2) * 1.0
-    if _SEOUL_GU.search(text) or re.search(r'[가-힣]+동\s*\d', text):
+    sc += min(len(set(_STAGE.findall(title))), 3) * 1.2
+    sc += min(len(set(_RULE.findall(title))), 2) * 1.0
+    if gist:
+        extra = (set(_STAGE.findall(gist)) | set(_RULE.findall(gist))) \
+            - set(_STAGE.findall(title)) - set(_RULE.findall(title))
+        sc += min(len(extra) * 0.3, 1.0)
+    if _SEOUL_GU.search(title) or re.search(r'[가-힣]+동\s*\d', title):
         sc += 1                                   # 구체적인 구·동이 나온다
     # 특정 구역 소식(「신림8구역」「서계동 모아타운」「망우동 127」) — 내 구역 단계가
     # 움직였는지가 제일 쓸모 있다.
