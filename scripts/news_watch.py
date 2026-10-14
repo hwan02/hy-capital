@@ -297,7 +297,60 @@ def new_items(get, post, today=None):
     return [i for i in items if not seen(i)]
 
 
-def slack_lines(fresh, limit=10):
+# ── 투자에 쓸 만한 기사 고르기 ─────────────────────────────
+# 하루 수십 건이 와도 아침에 읽는 건 3건이다(2026-10-15 «3건만, 투자에 쓸 만한 것»).
+# 모아타운·신통에서 «살 구역을 고르고 팔 때를 정하는» 데 쓰는 소식에 점수를 준다.
+
+# 구역 단계가 움직였다 — 매수·매도 시점을 바꾸는 소식.
+_STAGE = re.compile(
+    r'후보지|공모|선정|관리계획|주민공람|공람|통합심의|심의\s*통과|수정가결|가결|'
+    r'고시|정비구역\s*지정|구역\s*지정|추진위|조합설립|조합\s*설립|기획\s*확정|'
+    r'확정|해제|철회|취소')
+# 투자 조건을 바꾸는 제도 — 권리·동의율·사업성.
+_RULE = re.compile(
+    r'권리산정|분양권|입주권|동의율|용적률|층수|단축|완화|규제|토지거래|투기|승계|'
+    r'조합원\s*지위|분담금|사업성|인센티브')
+_SEOUL_GU = re.compile(
+    r'강남|강동|강북|강서|관악|광진|구로|금천|노원|도봉|동대문|동작|마포|서대문|'
+    r'서초|성동|성북|송파|양천|영등포|용산|은평|종로|중랑|중구')
+# 서울 밖 — 이 전략(서울 모아·신통)과 무관하다.
+_OUTSIDE = re.compile(
+    r'부산|대구|인천|광주광역|대전|울산|세종|수원|성남|고양|용인|부천|안양|안산|'
+    r'의정부|평택|창원|전주|청주|천안|경기도|경기\s')
+# 투자 판단에 안 쓰는 것 — 업체 선정·입찰, 분양·청약, 인사·부고.
+_NOISE = re.compile(r'시공사|시공자|업체\s*선정|입찰|협력업체|분양|청약|인사|부고|'
+                    r'MOU|협약식|봉사|기부')
+
+
+def worth(item, gist=''):
+    """투자에 쓸 만한 정도. 높을수록 위."""
+    title = item['title']
+    text = f"{title} {gist}"
+    sc = 0.0
+    if re.search(r'모아타운|모아주택|모아통합|신통|신속통합', title):
+        sc += 2                                   # 제목이 바로 모아·신통 얘기
+    sc += min(len(set(_STAGE.findall(text))), 3) * 1.2
+    sc += min(len(set(_RULE.findall(text))), 2) * 1.0
+    if _SEOUL_GU.search(text) or re.search(r'[가-힣]+동\s*\d', text):
+        sc += 1                                   # 구체적인 구·동이 나온다
+    # 특정 구역 소식(「신림8구역」「서계동 모아타운」「망우동 127」) — 내 구역 단계가
+    # 움직였는지가 제일 쓸모 있다.
+    if re.search(r'[가-힣]+\d+구역|[가-힣]+동\s*\d+|[가-힣]+동\s*모아타운', title):
+        sc += 1
+    # 제목에 정비사업 얘기가 아예 없으면(휴먼타운·국감 등) 내린다.
+    if not re.search(r'모아|신통|신속통합|재개발|정비|추진위|조합|가로주택', title):
+        sc -= 1.5
+    if _OUTSIDE.search(title):
+        sc -= 4
+    if _NOISE.search(title):
+        sc -= 2
+    if re.search(r'재건축|아파트', title) and not re.search(r'모아|신통|신속통합', title):
+        sc -= 1.5                                 # 아파트 재건축은 이 전략 밖
+    sc += min(item.get('also') or 0, 5) * 0.3     # 여러 매체가 받아쓴 큰 소식
+    return sc
+
+
+def slack_lines(fresh, limit=3):
     """슬랙에 넣을 줄 — «제목(원문 링크) + 요약 + 짧은 주소».
 
     【링크는 제목에 건다】 (2026-10-15)
@@ -308,19 +361,32 @@ def slack_lines(fresh, limit=10):
     요약은 기사 본문에서 «제목에 없는 사실»을 담은 문장 두 개다(summary).
     못 가져오면 제목만 보낸다 — 요약이 없다고 기사를 버리지 않는다.
     """
-    # «여러 매체가 받아쓴 것»을 위로 올린다.
-    # 큰 발표가 나면 그 하나를 20곳이 조금씩 다른 제목으로 쓴다. 제목이
-    # 제각각이라 중복 묶기가 다 못 잡고, 날짜순으로 자르면 그 한 사건의
-    # 아류 기사들이 열 자리를 전부 차지한다. also(받아쓴 곳 수)가 큰
-    # 대표 기사를 먼저 보내면, 같은 열 줄로 «서로 다른 사건»을 더 많이 본다.
-    fresh = sorted(fresh, key=lambda x: (-(x.get('also') or 0),
-                                         x['published_on'] or datetime.date.min),
-                   reverse=False)
-    lines = []
-    for i in fresh[:limit]:
-        # 「(+7곳)」은 붙이지 않는다 — 몇 곳이 받아썼는지는 읽는 사람에게
-        # 쓸모가 없었다. 순서(많이 받아쓴 것이 위)로만 쓴다.
+    # 제목만으로 1차 점수를 매겨 후보 8건만 본문을 읽고(요약 = 원문을 연다),
+    # 요약까지 넣어 다시 매겨 상위 limit 건을 보낸다.
+    cands = sorted(fresh, key=lambda x: -worth(x))[:8]
+    scored = []
+    for i in cands:
         gist = summary(i)
+        scored.append((worth(i, gist), i, gist))
+    scored.sort(key=lambda t: -t[0])
+    # 서로 «다른 소식»으로 채운다 — 같은 발표를 매체마다 다른 제목으로 써서
+    # 1·2위가 같은 얘기였다(10/15 모아통합기획 공모). 제목이 비슷하거나
+    # 따옴표 속 이름(‘모아통합기획’)이 같으면 같은 소식으로 본다.
+    picked = []
+    for t in scored:
+        _, i, _ = t
+        sh = _shingles(i['title'])
+        quoted = set(re.findall(r"[‘'\"“]([^’'\"”]{2,20})[’'\"”]", i['title']))
+        dup = any(_same(sh, _shingles(p[1]['title'])) >= 0.3 or
+                  (quoted & set(re.findall(r"[‘'\"“]([^’'\"”]{2,20})[’'\"”]",
+                                           p[1]['title'])))
+                  for p in picked)
+        if not dup:
+            picked.append(t)
+        if len(picked) >= limit:
+            break
+    lines = []
+    for _, i, gist in picked:
         # 제목에 기사 링크를 건다 — 슬랙에서 누르면 바로 원문.
         # (구글 주소는 원문으로 풀어 둔 것이 있으면 그걸 쓴다 — summary 가 채운다.)
         title = i['title'][:70].replace('&', '&amp;').replace('<', '&lt;') \
