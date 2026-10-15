@@ -212,6 +212,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                       onCover: _pickCover,
                       onEdit: (b) => _editBook(b),
                       onRenumber: _renumber,
+                      onMove: _move,
                     );
                   }),
 
@@ -248,6 +249,55 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
       if (branchBooks[i].sortOrder == want) continue;
       await sb.from('books').update({'sort_order': want})
           .eq('id', branchBooks[i].id);
+    }
+    ref.invalidate(booksProvider);
+  }
+
+  /// 드래그로 옮긴다 — [dragged]를 [toBranch] 줄기의 [before] 앞에(없으면 맨 끝).
+  /// 옮긴 줄기와 원래 줄기를 둘 다 1..N 으로 다시 매긴다(빈 번호·겹친 번호 없이).
+  Future<void> _move(Book dragged, Book? before, String toBranch) async {
+    if (before?.id == dragged.id) return;
+    int byOrder(Book a, Book b) => a.sortOrder != b.sortOrder
+        ? a.sortOrder.compareTo(b.sortOrder)
+        : a.title.compareTo(b.title);
+    final all = _siblings();
+    final target = all
+        .where((b) => b.branch == toBranch && b.id != dragged.id)
+        .toList()
+      ..sort(byOrder);
+    final at = before == null
+        ? target.length
+        : target.indexWhere((b) => b.id == before.id);
+    target.insert(at < 0 ? target.length : at, dragged);
+
+    final sb = ref.read(supabaseProvider);
+    try {
+      for (var i = 0; i < target.length; i++) {
+        final b = target[i];
+        final moved = b.id == dragged.id && b.branch != toBranch;
+        if (b.sortOrder == i + 1 && !moved) continue;
+        await sb.from('books').update({
+          'sort_order': i + 1,
+          if (moved) 'branch': toBranch,
+        }).eq('id', b.id);
+      }
+      // 다른 줄기로 옮겼으면 원래 줄기의 빈 번호를 메운다.
+      if (dragged.branch != toBranch) {
+        final rest = all
+            .where((b) => b.branch == dragged.branch && b.id != dragged.id)
+            .toList()
+          ..sort(byOrder);
+        for (var i = 0; i < rest.length; i++) {
+          if (rest[i].sortOrder == i + 1) continue;
+          await sb.from('books').update({'sort_order': i + 1})
+              .eq('id', rest[i].id);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('순서 저장 실패 — $e')));
+      }
     }
     ref.invalidate(booksProvider);
   }
@@ -403,6 +453,9 @@ class _BranchBlock extends StatelessWidget {
   /// 이 줄기의 번호를 순서대로 1..N 으로 다시 매긴다.
   final Future<void> Function(List<Book>) onRenumber;
 
+  /// 드래그로 옮긴다 — (끈 책, 이 책 앞에 / null 이면 맨 끝, 줄기).
+  final Future<void> Function(Book, Book?, String) onMove;
+
   const _BranchBlock({
     required this.branch,
     required this.books,
@@ -412,6 +465,7 @@ class _BranchBlock extends StatelessWidget {
     required this.onEdit,
     required this.branchAll,
     required this.onRenumber,
+    required this.onMove,
   });
 
   /// 번호가 «겹치는» 줄기인가. 겹칠 때만 정리 버튼을 띄운다.
@@ -494,24 +548,137 @@ class _BranchBlock extends StatelessWidget {
                           fontSize: AppFont.caption,
                           color: AppColors.textSecondary)),
                   const Gap(14),
-                  // 가지 — 책들
+                  // 가지 — 책들. 왼쪽 손잡이(⠿)를 끌어 다른 책 위에 놓으면
+                  // 그 앞으로 간다. 카드 전체를 끌게 하면 폰에서 스크롤과 싸운다.
                   for (final b in books)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _BookCard(
-                        book: b,
-                        color: branch.color,
-                        onCycle: () => onCycle(b),
-                        onCover: () => onCover(b),
-                        onEdit: () => onEdit(b),
+                    DragTarget<Book>(
+                      onWillAcceptWithDetails: (d) => d.data.id != b.id,
+                      onAcceptWithDetails: (d) => onMove(d.data, b, branch.key),
+                      builder: (context, cand, _) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (cand.isNotEmpty) _DropLine(color: branch.color),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _DragHandle(book: b, color: branch.color),
+                                Expanded(
+                                  child: _BookCard(
+                                    book: b,
+                                    color: branch.color,
+                                    onCycle: () => onCycle(b),
+                                    onCover: () => onCover(b),
+                                    onEdit: () => onEdit(b),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  // 줄기 맨 끝 — 여기에 놓으면 마지막으로(빈 줄기로 옮길 때도).
+                  DragTarget<Book>(
+                    onAcceptWithDetails: (d) => onMove(d.data, null, branch.key),
+                    builder: (context, cand, _) => cand.isEmpty
+                        ? const SizedBox(height: 6)
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: _DropLine(
+                                color: branch.color, label: '${branch.label} 맨 끝으로'),
+                          ),
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 끌어서 옮기는 손잡이. 끄는 동안 책 제목이 손을 따라온다.
+class _DragHandle extends StatelessWidget {
+  final Book book;
+  final Color color;
+  const _DragHandle({required this.book, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = Padding(
+      padding: const EdgeInsets.fromLTRB(0, 14, 4, 0),
+      child: Icon(Icons.drag_indicator_rounded,
+          size: 20, color: AppColors.textFaint.withValues(alpha: 0.8)),
+    );
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Draggable<Book>(
+        data: book,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 280),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Text(book.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.3, child: handle),
+        child: handle,
+      ),
+    );
+  }
+}
+
+/// 놓을 자리 표시 — 끈 책이 이 줄 자리로 들어간다.
+class _DropLine extends StatelessWidget {
+  final Color color;
+  final String? label;
+  const _DropLine({required this.color, this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        Expanded(
+          child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        if (label != null) ...[
+          const Gap(8),
+          Text(label!,
+              style: TextStyle(
+                  fontSize: AppFont.micro,
+                  fontWeight: FontWeight.w800,
+                  color: color)),
+        ],
+      ]),
     );
   }
 }
