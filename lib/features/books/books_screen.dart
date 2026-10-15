@@ -257,18 +257,32 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
   /// 옮긴 줄기와 원래 줄기를 둘 다 1..N 으로 다시 매긴다(빈 번호·겹친 번호 없이).
   Future<void> _move(Book dragged, Book? before, String toBranch) async {
     if (before?.id == dragged.id) return;
-    int byOrder(Book a, Book b) => a.sortOrder != b.sortOrder
-        ? a.sortOrder.compareTo(b.sortOrder)
-        : a.title.compareTo(b.title);
+    final others = _siblings()
+        .where((b) => b.branch == toBranch && b.id != dragged.id)
+        .toList()
+      ..sort(_byOrder);
+    final at = before == null
+        ? others.length
+        : others.indexWhere((b) => b.id == before.id);
+    await _placeAt(dragged, toBranch, at < 0 ? others.length : at);
+  }
+
+  static int _byOrder(Book a, Book b) => a.sortOrder != b.sortOrder
+      ? a.sortOrder.compareTo(b.sortOrder)
+      : a.title.compareTo(b.title);
+
+  /// [book]을 [toBranch] 줄기의 [index] 자리(0부터)에 끼워 넣고, 그 줄기와
+  /// 원래 줄기를 1..N 으로 다시 매긴다. 드래그·수정 창·새 책 추가가 같이 쓴다.
+  ///
+  /// 수정 창에서 「순서」를 3 으로 바꾸면 그 책만 3 이 되고 원래 3 번 책은
+  /// 그대로라 번호가 겹쳤다(10/15) — 이제는 원래 3 번부터 한 칸씩 밀린다.
+  Future<void> _placeAt(Book dragged, String toBranch, int index) async {
     final all = _siblings();
     final target = all
         .where((b) => b.branch == toBranch && b.id != dragged.id)
         .toList()
-      ..sort(byOrder);
-    final at = before == null
-        ? target.length
-        : target.indexWhere((b) => b.id == before.id);
-    target.insert(at < 0 ? target.length : at, dragged);
+      ..sort(_byOrder);
+    target.insert(index.clamp(0, target.length), dragged);
 
     final sb = ref.read(supabaseProvider);
     try {
@@ -286,7 +300,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
         final rest = all
             .where((b) => b.branch == dragged.branch && b.id != dragged.id)
             .toList()
-          ..sort(byOrder);
+          ..sort(_byOrder);
         for (var i = 0; i < rest.length; i++) {
           if (rest[i].sortOrder == i + 1) continue;
           await sb.from('books').update({'sort_order': i + 1})
@@ -309,12 +323,14 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     );
     if (res == null) return;
     final sb = ref.read(supabaseProvider);
-    await sb.from('books').insert({
+    final row = await sb.from('books').insert({
       ...res,
       'user_id': sb.auth.currentUser!.id,
       'category': _category,
-    });
-    ref.invalidate(booksProvider);
+    }).select().single();
+    // 고른 번호 자리에 끼워 넣는다 — 그 번호의 책부터 한 칸씩 민다.
+    final order = (res['sort_order'] as int?) ?? 1;
+    await _placeAt(Book.fromMap(row), res['branch'] as String, order - 1);
   }
 
   Future<void> _editBook(Book b) async {
@@ -328,7 +344,13 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
       ref.invalidate(booksProvider);
       return;
     }
+    // 순서·줄기는 따로 — 그 자리에 끼워 넣고 나머지를 민다(번호가 겹치지 않게).
+    final order = res.remove('sort_order') as int?;
+    final branch = (res.remove('branch') as String?) ?? b.branch;
     await _save(b, res);
+    if (order != b.sortOrder || branch != b.branch) {
+      await _placeAt(b, branch, (order ?? b.sortOrder) - 1);
+    }
   }
 }
 
