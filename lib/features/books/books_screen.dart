@@ -66,6 +66,79 @@ class BooksScreen extends ConsumerStatefulWidget {
 class _BooksScreenState extends ConsumerState<BooksScreen> {
   String _category = '부동산';
   bool _todoOnly = false;
+
+  /// 드래그 직후 화면에 «먼저» 보여줄 자리(id → 줄기·번호). 저장하고 목록을
+  /// 다시 받아오기까지 길게는 1분이 걸려(표지 포함 10MB+), 놓아도 그대로라
+  /// «드래그가 안 된다»처럼 보였다(10/15). 다시 받아오면 비운다.
+  final Map<String, (String, int)> _pending = {};
+
+  /// 오래된 큰 표지를 줄이는 작업 — 화면을 열 때 한 번만.
+  bool _shrinkStarted = false;
+
+  Book _with(Book b, String branch, int order) => Book(
+        id: b.id,
+        category: b.category,
+        branch: branch,
+        sortOrder: order,
+        title: b.title,
+        author: b.author,
+        level: b.level,
+        tags: b.tags,
+        cover: b.cover,
+        link: b.link,
+        status: b.status,
+        startedOn: b.startedOn,
+        readOn: b.readOn,
+        rating: b.rating,
+        memo: b.memo,
+        why: b.why,
+        reads: b.reads,
+      );
+
+  List<Book> _applyPending(List<Book> all) => _pending.isEmpty
+      ? all
+      : [
+          for (final b in all)
+            if (_pending[b.id] case (final br, final o)) _with(b, br, o) else b
+        ];
+
+  /// 표지 줄이기 — 높이 360px · JPEG. 카드 표지는 82px 높이라 화면 차이는 없고,
+  /// 1.5MB 넘던 표지가 30KB 안팎이 된다. 이미 작으면 그대로.
+  Future<String> _shrink(String dataUrl) async {
+    if (dataUrl.length < 150000) return dataUrl;
+    final img = html.ImageElement();
+    final loaded = img.onLoad.first;
+    img.src = dataUrl;
+    await loaded;
+    final w = img.naturalWidth, h = img.naturalHeight;
+    if (w == 0 || h == 0) return dataUrl;
+    final scale = h > 360 ? 360 / h : 1.0;
+    final c = html.CanvasElement(
+        width: (w * scale).round(), height: (h * scale).round());
+    c.context2D.drawImageScaled(img, 0, 0, c.width!, c.height!);
+    final out = c.toDataUrl('image/jpeg', 0.82);
+    return out.length < dataUrl.length ? out : dataUrl;
+  }
+
+  /// 이미 올린 큰 표지를 한 번 줄여 다시 저장한다 — 책 화면이 느리던 원인.
+  Future<void> _shrinkOld(List<Book> all) async {
+    if (_shrinkStarted) return;
+    _shrinkStarted = true;
+    final big = all.where((b) => (b.cover?.length ?? 0) >= 150000).toList();
+    if (big.isEmpty) return;
+    final sb = ref.read(supabaseProvider);
+    var done = 0;
+    for (final b in big) {
+      try {
+        final small = await _shrink(b.cover!);
+        if (small.length < b.cover!.length) {
+          await sb.from('books').update({'cover': small}).eq('id', b.id);
+          done++;
+        }
+      } catch (_) {}
+    }
+    if (done > 0) ref.invalidate(booksProvider);
+  }
   bool _calendar = false; // 나무 ↔ 달력
 
   Future<void> _save(Book b, Map<String, dynamic> patch) async {
@@ -112,7 +185,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     if (files == null || files.isEmpty) return;
     final reader = html.FileReader()..readAsDataUrl(files.first);
     await reader.onLoad.first;
-    await _save(b, {'cover': reader.result as String});
+    await _save(b, {'cover': await _shrink(reader.result as String)});
   }
 
   @override
@@ -140,8 +213,14 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                     'scripts/seed_books.py 를 돌리거나 ＋로 추가하세요.',
               );
             }
+            if (!_shrinkStarted) {
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _shrinkOld(all));
+            }
             final cats = {for (final b in all) b.category}.toList()..sort();
-            final books = all.where((b) => b.category == _category).toList();
+            final books = _applyPending(all)
+                .where((b) => b.category == _category)
+                .toList();
             final done = books.where((b) => b.isDone).length;
 
             return Column(
@@ -236,7 +315,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
 
   /// 지금 카테고리의 책들 — 새 책 번호를 «마지막 다음»으로 매기는 데 쓴다.
   List<Book> _siblings() =>
-      (ref.read(booksProvider).value ?? const <Book>[])
+      _applyPending(ref.read(booksProvider).value ?? const <Book>[])
           .where((b) => b.category == _category)
           .toList();
 
@@ -283,6 +362,22 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
         .toList()
       ..sort(_byOrder);
     target.insert(index.clamp(0, target.length), dragged);
+    final rest = dragged.branch == toBranch
+        ? <Book>[]
+        : (all
+            .where((b) => b.branch == dragged.branch && b.id != dragged.id)
+            .toList()
+          ..sort(_byOrder));
+
+    // 화면부터 바꾼다 — 저장은 뒤에서.
+    setState(() {
+      for (var i = 0; i < target.length; i++) {
+        _pending[target[i].id] = (toBranch, i + 1);
+      }
+      for (var i = 0; i < rest.length; i++) {
+        _pending[rest[i].id] = (dragged.branch, i + 1);
+      }
+    });
 
     final sb = ref.read(supabaseProvider);
     try {
@@ -296,11 +391,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
         }).eq('id', b.id);
       }
       // 다른 줄기로 옮겼으면 원래 줄기의 빈 번호를 메운다.
-      if (dragged.branch != toBranch) {
-        final rest = all
-            .where((b) => b.branch == dragged.branch && b.id != dragged.id)
-            .toList()
-          ..sort(_byOrder);
+      if (rest.isNotEmpty) {
         for (var i = 0; i < rest.length; i++) {
           if (rest[i].sortOrder == i + 1) continue;
           await sb.from('books').update({'sort_order': i + 1})
@@ -314,6 +405,11 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
       }
     }
     ref.invalidate(booksProvider);
+    // 다시 받아온 목록이 들어오면 «먼저 보여준 자리»를 거둔다.
+    try {
+      await ref.read(booksProvider.future);
+    } catch (_) {}
+    if (mounted) setState(_pending.clear);
   }
 
   Future<void> _addBook() async {
