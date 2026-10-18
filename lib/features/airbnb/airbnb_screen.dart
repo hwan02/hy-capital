@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -235,6 +236,15 @@ class _UnitMonthly extends ConsumerWidget {
   final String unitId;
   const _UnitMonthly({required this.unitId});
 
+  /// 「157.4만」 — 이번 달 세 숫자는 소수 첫째 자리까지. Won.compact 는 100만
+  /// 이상을 정수로 반올림해서 비용 157.4만·순이익 156.5만이 둘 다 「157만」으로
+  /// 보여 «고장 난 것처럼» 보였다(10/19).
+  static String _man(double v) {
+    if (v.abs() < 10000) return Won.compact(v);
+    final s = (v / 10000).toStringAsFixed(1);
+    return '${s.endsWith('.0') ? s.substring(0, s.length - 2) : s}만';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(airbnbMonthlyProvider(unitId));
@@ -244,9 +254,6 @@ class _UnitMonthly extends ConsumerWidget {
       data: (months) {
         if (months.isEmpty) return const SizedBox.shrink();
         final recent = months.length > 6 ? months.sublist(months.length - 6) : months;
-        final maxAbs = recent
-            .map((m) => m.netProfit.abs())
-            .fold(1.0, (a, b) => a > b ? a : b);
         // "이번 달" 은 실제 현재 달 기준 (내역 없으면 0).
         final now = DateTime.now();
         AirbnbMonthly? cur;
@@ -256,15 +263,20 @@ class _UnitMonthly extends ConsumerWidget {
         final curRev = cur?.revenue ?? 0;
         final curCost = cur?.totalCost ?? 0;
         final curNet = cur?.netProfit ?? 0;
+        final margin = curRev > 0 ? curNet / curRev * 100 : 0.0;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _m('이번 달 매출', Won.compact(curRev), AppColors.gold),
-                _m('이번 달 비용', Won.compact(curCost), AppColors.rose),
-                _m('이번 달 순이익', Won.compact(curNet),
-                    curNet >= 0 ? AppColors.primary : AppColors.rose),
+                _m('이번 달 매출', _man(curRev), AppColors.gold,
+                    cur == null ? null : '${cur.bookings}건 · ${cur.nights.toStringAsFixed(0)}박'),
+                _m('이번 달 비용', _man(curCost), AppColors.rose,
+                    curRev > 0 ? '매출의 ${(curCost / curRev * 100).toStringAsFixed(0)}%' : null),
+                _m('이번 달 순이익', _man(curNet),
+                    curNet >= 0 ? AppColors.primary : AppColors.rose,
+                    curRev > 0 ? '순이익률 ${margin.toStringAsFixed(0)}%' : null),
               ],
             ),
             if (cur == null) ...[
@@ -276,59 +288,23 @@ class _UnitMonthly extends ConsumerWidget {
             const Gap(16),
             const Divider(color: AppColors.border, height: 1),
             const Gap(14),
-            const Text('월별 순이익',
-                style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-            const Gap(14),
-            SizedBox(
-              height: 116,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final m in recent)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('${Won.compact(m.netProfit)}원',
-                                style: TextStyle(
-                                    color: m.netProfit >= 0
-                                        ? AppColors.primary
-                                        : AppColors.rose,
-                                    fontSize: AppFont.label,
-                                    fontWeight: FontWeight.w800)),
-                            const Gap(6),
-                            Container(
-                              height: (m.netProfit.abs() / maxAbs * 66)
-                                  .clamp(6, 66),
-                              decoration: BoxDecoration(
-                                color: m.netProfit >= 0
-                                    ? AppColors.primary
-                                    : AppColors.rose,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                            ),
-                            const Gap(7),
-                            Text(Dates.ym(m.month),
-                                style: const TextStyle(
-                                    color: AppColors.textFaint,
-                                    fontSize: AppFont.caption)),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            Row(children: [
+              const Text('월별 순이익',
+                  style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text('평균 ${_man(recent.fold(0.0, (s, m) => s + m.netProfit) / recent.length)}원',
+                  style: const TextStyle(
+                      fontSize: AppFont.caption, color: AppColors.textFaint)),
+            ]),
+            const Gap(10),
+            _NetChart(months: recent, now: now),
           ],
         );
       },
     );
   }
 
-  Widget _m(String label, String won, Color color) => Expanded(
+  Widget _m(String label, String won, Color color, String? sub) => Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -339,7 +315,175 @@ class _UnitMonthly extends ConsumerWidget {
             Text('$won원',
                 style: TextStyle(
                     fontSize: AppFont.section, fontWeight: FontWeight.w800, color: color)),
+            if (sub != null) ...[
+              const Gap(2),
+              Text(sub,
+                  style: const TextStyle(
+                      color: AppColors.textFaint, fontSize: AppFont.micro)),
+            ],
           ],
         ),
       );
+}
+
+/// 월별 순이익 막대.
+///
+/// 전엔 손실 달(-64만)도 같은 바닥에서 위로 솟은 빨간 막대라 «손실»처럼 안
+/// 보였고, 막대가 넓적한 상자뿐이라 밋밋했다(10/19). 0 기준선 위·아래로 갈라
+/// 그리고, 이번 달만 진하게, 평균은 점선, 마우스를 올리면 그 달 숫자를 띄운다.
+class _NetChart extends StatelessWidget {
+  final List<AirbnbMonthly> months;
+  final DateTime now;
+  const _NetChart({required this.months, required this.now});
+
+  static String _man(double v) => _UnitMonthly._man(v);
+
+  @override
+  Widget build(BuildContext context) {
+    final vals = [for (final m in months) m.netProfit];
+    final hi = vals.fold(0.0, (a, b) => b > a ? b : a);
+    final lo = vals.fold(0.0, (a, b) => b < a ? b : a);
+    final span = (hi - lo) == 0 ? 1.0 : hi - lo;
+    final avg = vals.fold(0.0, (a, b) => a + b) / vals.length;
+    bool isNow(AirbnbMonthly m) =>
+        m.month.year == now.year && m.month.month == now.month;
+
+    return SizedBox(
+      height: 190,
+      child: BarChart(
+        BarChartData(
+          maxY: hi + span * 0.22,
+          minY: lo < 0 ? lo - span * 0.12 : 0,
+          alignment: BarChartAlignment.spaceAround,
+          gridData: FlGridData(
+            drawVerticalLine: false,
+            horizontalInterval: span / 3,
+            getDrawingHorizontalLine: (_) => FlLine(
+                color: AppColors.border.withValues(alpha: 0.5),
+                strokeWidth: 1,
+                dashArray: [3, 4]),
+          ),
+          borderData: FlBorderData(show: false),
+          extraLinesData: ExtraLinesData(horizontalLines: [
+            HorizontalLine(
+                y: 0, color: AppColors.textFaint.withValues(alpha: 0.6), strokeWidth: 1),
+            HorizontalLine(
+              y: avg,
+              color: AppColors.gold.withValues(alpha: 0.7),
+              strokeWidth: 1.2,
+              dashArray: [5, 4],
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.topRight,
+                padding: const EdgeInsets.only(right: 2, bottom: 2),
+                style: const TextStyle(
+                    color: AppColors.gold,
+                    fontSize: AppFont.micro,
+                    fontWeight: FontWeight.w700),
+                labelResolver: (_) => '평균',
+              ),
+            ),
+          ]),
+          titlesData: FlTitlesData(
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 22,
+                getTitlesWidget: (v, meta) {
+                  final m = months[v.toInt()];
+                  return SideTitleWidget(
+                    meta: meta,
+                    space: 2,
+                    child: Text(_man(m.netProfit),
+                        style: TextStyle(
+                            fontSize: AppFont.micro,
+                            fontWeight: FontWeight.w800,
+                            color: (m.netProfit >= 0 ? AppColors.primary : AppColors.rose)
+                                .withValues(alpha: isNow(m) ? 1 : 0.75))),
+                  );
+                },
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 24,
+                getTitlesWidget: (v, meta) {
+                  final m = months[v.toInt()];
+                  return SideTitleWidget(
+                    meta: meta,
+                    space: 6,
+                    child: Text(
+                        isNow(m) ? '${m.month.month}월' : Dates.ym(m.month),
+                        style: TextStyle(
+                            fontSize: AppFont.micro,
+                            fontWeight: isNow(m) ? FontWeight.w800 : FontWeight.w500,
+                            color: isNow(m) ? AppColors.textPrimary : AppColors.textFaint)),
+                  );
+                },
+              ),
+            ),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipColor: (_) => AppColors.surfaceAlt,
+              tooltipBorderRadius: BorderRadius.circular(8),
+              tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final m = months[group.x];
+                return BarTooltipItem(
+                  '${Dates.ym(m.month)}\n',
+                  const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFont.micro,
+                      fontWeight: FontWeight.w600),
+                  children: [
+                    TextSpan(
+                        text: '순이익 ${_man(m.netProfit)}원\n',
+                        style: TextStyle(
+                            color: m.netProfit >= 0 ? AppColors.primary : AppColors.rose,
+                            fontSize: AppFont.caption,
+                            fontWeight: FontWeight.w800)),
+                    TextSpan(
+                        text: '매출 ${_man(m.revenue)} · 비용 ${_man(m.totalCost)}',
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: AppFont.micro)),
+                  ],
+                );
+              },
+            ),
+          ),
+          barGroups: [
+            for (var i = 0; i < months.length; i++)
+              () {
+                final m = months[i];
+                final pos = m.netProfit >= 0;
+                final base = pos ? AppColors.primary : AppColors.rose;
+                final strong = isNow(m);
+                return BarChartGroupData(x: i, barRods: [
+                  BarChartRodData(
+                    fromY: 0,
+                    toY: m.netProfit,
+                    width: 26,
+                    borderRadius: pos
+                        ? const BorderRadius.vertical(top: Radius.circular(7))
+                        : const BorderRadius.vertical(bottom: Radius.circular(7)),
+                    gradient: LinearGradient(
+                      begin: pos ? Alignment.bottomCenter : Alignment.topCenter,
+                      end: pos ? Alignment.topCenter : Alignment.bottomCenter,
+                      colors: [
+                        base.withValues(alpha: strong ? 0.45 : 0.18),
+                        base.withValues(alpha: strong ? 1 : 0.55),
+                      ],
+                    ),
+                  ),
+                ]);
+              }(),
+          ],
+        ),
+      ),
+    );
+  }
 }
