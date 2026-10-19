@@ -1,11 +1,11 @@
 // 에비 «월별 손익» 그래프 — 호점 카드와 호점 상세가 같이 쓴다.
 //
-// 순이익 막대 하나만 있을 땐 «그 달에 무슨 일이 있었나»가 안 보였고,
-// 막대가 가늘고 밋밋해 눈에 안 들어왔다(2026-10-19).
-//   · 막대 전체 높이 = 매출. 안을 «아래 비용 / 위 순이익»으로 나눈다 —
+// 알록달록한 누적 막대(분홍·노랑·민트 + 배지 + 테두리)는 «안 이쁘다»는
+// 말을 세 번 들었다. 시안 셋 중 사용자가 고른 B안(2026-10-19):
+//   · 회색 막대 = 매출. 그 안을 아래부터 순이익만큼 채운다 —
 //     매출 중 얼마가 남았는지가 한눈에 보인다.
-//   · 적자 달은 비용이 매출을 넘는다 — 넘친 만큼을 진한 빨강으로 얹는다.
-//   · 막대 위 배지 = 순이익. 이번 달(또는 고른 달)만 밝게, 나머지는 옅게.
+//   · 이번 달(또는 고른 달)만 초록, 나머지는 회색. 적자 달은 숫자만 빨강.
+//   · 숫자는 배지 없이 막대 위 글자로.
 //   · 마우스를 올리면 매출·비용·순이익·순이익률, 누르면 그 달로(상세 화면).
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -14,22 +14,16 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
-// 밝은 원색 팔레트 — 어두운 배경에 반투명 빨강·초록을 깔았더니 막대가
-// 탁한 갈색·검붉은색으로 보여 «너무 어둡다»는 말을 들었다(10/19).
-// 모두 불투명 그라데이션으로 칠한다.
-const _profitTop = Color(0xFF6EE7B7); // 민트
-const _profitBot = Color(0xFF22C55E);
-const _costTop = Color(0xFFFDA4AF); // 코랄 핑크
-const _costBot = Color(0xFFFB7185);
-const _lossRevTop = Color(0xFFFDE68A); // 적자 달의 매출 — 밝은 노랑
-const _lossRevBot = Color(0xFFFBBF24);
-const _lossTop = Color(0xFFFCA5A5); // 넘친 비용 — 밝은 빨강
-const _lossBot = Color(0xFFEF4444);
+const _revenue = Color(0xFF2B3446); // 매출 — 카드 바탕보다 한 톤 밝은 회색
+const _revenueNow = Color(0xFF1E3B36); // 이번 달 매출 — 초록 기운
+const _profit = Color(0xFF5B667E); // 지난 달 순이익 — 회색
+const _profitNow = Color(0xFF34D399); // 이번 달 순이익 — 초록
+const _loss = Color(0xFFF87171);
 
 class AirbnbMonthChart extends StatelessWidget {
   final List<AirbnbMonthly> months;
 
-  /// 밝게 보일 달 — 보통 이번 달, 상세 화면에서는 고른 달.
+  /// 초록으로 보일 달 — 보통 이번 달, 상세 화면에서는 고른 달.
   final DateTime? highlight;
 
   /// 막대를 누르면 — 상세 화면에서 그 달로 이동.
@@ -60,38 +54,25 @@ class AirbnbMonthChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (months.isEmpty) return const SizedBox.shrink();
-    // 막대 높이의 기준 — 매출과 비용 중 큰 쪽(적자 달은 비용이 더 크다).
-    final top = months.fold<double>(
-        1, (a, m) => [a, m.revenue, m.totalCost].reduce((x, y) => x > y ? x : y));
+    final top = months.fold<double>(1, (a, m) => m.revenue > a ? m.revenue : a);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 범례
         Wrap(spacing: 14, runSpacing: 4, children: [
-          _legend(_profitBot, '순이익'),
-          _legend(_costBot, '비용'),
-          const Text('막대 높이 = 매출',
-              style: TextStyle(fontSize: AppFont.micro, color: AppColors.textFaint)),
+          _legend(_revenue, '매출'),
+          _legend(_profitNow, '순이익'),
         ]),
-        const Gap(12),
-        // 한 톤 밝은 판 — 막대가 바탕에 묻히지 않게 띄운다.
-        Container(
-          height: barAreaHeight + 76,
-          padding: const EdgeInsets.fromLTRB(6, 10, 6, 2),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.045),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          ),
+        const Gap(14),
+        SizedBox(
+          height: barAreaHeight + 52,
           child: Stack(children: [
-            // 바닥선 — 막대가 서 있는 땅.
+            // 바닥선
             Positioned(
               left: 0,
               right: 0,
-              bottom: 30,
-              child: Container(
-                  height: 1, color: Colors.white.withValues(alpha: 0.18)),
+              bottom: 24,
+              child: Container(height: 1, color: AppColors.border),
             ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -116,69 +97,39 @@ class AirbnbMonthChart extends StatelessWidget {
         Text(label,
             style: const TextStyle(
                 fontSize: AppFont.micro,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary)),
       ]);
 
   Widget _column(BuildContext context, AirbnbMonthly m, double top) {
     final loss = m.netProfit < 0;
-    final h = barAreaHeight;
-    // 정상 달: 비용(아래) + 순이익(위) = 매출. 적자 달: 매출(아래) + 넘친 비용(위).
-    final lowH = (loss ? m.revenue : m.totalCost) / top * h;
-    final upH = (loss ? -m.netProfit : m.netProfit) / top * h;
-    final margin = m.revenue > 0 ? m.netProfit / m.revenue * 100 : 0.0;
-    final netColor = loss ? _lossBot : _profitBot;
     final now = _hi(m);
+    final h = barAreaHeight;
+    final revH = (m.revenue / top * h).clamp(4.0, h);
+    final profH = loss ? 0.0 : (m.netProfit / top * h).clamp(0.0, revH);
+    final margin = m.revenue > 0 ? m.netProfit / m.revenue * 100 : 0.0;
+    const radius = BorderRadius.vertical(top: Radius.circular(6));
 
     final bar = LayoutBuilder(builder: (context, c) {
-      final w = (c.maxWidth * 0.62).clamp(16.0, 56.0);
+      final w = (c.maxWidth * 0.56).clamp(14.0, 40.0);
       return Center(
         child: Container(
           width: w,
-          // 이번 달 — 흐리게 하는 대신 흰 테두리와 은은한 빛으로 짚는다.
+          height: revH,
+          alignment: Alignment.bottomCenter,
           decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-            border: now ? Border.all(color: Colors.white, width: 2) : null,
-            boxShadow: now
-                ? [
-                    BoxShadow(
-                        color: netColor.withValues(alpha: 0.45),
-                        blurRadius: 18,
-                        spreadRadius: 1),
-                  ]
-                : null,
+            color: now ? _revenueNow : _revenue,
+            borderRadius: radius,
           ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              // 위 — 순이익(초록) 또는 넘친 비용(빨강)
-              Container(
-                height: upH.clamp(loss ? 3.0 : 0.0, h),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: loss ? const [_lossTop, _lossBot]
-                        : const [_profitTop, _profitBot],
+          child: profH <= 0
+              ? null
+              : Container(
+                  height: profH,
+                  decoration: BoxDecoration(
+                    color: now ? _profitNow : _profit,
+                    borderRadius: profH >= revH - 1 ? radius : BorderRadius.zero,
                   ),
                 ),
-              ),
-              // 비용·순이익 경계 — 두 칸이 뭉개지지 않게.
-              Container(height: 2, color: Colors.white.withValues(alpha: 0.85)),
-              // 아래 — 비용(분홍) 또는 적자 달의 매출(금색)
-              Container(
-                height: (lowH - 2).clamp(0.0, h),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: loss ? const [_lossRevTop, _lossRevBot]
-                        : const [_costTop, _costBot],
-                  ),
-                ),
-              ),
-            ]),
-          ),
         ),
       );
     });
@@ -186,30 +137,26 @@ class AirbnbMonthChart extends StatelessWidget {
     final col = Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // 순이익 배지
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: now ? netColor : netColor.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text('${loss ? '' : '+'}${man(m.netProfit)}',
-                style: TextStyle(
-                    fontSize: AppFont.micro,
-                    fontWeight: FontWeight.w900,
-                    color: now ? Colors.white : (loss ? _lossTop : _profitTop))),
-          ),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(man(m.netProfit),
+              style: TextStyle(
+                  fontSize: now ? AppFont.caption : AppFont.micro,
+                  fontWeight: now ? FontWeight.w800 : FontWeight.w600,
+                  color: loss
+                      ? _loss
+                      : now
+                          ? _profitNow
+                          : AppColors.textSecondary)),
         ),
         const Gap(6),
         bar,
         const Gap(8),
         Text('${m.month.month}월',
             style: TextStyle(
-                fontSize: AppFont.label,
-                fontWeight: _hi(m) ? FontWeight.w900 : FontWeight.w600,
-                color: _hi(m) ? AppColors.textPrimary : AppColors.textSecondary)),
+                fontSize: AppFont.micro,
+                fontWeight: now ? FontWeight.w800 : FontWeight.w500,
+                color: now ? AppColors.textPrimary : AppColors.textFaint)),
       ],
     );
 
@@ -219,13 +166,7 @@ class AirbnbMonthChart extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: netColor.withValues(alpha: 0.6)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
-        ],
+        border: Border.all(color: AppColors.border),
       ),
       textStyle: const TextStyle(
           color: AppColors.textPrimary,
