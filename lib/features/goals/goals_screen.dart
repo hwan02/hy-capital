@@ -12,7 +12,8 @@ import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../plan/plan_roadmap.dart';
 
-Map<String, dynamic> _goalToMap(Goal g) => {
+/// 목표 → 수정 창 초기값. 대시보드 목표 카드도 같이 쓴다.
+Map<String, dynamic> goalToMap(Goal g) => {
       'title': g.title,
       'unit': g.unit,
       'target_value': g.targetValue,
@@ -103,7 +104,7 @@ class GoalsScreen extends ConsumerWidget {
                   _GoalCard(
                     goal: g,
                     onEdit: () => editBuiltinRecord(context, ref, goalsSpec,
-                        initial: _goalToMap(g), id: g.id),
+                        initial: goalToMap(g), id: g.id),
                     onDelete: () => deleteBuiltinRecord(
                         context, ref, goalsSpec, g.id,
                         name: g.title),
