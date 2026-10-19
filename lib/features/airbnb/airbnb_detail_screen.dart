@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
+import 'airbnb_month_chart.dart';
 import '../../core/data/data_providers.dart';
 import '../../core/edit/builtin_crud.dart';
 import '../../core/edit/field_spec.dart';
@@ -340,68 +341,19 @@ class _MonthlyBars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final recent = months.length > 10 ? months.sublist(months.length - 10) : months;
-    final maxAbs =
-        recent.map((m) => m.netProfit.abs()).fold(1.0, (a, b) => a > b ? a : b);
+    final recent = months.length > 8 ? months.sublist(months.length - 8) : months;
+    final now = DateTime.now();
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader('월별 순이익', subtitle: '월을 눌러 상세 보기'),
-          const Gap(16),
-          SizedBox(
-            height: 138,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final m in recent)
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => onTap(m.month),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text('${Won.compact(m.netProfit)}원',
-                                  style: TextStyle(
-                                      color: m.netProfit >= 0
-                                          ? AppColors.primary
-                                          : AppColors.rose,
-                                      fontSize: AppFont.label,
-                                      fontWeight: FontWeight.w800)),
-                            ),
-                            const Gap(6),
-                            Container(
-                              height: (m.netProfit.abs() / maxAbs * 66).clamp(4, 66),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: m.netProfit >= 0
-                                      ? const [AppColors.primary, Color(0xFF15803D)]
-                                      : const [AppColors.rose, Color(0xFF9F1239)],
-                                ),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                            ),
-                            const Gap(7),
-                            Text(Dates.ym(m.month),
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: AppFont.caption,
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          const SectionHeader('월별 손익', subtitle: '막대를 누르면 그 달 상세'),
+          const Gap(14),
+          AirbnbMonthChart(
+            months: recent,
+            highlight: DateTime(now.year, now.month),
+            onTap: onTap,
+            barAreaHeight: 170,
           ),
         ],
       ),
