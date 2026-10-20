@@ -2,10 +2,10 @@
 //
 // 알록달록한 누적 막대(분홍·노랑·민트 + 배지 + 테두리)는 «안 이쁘다»는
 // 말을 세 번 들었다. 시안 셋 중 사용자가 고른 B안(2026-10-19):
-//   · 회색 막대 = 매출. 그 안을 아래부터 순이익만큼 채운다 —
+//   · 막대 = 매출. 그 안을 아래부터 순이익만큼 채운다 —
 //     매출 중 얼마가 남았는지가 한눈에 보인다.
-//   · 모든 달 같은 초록. 이번 달은 글자만 굵게. 적자 달은 막대·숫자를 붉게.
-//   · 막대 위에 매출(흰 글자)·순이익(초록) 두 줄, 배지 없이.
+//   · 모든 달 같은 색. 이번 달은 글자만 굵게. 적자 달은 숫자만 붉게.
+//   · 막대 위에 매출(하늘색)·순이익(초록) 두 줄, 배지 없이.
 //   · 마우스를 올리면 매출·비용·순이익·순이익률, 누르면 그 달로(상세 화면).
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
@@ -14,10 +14,10 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
-// 처음엔 이번 달만 초록, 나머지는 회색이었다 — «10월 빼고 왜 검은색이냐»(10/20).
-// 모든 달을 같은 색으로 칠하고, 이번 달은 글자(굵기·크기)로만 짚는다.
-const _revenue = Color(0xFF24483F); // 매출 — 초록 기운의 옅은 판
-const _revenueLoss = Color(0xFF4A2B33); // 적자 달 매출 — 붉은 기운
+// 처음엔 이번 달만 초록, 나머지는 회색이었다 — «10월 빼고 왜 검은색이냐»,
+// 짙은 녹색 판은 «칙칙하다»(10/20). 매출은 밝은 하늘색, 순이익은 밝은 초록으로
+// 모든 달을 같은 색으로 칠하고, 이번 달은 글자(굵기)로만 짚는다.
+const _revenue = Color(0xFF7DD3FC); // 매출 — 하늘색
 const _profit = Color(0xFF34D399); // 순이익 — 초록
 const _loss = Color(0xFFF87171);
 
@@ -119,7 +119,7 @@ class AirbnbMonthChart extends StatelessWidget {
           height: revH,
           alignment: Alignment.bottomCenter,
           decoration: BoxDecoration(
-            color: loss ? _revenueLoss : _revenue,
+            color: _revenue,
             borderRadius: radius,
           ),
           child: profH <= 0
@@ -138,14 +138,14 @@ class AirbnbMonthChart extends StatelessWidget {
     final col = Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // 매출(위, 흰 글자)과 순이익(아래, 초록) — 둘 다 막대 위에 숫자로.
+        // 매출(위, 하늘색)과 순이익(아래, 초록) — 둘 다 막대 위에 숫자로.
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(man(m.revenue),
               style: TextStyle(
                   fontSize: AppFont.micro,
                   fontWeight: now ? FontWeight.w800 : FontWeight.w600,
-                  color: AppColors.textPrimary)),
+                  color: _revenue)),
         ),
         const Gap(1),
         FittedBox(
