@@ -673,9 +673,11 @@ class _NextGoalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goals = ref.watch(goalsProvider).asData?.value ?? [];
-    final active = goals.where((g) => g.status == 'active').toList()
+    // 달성한 목표는 빼고 Goals의 «달성한 목표»로 보관한다(10/20).
+    final active = goals.where((g) => !g.achieved).toList()
       ..sort((a, b) => (a.targetDate ?? DateTime(2100))
           .compareTo(b.targetDate ?? DateTime(2100)));
+    final achievedCount = goals.where((g) => g.achieved).length;
 
     // 목표 줄을 누르면 수정·삭제 — 목표 화면까지 들어가 고치기 번거로웠다(10/19).
     Future<void> menu(Goal g) async {
@@ -734,7 +736,11 @@ class _NextGoalsCard extends ConsumerWidget {
               )),
           const Gap(14),
           if (active.isEmpty)
-            const EmptyState(icon: Icons.flag, message: '목표를 추가해 보세요')
+            EmptyState(
+                icon: Icons.flag,
+                message: achievedCount > 0
+                    ? '진행 중인 목표를 모두 달성했어요 — 다음 목표를 추가해 보세요'
+                    : '목표를 추가해 보세요')
           else
             for (final g in active) ...[
               InkWell(
@@ -782,6 +788,27 @@ class _NextGoalsCard extends ConsumerWidget {
               ),
               const Gap(16),
             ],
+          if (achievedCount > 0)
+            InkWell(
+              onTap: () => context.go('/goals'),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  const Icon(Icons.emoji_events_rounded,
+                      size: 16, color: AppColors.gold),
+                  const Gap(6),
+                  Text('달성한 목표 $achievedCount개',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: AppFont.caption,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 18, color: AppColors.textFaint),
+                ]),
+              ),
+            ),
         ],
       ),
     );

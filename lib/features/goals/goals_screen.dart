@@ -69,7 +69,13 @@ class GoalsScreen extends ConsumerWidget {
             if (goals.isEmpty) {
               return const EmptyState(icon: Icons.flag, message: '등록된 목표가 없습니다');
             }
-            final done = goals.where((g) => g.progress >= 1).length;
+            // 달성한 목표는 아래 «달성한 목표»로 따로 보관한다(10/20) —
+            // 대시보드에서도 빠진다.
+            final active = goals.where((g) => !g.achieved).toList();
+            final achieved = goals.where((g) => g.achieved).toList()
+              ..sort((a, b) => (b.achievedAt ?? DateTime(1900))
+                  .compareTo(a.achievedAt ?? DateTime(1900)));
+            final done = achieved.length;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -100,7 +106,11 @@ class GoalsScreen extends ConsumerWidget {
                   ),
                 ),
                 const Gap(16),
-                for (final g in goals) ...[
+                if (active.isEmpty)
+                  const EmptyState(
+                      icon: Icons.flag,
+                      message: '진행 중인 목표를 모두 달성했어요 — 다음 목표를 추가해 보세요'),
+                for (final g in active) ...[
                   _GoalCard(
                     goal: g,
                     onEdit: () => editBuiltinRecord(context, ref, goalsSpec,
@@ -110,6 +120,31 @@ class GoalsScreen extends ConsumerWidget {
                         name: g.title),
                   ),
                   const Gap(12),
+                ],
+                if (achieved.isNotEmpty) ...[
+                  const Gap(20),
+                  SectionHeader('달성한 목표',
+                      subtitle: '${achieved.length}개 · 최근 달성 순'),
+                  const Gap(12),
+                  GlassCard(
+                    accent: AppColors.gold,
+                    child: Column(children: [
+                      for (var i = 0; i < achieved.length; i++) ...[
+                        if (i > 0)
+                          const Divider(height: 20, color: AppColors.border),
+                        _AchievedRow(
+                          goal: achieved[i],
+                          onEdit: () => editBuiltinRecord(
+                              context, ref, goalsSpec,
+                              initial: goalToMap(achieved[i]),
+                              id: achieved[i].id),
+                          onDelete: () => deleteBuiltinRecord(
+                              context, ref, goalsSpec, achieved[i].id,
+                              name: achieved[i].title),
+                        ),
+                      ],
+                    ]),
+                  ),
                 ],
               ],
             );
@@ -178,5 +213,57 @@ class _GoalCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 달성한 목표 한 줄 — 진행바 없이 «무엇을, 언제, 기한보다 얼마나 빨리».
+class _AchievedRow extends StatelessWidget {
+  final Goal goal;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _AchievedRow(
+      {required this.goal, required this.onEdit, required this.onDelete});
+
+  String get _value {
+    if (goal.unit == 'KRW') return '${Won.compact(goal.currentValue)}원';
+    if (goal.unit == 'count') return '${goal.currentValue.toStringAsFixed(0)}건';
+    if (goal.unit == 'percent') return '${goal.currentValue.toStringAsFixed(0)}%';
+    return goal.currentValue.toStringAsFixed(0);
+  }
+
+  /// 「기한보다 42일 먼저」 / 「기한 3일 넘김」 — 달성일·목표일이 다 있을 때만.
+  String? get _pace {
+    final a = goal.achievedAt, t = goal.targetDate;
+    if (a == null || t == null) return null;
+    final d = t.difference(a).inDays;
+    if (d > 0) return '기한보다 $d일 먼저';
+    if (d < 0) return '기한 ${-d}일 넘김';
+    return '기한 당일';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = goal.achievedAt;
+    final meta = [
+      _value,
+      if (a != null) '${Dates.ymd(a)} 달성',
+      ?_pace,
+    ].join(' · ');
+    return Row(children: [
+      const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 22),
+      const Gap(12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(goal.title,
+              style: const TextStyle(
+                  fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+          const Gap(3),
+          Text(meta,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: AppFont.caption)),
+        ]),
+      ),
+      RecordMenu(onEdit: onEdit, onDelete: onDelete),
+    ]);
   }
 }

@@ -632,6 +632,9 @@ class Goal {
   final DateTime? targetDate;
   final String status;
 
+  /// 달성한 날 — DB 트리거가 찍는다(0063). 마이그레이션 전엔 null.
+  final DateTime? achievedAt;
+
   Goal({
     required this.id,
     required this.title,
@@ -640,10 +643,14 @@ class Goal {
     required this.unit,
     required this.targetDate,
     required this.status,
+    this.achievedAt,
   });
 
   double get progress =>
       targetValue <= 0 ? 0 : (currentValue / targetValue).clamp(0, 1).toDouble();
+
+  /// 현재값이 목표에 닿았거나 직접 «done»으로 바꾼 목표.
+  bool get achieved => status == 'done' || (targetValue > 0 && progress >= 1);
 
   factory Goal.fromMap(Map<String, dynamic> m) => Goal(
         id: m['id'],
@@ -653,6 +660,7 @@ class Goal {
         unit: m['unit'],
         targetDate: _date(m['target_date']),
         status: m['status'],
+        achievedAt: _date(m['achieved_at']),
       );
 }
 
