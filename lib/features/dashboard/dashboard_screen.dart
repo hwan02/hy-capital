@@ -772,9 +772,24 @@ class _NextGoalsCard extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_goalValue(g),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: _goalValue(g)),
+                            // 건수 목표 — 목표일까지 하루에 몇 건(10/22).
+                            if (g.dailyPace != null)
+                              TextSpan(
+                                  text: '  ·  ${g.dailyPace}',
+                                  style: const TextStyle(
+                                      color: AppColors.gold,
+                                      fontWeight: FontWeight.w800)),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: AppFont.caption)),
+                              color: AppColors.textSecondary, fontSize: AppFont.caption),
+                        ),
+                      ),
                       Text('${(g.progress * 100).toStringAsFixed(0)}%',
                           style: const TextStyle(
                               color: AppColors.violet,

@@ -652,6 +652,28 @@ class Goal {
   /// 현재값이 목표에 닿았거나 직접 «done»으로 바꾼 목표.
   bool get achieved => status == 'done' || (targetValue > 0 && progress >= 1);
 
+  /// 건수 목표의 하루 할당량 — 「하루 2건」 / 「3일에 1건」 / 「기한 지남 · 남은 5건」.
+  /// 남은 건수를 오늘~목표일(둘 다 포함) 일수로 나눈 평균(소수 첫째 자리). 건수 목표·목표일이
+  /// 있고 아직 달성 전일 때만.
+  String? get dailyPace {
+    if (unit != 'count' || targetDate == null || achieved) return null;
+    final left = (targetValue - currentValue).ceil();
+    if (left <= 0) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final end = DateTime(targetDate!.year, targetDate!.month, targetDate!.day);
+    final days = end.difference(today).inDays + 1;
+    if (days <= 0) return '기한 지남 · 남은 $left건';
+    if (left >= days) {
+      final per = left / days;
+      final txt = per == per.roundToDouble()
+          ? per.toStringAsFixed(0)
+          : per.toStringAsFixed(1);
+      return '하루 $txt건';
+    }
+    return '${days ~/ left}일에 1건';
+  }
+
   factory Goal.fromMap(Map<String, dynamic> m) => Goal(
         id: m['id'],
         title: m['title'],

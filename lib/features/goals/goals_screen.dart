@@ -202,9 +202,24 @@ class _GoalCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_value,
+              Expanded(
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: _value),
+                    // 건수 목표 — 목표일까지 하루에 몇 건(10/22).
+                    if (goal.dailyPace != null)
+                      TextSpan(
+                          text: '  ·  ${goal.dailyPace}',
+                          style: const TextStyle(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.w800)),
+                  ]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: AppFont.label)),
+                      color: AppColors.textSecondary, fontSize: AppFont.label),
+                ),
+              ),
               Text('${(goal.progress * 100).toStringAsFixed(0)}%',
                   style:
                       TextStyle(color: color, fontWeight: FontWeight.w800)),
