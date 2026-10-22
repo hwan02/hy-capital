@@ -664,14 +664,13 @@ class Goal {
     final end = DateTime(targetDate!.year, targetDate!.month, targetDate!.day);
     final days = end.difference(today).inDays + 1;
     if (days <= 0) return '기한 지남 · 남은 $left건';
-    if (left >= days) {
-      final per = left / days;
-      final txt = per == per.roundToDouble()
-          ? per.toStringAsFixed(0)
-          : per.toStringAsFixed(1);
-      return '하루 $txt건';
-    }
-    return '${days ~/ left}일에 1건';
+    final per = left / days;
+    // 이틀에 한 건보다 드물 때만 「N일에 1건」 — 「1일에 1건」처럼 어색해지지 않게.
+    if (per < 0.5) return '${(days / left).round()}일에 1건';
+    final txt = per == per.roundToDouble()
+        ? per.toStringAsFixed(0)
+        : per.toStringAsFixed(1);
+    return '하루 $txt건';
   }
 
   factory Goal.fromMap(Map<String, dynamic> m) => Goal(
