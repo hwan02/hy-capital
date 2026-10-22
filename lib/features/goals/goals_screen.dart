@@ -42,9 +42,8 @@ class GoalsScreen extends ConsumerWidget {
         tooltip: '개별 목표 추가',
         child: const Icon(Icons.add_rounded),
       ),
+      // 개별 목표가 먼저, 재무 로드맵은 맨 아래(10/22).
       children: [
-        const PlanRoadmap(),
-        const Gap(28),
         SectionHeader(
           '개별 목표',
           trailing: TextButton.icon(
@@ -150,6 +149,8 @@ class GoalsScreen extends ConsumerWidget {
             );
           },
         ),
+        const Gap(28),
+        const PlanRoadmap(),
       ],
     );
   }
