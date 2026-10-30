@@ -18,6 +18,16 @@ class ParsedAuction {
   final DateTime? bidDate;
   final double areaSqm;
 
+  // ── 자동 감지 플래그 ──
+  /// 위반건축물 키워드 감지 여부.
+  final bool violationDetected;
+  /// HUG 보증 키워드 감지 여부.
+  final bool hugDetected;
+  /// 유찰 횟수 (감정가/최저가 비율로 추정, 또는 텍스트에서 직접 추출).
+  final int failedBids;
+  /// 전용면적 (㎡). areaSqm 과 별도로 '전용' 라벨이 붙은 값.
+  final double exclusiveArea;
+
   const ParsedAuction({
     this.title,
     this.caseNo,
@@ -29,10 +39,31 @@ class ParsedAuction {
     this.deposit = 0,
     this.bidDate,
     this.areaSqm = 0,
+    this.violationDetected = false,
+    this.hugDetected = false,
+    this.failedBids = 0,
+    this.exclusiveArea = 0,
   });
 
   /// 보증금이 안 적혀 있으면 최저가의 10%(통상 기준).
   double get depositOrTenth => deposit > 0 ? deposit : minPrice * 0.1;
+
+  /// 패스 기준 해당 여부 — 위반건축물이 감지되면 true.
+  bool get shouldPass => violationDetected;
+
+  /// 최저가/감정가 비율로 유찰 횟수를 추정한다.
+  /// 80% → 1회, 64% → 2회, 51% → 3회, 41% → 4회, 33% → 5회.
+  int get estimatedFailedBids {
+    if (failedBids > 0) return failedBids;
+    if (appraisalPrice <= 0 || minPrice <= 0) return 0;
+    final ratio = minPrice / appraisalPrice;
+    if (ratio > 0.85) return 0;
+    if (ratio > 0.68) return 1;
+    if (ratio > 0.54) return 2;
+    if (ratio > 0.44) return 3;
+    if (ratio > 0.35) return 4;
+    return 5;
+  }
 
   int get filledCount => [
         title,
@@ -132,6 +163,35 @@ ParsedAuction parseAuctionText(String raw) {
     if (v > area) area = v;
   }
 
+  // 전용면적: '전용' 라벨 뒤의 ㎡ 값.
+  double exclusiveArea = 0;
+  final exm = RegExp(r'전용\s*([\d.]+)\s*㎡').firstMatch(text);
+  if (exm != null) exclusiveArea = double.tryParse(exm.group(1)!) ?? 0;
+  // 전용이 못 잡히면 가장 작은 ㎡ 를 전용으로 추정 (건물면적 > 전용면적).
+  if (exclusiveArea == 0 && area > 0) {
+    double smallest = area;
+    for (final m in RegExp(r'([\d.]+)\s*㎡').allMatches(text)) {
+      final v = double.tryParse(m.group(1)!) ?? 0;
+      if (v > 0 && v < smallest) smallest = v;
+    }
+    if (smallest < area) exclusiveArea = smallest;
+  }
+
+  // ── 자동 감지 플래그 ──
+  final violation = RegExp(r'위반\s*건축물|무단\s*증축|이행\s*강제금|불법\s*건축', caseSensitive: false)
+      .hasMatch(text);
+  final hug = RegExp(r'HUG|주택도시보증|대항력\s*포기', caseSensitive: false)
+      .hasMatch(text);
+
+  // 유찰 횟수: '유찰 3회' / '3회 유찰' / '재매각' 패턴.
+  int failed = 0;
+  final fm = RegExp(r'(\d+)\s*회?\s*유찰|유찰\s*(\d+)\s*회').firstMatch(text);
+  if (fm != null) {
+    failed = int.tryParse(fm.group(1) ?? fm.group(2) ?? '') ?? 0;
+  } else if (text.contains('재매각')) {
+    failed = 1; // 재매각 = 최소 1회 유찰
+  }
+
   // 물건명: 괄호 안 단지명 → 없으면 '래미안 …' 같은 브랜드 줄 → 없으면 첫 줄
   String? title;
   final paren = RegExp(r'\(([^()]*(?:아파트|빌라|타워|캐슬|파크|힐스|자이|푸르지오|래미안|e편한세상|더샵|메가트리아)[^()]*)\)')
@@ -163,5 +223,9 @@ ParsedAuction parseAuctionText(String raw) {
     deposit: deposit,
     bidDate: bidDate,
     areaSqm: area,
+    violationDetected: violation,
+    hugDetected: hug,
+    failedBids: failed,
+    exclusiveArea: exclusiveArea > 0 ? exclusiveArea : area,
   );
 }
