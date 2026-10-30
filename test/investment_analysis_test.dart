@@ -43,6 +43,38 @@ InvestmentInputs input({
 );
 
 void main() {
+  test('AI 응답이 기존 제외나 대출 승인·목표를 자동 변경하지 못함', () {
+    final current = input(
+      evidence: {
+        'condition': const InvestmentEvidence(status: 'fail', detail: '대장 위반'),
+      },
+    );
+    final proposed = input(
+      changes: {
+        'cash': 999999999.0,
+        'credit_confirmed': true,
+        'share': 1.0,
+        'target': 1.0,
+      },
+      evidence: {'condition': const InvestmentEvidence(status: 'unknown')},
+    );
+    final merged = mergeAnalyzedInvestment(current, proposed);
+    expect(merged.evidence['condition']!.status, 'fail');
+    expect(merged.n('cash'), current.n('cash'));
+    expect(merged.b('credit_confirmed'), false);
+    expect(merged.share, current.share);
+    expect(merged.target, current.target);
+  });
+  test('AI가 매도 가정을 바꾸면 이전 통과 근거를 재사용하지 않음', () {
+    final current = input();
+    final proposed = input(changes: {'base_sale': 155000000.0});
+    final merged = mergeAnalyzedInvestment(current, proposed);
+    expect(merged.n('base_sale'), 155000000);
+    expect(merged.evidence['market']!.status, 'unknown');
+    expect(analyzeInvestment(merged, now).verdict, '보류');
+    final unverified = mergeAnalyzedInvestment(input(evidence: {}), input());
+    expect(unverified.evidence['rights']!.status, 'unknown');
+  });
   test('공투 우선배분은 일반 과표 손금이 아니며 세후 이익 한도', () {
     final base = calculateInvestment(input(), 'base');
     final joint = calculateInvestment(

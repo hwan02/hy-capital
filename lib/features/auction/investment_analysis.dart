@@ -156,6 +156,58 @@ class InvestmentInputs {
   }
 }
 
+/// AI 제안은 초안이다. 자금 약정·기존 제외를 바꾸거나, 다른 숫자에
+/// 예전 확인을 재사용하지 못하도록 UI와 독립된 경계에서 병합한다.
+InvestmentInputs mergeAnalyzedInvestment(
+  InvestmentInputs current,
+  InvestmentInputs proposed,
+) {
+  final values = {...current.values, ...proposed.values};
+  for (final key in [
+    'cash',
+    'credit',
+    'credit_confirmed',
+    'credit_rate',
+    'mortgage',
+    'mortgage_confirmed',
+    'mortgage_rate',
+    'joint',
+    'joint_confirmed',
+    'joint_rate',
+    'share',
+    'target',
+    'target_scope',
+    'distribution_cost',
+  ]) {
+    values[key] = current.values[key];
+  }
+  final changed = values.keys.any((k) => values[k] != current.values[k]);
+  final evidence = <String, InvestmentEvidence>{};
+  for (final key in investmentGates.keys) {
+    final old = current.evidence[key];
+    final next = proposed.evidence[key] ?? const InvestmentEvidence();
+    if (old?.status == 'fail') {
+      evidence[key] = old!;
+      continue;
+    }
+    final selected = next.status == 'pass' && old?.status == 'pass'
+        ? old!
+        : next;
+    if (selected.status == 'pass' && (changed || old?.status != 'pass')) {
+      evidence[key] = InvestmentEvidence(
+        status: 'unknown',
+        kind: selected.kind,
+        source: selected.source,
+        checkedOn: selected.checkedOn,
+        detail: 'AI 제안 또는 가정 변경 후 확인 대기. ${selected.detail}',
+      );
+    } else {
+      evidence[key] = selected;
+    }
+  }
+  return InvestmentInputs(values, evidence);
+}
+
 class InvestmentScenario {
   final double sale,
       months,

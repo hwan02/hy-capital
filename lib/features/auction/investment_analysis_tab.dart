@@ -98,6 +98,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
         (e) => current.values[e.key] != e.value,
       );
       if (changed) {
+        _insight = null;
         final keys = spec == investmentMarketSpec
             ? ['market', 'funding']
             : spec == investmentFundingSpec
@@ -165,6 +166,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
               '_kind': 'investment',
               'property_id': widget.property.id,
               'analysis': input.toMap(),
+              'insight': _insight,
               'report': _report(input),
             },
           })
@@ -353,6 +355,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
       }
       setState(() {
         _draft = input;
+        _insight = data['insight'] as String?;
         _dirty = true;
       });
       _notice('조사 결과를 불러왔어요. 가정과 출처를 확인하고 새 버전으로 저장하세요');
@@ -391,45 +394,10 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
       final candidate = InvestmentInputs.fromMap(
         Map<String, dynamic>.from(data['analysis'] as Map),
       );
-      // AI는 자금 승인을 내릴 수 없다. 실행 조건/본인 약정은 사용자 확인값 유지.
-      final values = Map<String, dynamic>.from(candidate.values);
-      for (final key in [
-        'cash',
-        'credit',
-        'credit_confirmed',
-        'credit_rate',
-        'mortgage',
-        'mortgage_confirmed',
-        'mortgage_rate',
-        'joint',
-        'joint_confirmed',
-        'joint_rate',
-        'share',
-        'target',
-        'target_scope',
-        'distribution_cost',
-      ]) {
-        values[key] = current.values[key];
-      }
-      final evidence = <String, InvestmentEvidence>{};
-      for (final key in investmentGates.keys) {
-        final e = candidate.evidence[key] ?? const InvestmentEvidence();
-        // 서버 모델의 출처 주장만으로 확인 완료/입찰 추천이 되지 않는다.
-        // 기존에 확인한 근거는 보존하고 새로 제안된 통과는 검토 대기로 받는다.
-        evidence[key] = e.status == 'pass'
-            ? current.evidence[key] ??
-                  InvestmentEvidence(
-                    status: 'unknown',
-                    kind: e.kind,
-                    source: e.source,
-                    detail: e.detail,
-                    checkedOn: e.checkedOn,
-                  )
-            : e;
-      }
+      final merged = mergeAnalyzedInvestment(current, candidate);
       if (!mounted) return;
       setState(() {
-        _draft = InvestmentInputs(values, evidence);
+        _draft = merged;
         _dirty = true;
         _insight = insight;
         if (llmStatus == 'not_configured') {
