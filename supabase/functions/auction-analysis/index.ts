@@ -46,12 +46,41 @@ function unknownEvidence(): Record<string, EvidenceItem> {
   return ev;
 }
 
-// 이미지 URL 을 base64 data URI 로 변환 (최대 MAX_IMAGES 개, 타임아웃 적용).
+// ── 이미지 fetch 유틸 ──────────────────────────────────────────
 const MAX_IMAGES = 3;
 const IMAGE_TIMEOUT_MS = 8_000;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB per image
 
+// SSRF 방지 — 이 프로젝트 Supabase storage HTTPS 만 허용.
+const ALLOWED_IMAGE_HOST = "rbksmjnfaqglnzypgxqa.supabase.co";
+
+function isAllowedImageUrl(url: string): boolean {
+  // data:image URI 도 허용 (클라이언트가 직접 인코딩한 경우).
+  if (url.startsWith("data:image/")) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname === ALLOWED_IMAGE_HOST;
+  } catch {
+    return false;
+  }
+}
+
+// chunk 기반 base64 변환 — spread 로 스택 오버플로 방지.
+function uint8ToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000; // 32 KB chunks
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]));
+  }
+  return btoa(parts.join(""));
+}
+
 async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  // data URI 는 fetch 하지 않고 그대로 반환.
+  if (url.startsWith("data:image/")) {
+    return url.length <= MAX_IMAGE_BYTES * 1.37 ? url : null; // base64 는 ~37% 팽창
+  }
+  if (!isAllowedImageUrl(url)) return null;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), IMAGE_TIMEOUT_MS);
@@ -61,15 +90,60 @@ async function fetchImageAsDataUri(url: string): Promise<string | null> {
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_IMAGE_BYTES) return null;
     const ct = res.headers.get("content-type") ?? "image/jpeg";
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const b64 = uint8ToBase64(new Uint8Array(buf));
     return `data:${ct};base64,${b64}`;
   } catch {
     return null;
   }
 }
 
-// 요청 body 최대 크기 (1 MB).
+// ── body 크기 제한 (실제 바이트 읽기) ───────────────────────────
 const MAX_BODY_BYTES = 1 * 1024 * 1024;
+
+async function readBodyLimited(req: Request): Promise<string> {
+  // Content-Length 힌트가 있으면 먼저 확인 (빠른 거부).
+  const cl = req.headers.get("content-length");
+  if (cl && parseInt(cl) > MAX_BODY_BYTES) {
+    throw new Error("TOO_LARGE");
+  }
+  // chunked 전송 대응 — 실제 바이트를 세며 읽는다.
+  const reader = req.body?.getReader();
+  if (!reader) throw new Error("TOO_LARGE");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      reader.cancel();
+      throw new Error("TOO_LARGE");
+    }
+    chunks.push(value);
+  }
+  const decoder = new TextDecoder();
+  return chunks.map((c) => decoder.decode(c, { stream: true })).join("") +
+    decoder.decode();
+}
+
+// ── 자료실 본문 총량 제한 ───────────────────────────────────────
+const KNOWLEDGE_TOTAL_CHARS = 12_000;
+
+function trimKnowledge(
+  rows: Record<string, unknown>[],
+  maxItems: number,
+  totalBudget: number,
+): Array<{ title: unknown; tags: unknown; source: unknown; body: string | null }> {
+  const out: Array<{ title: unknown; tags: unknown; source: unknown; body: string | null }> = [];
+  let remaining = totalBudget;
+  for (const k of rows.slice(0, maxItems)) {
+    const raw = typeof k.body === "string" ? (k.body as string) : "";
+    const body = remaining > 0 ? raw.slice(0, remaining) : null;
+    if (body) remaining -= body.length;
+    out.push({ title: k.title, tags: k.tags, source: k.source, body });
+  }
+  return out;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -80,9 +154,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 요청 크기 제한.
-    const cl = req.headers.get("content-length");
-    if (cl && parseInt(cl) > MAX_BODY_BYTES) {
+    // 실제 바이트를 세며 body 를 읽는다 (chunked 우회 방지).
+    let rawBody: string;
+    try {
+      rawBody = await readBodyLimited(req);
+    } catch {
       return jsonRes({ error: "request too large" }, 413);
     }
 
@@ -99,7 +175,7 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "unauthorized" }, 401);
     }
 
-    const body = await req.json();
+    const body = JSON.parse(rawBody);
     const propertyId: string | undefined = body?.property_id;
     if (!propertyId) {
       return jsonRes({ error: "property_id is required" }, 400);
@@ -111,13 +187,12 @@ Deno.serve(async (req) => {
         .select("*")
         .eq("id", propertyId)
         .maybeSingle(),
-      // 경매·모아·신속·재개발 관련 자료를 가져온다.
       sb.from("knowledge_notes")
         .select("id, title, body, tags, source, author, source_date, files")
         .overlaps("tags", ["경매", "모아타운", "신속통합", "재개발", "권리분석", "세금", "대출", "입찰"])
         .order("source_date", { ascending: false })
         .limit(30),
-      // 해당 물건의 calc_records — property_id AND _kind=investment (AND, not OR).
+      // property_id AND _kind=investment.
       sb.from("calc_records")
         .select("id, label, inputs, updated_at")
         .eq("inputs->>property_id", propertyId)
@@ -131,29 +206,22 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "property not found" }, 404);
     }
 
-    // 자료실 본문은 길 수 있으므로 앞 500 자만 전달.
-    const knowledgeSummaries = (knowledgeRes.data ?? []).map(
-      (k: Record<string, unknown>) => ({
-        title: k.title,
-        tags: k.tags,
-        source: k.source,
-        body: typeof k.body === "string"
-          ? (k.body as string).slice(0, 500)
-          : null,
-      }),
+    // 자료실 — 총량 제한으로 핵심 전략이 잘리지 않게 한다.
+    const knowledgeSummaries = trimKnowledge(
+      knowledgeRes.data ?? [],
+      15,
+      KNOWLEDGE_TOTAL_CHARS,
     );
 
     const calcRows = calcsRes.data ?? [];
-
-    // 기존 분석 결과가 body 에 포함돼 있으면 참고한다.
     const priorAnalysis = body?.analysis ?? null;
 
     // ── evidence 초기화 — 전부 unknown ─────────────────────────
     // 원문 확인 없이 pass 를 생성하지 않는다.
-    // 주소·시세·district_type 만으로는 pass 불가.
     const evidence = unknownEvidence();
 
-    // condition: 위반건축물이 명시적으로 체크된 경우만 (true→fail, false→pass).
+    // condition: 위반건축물이 명시적으로 true 일 때만 fail.
+    // false 도 원문 검증이 아니므로 unknown (detail 에 기록).
     const checks = (prop.checks ?? {}) as Record<string, unknown>;
     if (checks.violation === true) {
       evidence.condition = {
@@ -165,18 +233,17 @@ Deno.serve(async (req) => {
       };
     } else if (checks.violation === false) {
       evidence.condition = {
-        status: "pass",
-        kind: "위반건축물 확인",
+        status: "unknown",
+        kind: "위반건축물 미감지",
         source: "auction_properties.checks",
         checked_on: prop.updated_at,
-        detail: "위반건축물 없음 확인",
+        detail: "앱 입력에서 위반건축물 미감지 — 원문(건축물대장) 확인 필요",
       };
     }
-    // violation 키 자체가 없으면 unknown 유지.
 
-    // ── 이미지 수집 ─────────────────────────────────────────────
+    // ── 이미지 수집 (SSRF 방지 + chunk 변환) ────────────────────
     const imageUrls: string[] = Array.isArray(prop.images)
-      ? (prop.images as string[]).slice(0, MAX_IMAGES)
+      ? (prop.images as string[]).filter(isAllowedImageUrl).slice(0, MAX_IMAGES)
       : [];
     const imageDataUris = (
       await Promise.all(imageUrls.map(fetchImageAsDataUri))
@@ -205,7 +272,6 @@ Deno.serve(async (req) => {
 8. 응답은 JSON 으로: {"insight":"요약 의견(200자 이내)","evidence_updates":{카테고리:{status,kind,source,detail}}}
    evidence_updates 에는 변경할 카테고리만 포함. 원문 확인 없이 pass 로 변경하지 않는다.`;
 
-        // LLM 메시지 구성 — 이미지가 있으면 vision content 로 전달.
         const userPayload = {
           property: {
             title: prop.title,
@@ -230,7 +296,7 @@ Deno.serve(async (req) => {
             checks: prop.checks,
             checklist: prop.checklist,
           },
-          knowledge: knowledgeSummaries.slice(0, 15),
+          knowledge: knowledgeSummaries,
           calc_history: calcRows.slice(0, 5).map((r: Record<string, unknown>) => ({
             label: r.label,
             inputs: r.inputs,
@@ -239,7 +305,6 @@ Deno.serve(async (req) => {
           prior_analysis: priorAnalysis,
         };
 
-        // 메시지 content: text + 이미지(있을 때만).
         const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
           { type: "text", text: JSON.stringify(userPayload) },
         ];
@@ -251,7 +316,7 @@ Deno.serve(async (req) => {
         }
 
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 30_000); // 30s timeout
+        const timer = setTimeout(() => ctrl.abort(), 30_000);
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -281,13 +346,11 @@ Deno.serve(async (req) => {
             const parsed = JSON.parse(text);
             llmInsight = parsed.insight ?? null;
             llmStatus = "ok";
-            // LLM 이 evidence_updates 를 줬을 때, unknown→pass 승격은 거부.
             if (parsed.evidence_updates && typeof parsed.evidence_updates === "object") {
               llmEvidence = {};
               for (const [key, val] of Object.entries(parsed.evidence_updates)) {
                 if (!EVIDENCE_KEYS.includes(key as typeof EVIDENCE_KEYS[number])) continue;
                 const item = val as EvidenceItem;
-                // 기존이 unknown 인데 LLM 이 pass 로 올리려 하면 차단.
                 if (evidence[key]?.status === "unknown" && item.status === "pass") {
                   llmEvidence[key] = { ...item, status: "unknown", detail: `(LLM 추론) ${item.detail ?? ""}` };
                 } else {
@@ -305,11 +368,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // LLM evidence 를 기본 evidence 에 머지.
+    // LLM evidence 머지 — unknown→pass 승격 재차단.
     const finalEvidence = { ...evidence };
     if (llmEvidence) {
       for (const [key, val] of Object.entries(llmEvidence)) {
-        // unknown→pass 승격 재차단 (방어적).
         if (finalEvidence[key]?.status === "unknown" && val.status === "pass") {
           continue;
         }
@@ -317,8 +379,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 응답 구성 ───────────────────────────────────────────────
-    // body.analysis.values 를 보존한다. 서버가 키를 덮어쓰지 않는다.
+    // ── 응답 — body.analysis.values 보존 ────────────────────────
     const callerValues = priorAnalysis?.values ?? {};
 
     const analysis = {
