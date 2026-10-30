@@ -14,6 +14,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/money_field.dart';
 import '../../models/models.dart';
 import 'progress.dart' show kStatusOptions;
+import 'investment_analysis_tab.dart';
 import 'auction_checklist.dart';
 import '../property/inherit.dart';
 import '../../core/edit/plain_controller.dart';
@@ -21,10 +22,10 @@ import '../../core/edit/plain_controller.dart';
 const _teal = Color(0xFF14B8A6);
 
 Color _verdictColor(String v) => switch (v) {
-      'GO' => AppColors.primary,
-      'PASS' => AppColors.rose,
-      _ => AppColors.gold,
-    };
+  'GO' => AppColors.primary,
+  'PASS' => AppColors.rose,
+  _ => AppColors.gold,
+};
 
 class AuctionDetailScreen extends ConsumerWidget {
   final String id;
@@ -35,11 +36,13 @@ class AuctionDetailScreen extends ConsumerWidget {
     final async = ref.watch(auctionProvider);
     return async.when(
       loading: () => const Scaffold(
-          backgroundColor: AppColors.bg,
-          body: Center(child: CircularProgressIndicator())),
+        backgroundColor: AppColors.bg,
+        body: Center(child: CircularProgressIndicator()),
+      ),
       error: (e, _) => Scaffold(
-          backgroundColor: AppColors.bg,
-          body: Center(child: Text('오류: $e'))),
+        backgroundColor: AppColors.bg,
+        body: Center(child: Text('오류: $e')),
+      ),
       data: (items) {
         final p = items.where((e) => e.id == id).firstOrNull;
         if (p == null) {
@@ -71,7 +74,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 6, vsync: this);
+    _tab = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -106,51 +109,77 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
         title: Row(
           children: [
             Expanded(
-              child: Text(p.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
+              child: Text(
+                p.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
             Pill(p.verdict, color: vColor),
           ],
         ),
-        bottom: TabBar(
-          controller: _tab,
-          isScrollable: true,
-          indicatorColor: _teal,
-          labelColor: _teal,
-          unselectedLabelColor: AppColors.textSecondary,
-          // 프로세스: 모아판정(선별) → 손품·발품(조사) → 계산기(판단) → 조사표(최종) → 사진 → 메모
-          tabs: const [
-            Tab(icon: Icon(Icons.rule_rounded, size: 19), text: '모아판정'),
-            Tab(icon: Icon(Icons.checklist_rounded, size: 19), text: '손품·발품'),
-            Tab(icon: Icon(Icons.calculate_rounded, size: 19), text: '계산기'),
-            Tab(icon: Icon(Icons.search_rounded, size: 19), text: '조사표'),
-            Tab(icon: Icon(Icons.photo_library_rounded, size: 19), text: '사진'),
-            Tab(icon: Icon(Icons.edit_note_rounded, size: 19), text: '메모'),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tab,
+      body: Column(
         children: [
-          _MoaTab(p: p, price: effectivePrice(
-                  p,
-                  ref.watch(latestSurveysProvider).asData?.value ??
-                      const <String, PriceSurvey>{}),
-              onSave: _update),
-          _ChecksTab(p: p, onSave: _update),
-          _CalcTab(
-              p: p,
-              zone: zone,
-              price: effectivePrice(
-                  p,
-                  ref.watch(latestSurveysProvider).asData?.value ??
-                      const <String, PriceSurvey>{}),
-              onSave: _update),
-          _SurveyTab(p: p, formKey: _checklistKey, onSave: _update),
-          _PhotosTab(p: p, onSave: _update),
-          _MemoTab(p: p, onSave: _update),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: AnimatedBuilder(
+              animation: _tab,
+              builder: (context, _) => Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final entry in const [
+                    '종합분석',
+                    '모아판정',
+                    '손품·발품',
+                    '계산기',
+                    '조사표',
+                    '사진',
+                    '메모',
+                  ].asMap().entries)
+                    ChoiceChip(
+                      label: Text(entry.value),
+                      selected: _tab.index == entry.key,
+                      onSelected: (_) => _tab.animateTo(entry.key),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tab,
+              children: [
+                InvestmentAnalysisTab(property: p),
+                _MoaTab(
+                  p: p,
+                  price: effectivePrice(
+                    p,
+                    ref.watch(latestSurveysProvider).asData?.value ??
+                        const <String, PriceSurvey>{},
+                  ),
+                  onSave: _update,
+                ),
+                _ChecksTab(p: p, onSave: _update),
+                _CalcTab(
+                  p: p,
+                  zone: zone,
+                  price: effectivePrice(
+                    p,
+                    ref.watch(latestSurveysProvider).asData?.value ??
+                        const <String, PriceSurvey>{},
+                  ),
+                  onSave: _update,
+                ),
+                _SurveyTab(p: p, formKey: _checklistKey, onSave: _update),
+                _PhotosTab(p: p, onSave: _update),
+                _MemoTab(p: p, onSave: _update),
+              ],
+              physics: const NeverScrollableScrollPhysics(),
+            ),
+          ),
         ],
       ),
     );
