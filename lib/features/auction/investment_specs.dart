@@ -104,7 +104,7 @@ const investmentFundingSpec = BuiltinSpec(
     ),
     FieldSpec(
       key: 'joint_rate',
-      label: '공투자 우선수익 연율 % (없으면0)',
+      label: '공투자 세후 우선배분 연율 % (이익 한도·없으면0)',
       type: FieldType.percent,
     ),
     FieldSpec(

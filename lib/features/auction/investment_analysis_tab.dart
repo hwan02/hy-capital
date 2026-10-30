@@ -25,10 +25,14 @@ class InvestmentAnalysisTab extends ConsumerStatefulWidget {
       _InvestmentAnalysisTabState();
 }
 
-class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
+class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
+    with AutomaticKeepAliveClientMixin {
   InvestmentInputs? _draft;
-  bool _saving = false, _dirty = false;
+  bool _saving = false, _dirty = false, _analyzing = false;
   String? _loadedId;
+  String? _analysisError, _insight;
+  @override
+  bool get wantKeepAlive => true;
 
   InvestmentInputs get _initial {
     final p = widget.property;
@@ -78,6 +82,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
   }
 
   Future<void> _edit(BuiltinSpec spec) async {
+    if (_saving || _analyzing) return;
     final current = _draft ?? _initial;
     final values = await showRecordForm(
       context,
@@ -88,15 +93,35 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
     );
     if (values == null || !mounted) return;
     setState(() {
-      _draft = InvestmentInputs({
-        ...current.values,
-        ...values,
-      }, current.evidence);
+      final evidence = Map<String, InvestmentEvidence>.from(current.evidence);
+      final changed = values.entries.any(
+        (e) => current.values[e.key] != e.value,
+      );
+      if (changed) {
+        final keys = spec == investmentMarketSpec
+            ? ['market', 'funding']
+            : spec == investmentFundingSpec
+            ? ['funding', 'tax']
+            : ['tax', 'funding'];
+        for (final key in keys) {
+          final e = evidence[key];
+          if (e?.status == 'pass')
+            evidence[key] = InvestmentEvidence(
+              status: 'unknown',
+              kind: e!.kind,
+              source: e.source,
+              checkedOn: e.checkedOn,
+              detail: '가정 변경 후 재확인 필요. ${e.detail}',
+            );
+        }
+      }
+      _draft = InvestmentInputs({...current.values, ...values}, evidence);
       _dirty = true;
     });
   }
 
   Future<void> _editEvidence(String key) async {
+    if (_saving || _analyzing) return;
     final current = _draft ?? _initial;
     final values = await showRecordForm(
       context,
@@ -183,6 +208,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
         out.writeln('가정상 기준 상한 ${Won.compact(d.limit!)}원 (미확인 해결 전 실행 불가)');
       }
     }
+    if (_insight != null) out.writeln('\n## 자료 분석 의견\n$_insight');
     out.writeln('\n## 다음 행동');
     for (final a in d.actions) {
       out.writeln('- $a');
@@ -245,7 +271,9 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
     try {
       final zones = await ref.read(zonesProvider.future);
       final complexes = await ref.read(complexesProvider.future);
-      final complex = complexes.where((c) => c.id == widget.property.complexId).firstOrNull;
+      final complex = complexes
+          .where((c) => c.id == widget.property.complexId)
+          .firstOrNull;
       final zone = zones.where((z) => z.id == complex?.zoneId).firstOrNull;
       result['zone_hint_not_parcel_confirmation'] = zone == null
           ? null
@@ -287,11 +315,13 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
     }
     result['property_checks'] = widget.property.checks;
     result['property_checklist'] = widget.property.checklist;
-    result['current_funding_note'] = '이 분석의 자금 입력이 과거 전략 메모보다 우선합니다. 가능 금액을 승인 금액으로 취급하지 마세요.';
+    result['current_funding_note'] =
+        '이 분석의 자금 입력이 과거 전략 메모보다 우선합니다. 가능 금액을 승인 금액으로 취급하지 마세요.';
     return result;
   }
 
   Future<void> _import() async {
+    if (_saving || _analyzing) return;
     final result = await showRecordForm(
       context,
       title: 'Buzz 조사 결과 가져오기',
@@ -332,8 +362,95 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
     }
   }
 
+  Future<void> _requestAnalysis() async {
+    final current = _draft ?? _initial;
+    setState(() {
+      _analyzing = true;
+      _analysisError = null;
+    });
+    try {
+      final response = await ref
+          .read(supabaseProvider)
+          .functions
+          .invoke(
+            'auction-analysis',
+            body: {
+              'property_id': widget.property.id,
+              'analysis': current.toMap(),
+            },
+          )
+          .timeout(const Duration(seconds: 100));
+      final data = Map<String, dynamic>.from(response.data as Map);
+      if (data['property_id'] != widget.property.id ||
+          data['analysis'] is! Map) {
+        throw const FormatException('다른 물건 또는 지원하지 않는 분석 응답');
+      }
+      final llmStatus = data['llm_status'] as String?;
+      final insight = data['insight'] as String?;
+      final candidate = InvestmentInputs.fromMap(
+        Map<String, dynamic>.from(data['analysis'] as Map),
+      );
+      // AI는 자금 승인을 내릴 수 없다. 실행 조건/본인 약정은 사용자 확인값 유지.
+      final values = Map<String, dynamic>.from(candidate.values);
+      for (final key in [
+        'cash',
+        'credit',
+        'credit_confirmed',
+        'credit_rate',
+        'mortgage',
+        'mortgage_confirmed',
+        'mortgage_rate',
+        'joint',
+        'joint_confirmed',
+        'joint_rate',
+        'share',
+        'target',
+        'target_scope',
+        'distribution_cost',
+      ]) {
+        values[key] = current.values[key];
+      }
+      final evidence = <String, InvestmentEvidence>{};
+      for (final key in investmentGates.keys) {
+        final e = candidate.evidence[key] ?? const InvestmentEvidence();
+        // 서버 모델의 출처 주장만으로 확인 완료/입찰 추천이 되지 않는다.
+        // 기존에 확인한 근거는 보존하고 새로 제안된 통과는 검토 대기로 받는다.
+        evidence[key] = e.status == 'pass'
+            ? current.evidence[key] ??
+                  InvestmentEvidence(
+                    status: 'unknown',
+                    kind: e.kind,
+                    source: e.source,
+                    detail: e.detail,
+                    checkedOn: e.checkedOn,
+                  )
+            : e;
+      }
+      if (!mounted) return;
+      setState(() {
+        _draft = InvestmentInputs(values, evidence);
+        _dirty = true;
+        _insight = insight;
+        if (llmStatus == 'not_configured')
+          _analysisError = '서버 AI 설정이 없어 자료 정리만 수행했습니다. Buzz 원문 조사를 이용할 수 있어요.';
+        if (llmStatus == 'failed')
+          _analysisError = '서버 AI 응답에 실패해 자료 정리 결과만 표시합니다. 기존 자금 승인값은 보존했어요.';
+      });
+      _notice('자료 분석을 불러왔어요. 새 근거는 확인 대기이며 자금 승인값은 유지했어요');
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _analysisError =
+              '서버 자료 분석을 완료하지 못했어요. 함수 배포·서버 설정·로그인 상태를 확인하거나 Buzz 조사 요청을 사용하세요. 기존 초안은 유지됩니다.',
+        );
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final history = ref.watch(calcRecordsProvider);
     final records = (history.asData?.value ?? <CalcRecord>[])
         .where(
@@ -350,6 +467,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
             Map<String, dynamic>.from(records.first.inputs['analysis'] as Map),
           );
           _loadedId = records.first.id;
+          _insight = records.first.inputs['insight'] as String?;
         } catch (_) {
           _draft = _initial;
         }
@@ -381,12 +499,34 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
           ),
         ),
         const Gap(12),
+        if (_insight != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              _insight!,
+              style: const TextStyle(fontSize: AppFont.body),
+            ),
+          ),
+        if (_analysisError != null)
+          Text(
+            _analysisError!,
+            style: const TextStyle(
+              fontSize: AppFont.label,
+              color: AppColors.rose,
+            ),
+          ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             FilledButton.icon(
-              onPressed: history.isLoading || history.hasError || _saving
+              onPressed: _analyzing || _saving ? null : _requestAnalysis,
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: Text(_analyzing ? '자료 분석 중…' : '사진·원문 자료 분석'),
+            ),
+            FilledButton.icon(
+              onPressed:
+                  history.isLoading || history.hasError || _saving || _analyzing
                   ? null
                   : _save,
               icon: const Icon(Icons.save_rounded),
@@ -396,7 +536,10 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
               onPressed: () => _copy(true),
               child: const Text('Buzz 조사 요청 복사'),
             ),
-            OutlinedButton(onPressed: _import, child: const Text('조사 결과 가져오기')),
+            OutlinedButton(
+              onPressed: _saving || _analyzing ? null : _import,
+              child: const Text('조사 결과 가져오기'),
+            ),
             OutlinedButton(
               onPressed: () => _copy(false),
               child: const Text('결과 복사'),
@@ -446,7 +589,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
               investmentMarketSpec,
             ])
               OutlinedButton(
-                onPressed: () => _edit(spec),
+                onPressed: _saving || _analyzing ? null : () => _edit(spec),
                 child: Text(spec.title),
               ),
           ],
@@ -505,7 +648,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
               style: const TextStyle(fontSize: AppFont.caption),
             ),
             trailing: const Icon(Icons.edit_outlined),
-            onTap: () => _editEvidence(g.key),
+            onTap: _saving || _analyzing ? null : () => _editEvidence(g.key),
           ),
         const Gap(16),
         const SectionHeader('물건별 분석 이력'),
@@ -519,7 +662,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
               r.id == _loadedId ? '불러온 버전' : '이전 가정·근거를 불러오기',
               style: const TextStyle(fontSize: AppFont.caption),
             ),
-            onTap: _dirty
+            onTap: _dirty || _saving || _analyzing
                 ? null
                 : () {
                     try {
@@ -529,6 +672,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
                       setState(() {
                         _draft = v;
                         _loadedId = r.id;
+                        _insight = r.inputs['insight'] as String?;
                       });
                     } catch (_) {
                       _notice('이력 형식을 읽을 수 없어요');
@@ -569,6 +713,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab> {
           calcRow('주택 추가과세·지방세 비교', r.additionalTax),
           calcRow('법인 금융비용', r.corporateInterest),
           calcRow('물건 전체 순익', r.projectProfit),
+          calcRow('공투자 세후 우선배분 (이익 한도)', r.jointPreferredProfit),
           calcRow('본인 신용이자', r.personalInterest),
           calcRow(
             '본인 배분·비용·예비 차감 후',

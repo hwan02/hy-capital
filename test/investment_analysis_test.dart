@@ -43,6 +43,53 @@ InvestmentInputs input({
 );
 
 void main() {
+  test('공투 우선배분은 일반 과표 손금이 아니며 세후 이익 한도', () {
+    final base = calculateInvestment(input(), 'base');
+    final joint = calculateInvestment(
+      input(
+        changes: {
+          'joint': 50000000.0,
+          'joint_confirmed': true,
+          'joint_rate': 10.0,
+          'share': 50.0,
+        },
+      ),
+      'base',
+    );
+    expect(joint.ordinaryTax, base.ordinaryTax);
+    expect(joint.jointPreferredProfit, 5000000);
+    expect(joint.projectProfit, base.projectProfit);
+    expect(
+      joint.ownProfit,
+      closeTo((base.projectProfit - 5000000) / 2 - 750000, .01),
+    );
+    final loss = calculateInvestment(
+      input(
+        changes: {
+          'expenses': 50000000.0,
+          'joint': 50000000.0,
+          'joint_confirmed': true,
+          'joint_rate': 10.0,
+        },
+      ),
+      'base',
+    );
+    expect(loss.jointPreferredProfit, 0);
+  });
+  test('기준 현금은 충분해도 보유 지연 자금이 부족하면 보류', () {
+    final i = input(
+      changes: {
+        'cash': 75000000.0,
+        'mortgage': 50000000.0,
+        'mortgage_confirmed': true,
+        'mortgage_rate': 12.0,
+        'base_months': 3.0,
+      },
+    );
+    expect(calculateInvestment(i, 'base').fundingGap, 0);
+    expect(calculateInvestment(i, 'low').fundingGap, greaterThan(0));
+    expect(analyzeInvestment(i, now).verdict, '보류');
+  });
   test('일반/추가 과표를 분리하고 개인 이자를 배분 후 전액 차감', () {
     final r = calculateInvestment(
       input(

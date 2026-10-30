@@ -21,10 +21,13 @@ class ParsedAuction {
   // ── 자동 감지 플래그 ──
   /// 위반건축물 키워드 감지 여부.
   final bool violationDetected;
+
   /// HUG 보증 키워드 감지 여부.
   final bool hugDetected;
+
   /// 유찰 횟수 (감정가/최저가 비율로 추정, 또는 텍스트에서 직접 추출).
   final int failedBids;
+
   /// 전용면적 (㎡). areaSqm 과 별도로 '전용' 라벨이 붙은 값.
   final double exclusiveArea;
 
@@ -66,15 +69,15 @@ class ParsedAuction {
   }
 
   int get filledCount => [
-        title,
-        caseNo,
-        address,
-        court,
-        propertyKind,
-        appraisalPrice > 0 ? 'y' : null,
-        minPrice > 0 ? 'y' : null,
-        bidDate,
-      ].where((e) => e != null).length;
+    title,
+    caseNo,
+    address,
+    court,
+    propertyKind,
+    appraisalPrice > 0 ? 'y' : null,
+    minPrice > 0 ? 'y' : null,
+    bidDate,
+  ].where((e) => e != null).length;
 }
 
 /// 라벨 뒤의 금액을 찾는다. `최저가 (80%) 760,800,000` 도
@@ -92,8 +95,7 @@ double _money(String text, List<String> labels) {
     seg = seg
         .replaceAll(RegExp(r'\(\s*\d+(\.\d+)?\s*%\s*\)'), ' ')
         .replaceAll(RegExp(r'\d+(\.\d+)?\s*%'), ' ');
-    final m =
-        RegExp(r'([0-9][0-9,\.]*\s*억?\s*[0-9,]*\s*만?)').firstMatch(seg);
+    final m = RegExp(r'([0-9][0-9,\.]*\s*억?\s*[0-9,]*\s*만?)').firstMatch(seg);
     if (m == null) continue;
     final v = parseWon(m.group(1));
     if (v >= 10000) return v;
@@ -115,38 +117,54 @@ ParsedAuction parseAuctionText(String raw) {
 
   // 금액 — 라벨을 넓게. '최저입찰가'가 '최저가'보다 먼저 와야 한다.
   final appraisal = _money(text, ['감정가', '감정평가액']);
-  final minPrice =
-      _money(text, ['최저입찰가', '최저매각가격', '최저매각가', '최저가']);
-  final deposit = _money(text, ['입찰보증금', '보증금']);
+  final minPrice = _money(text, ['최저입찰가', '최저매각가격', '최저매각가', '최저가']);
+  final deposit = _money(text, ['입찰보증금', '매수신청보증금']);
 
   // 법원: 수원지방법원 안양지원 4계
-  final court = _first(
-      text, RegExp(r'[가-힣]+지방법원(\s*[가-힣]+지원)?(\s*\d+계)?'));
+  final court = _first(text, RegExp(r'[가-힣]+지방법원(\s*[가-힣]+지원)?(\s*\d+계)?'));
 
   // 매각기일 — '2026년 9월 8일 오전 10시' / '2026.09.08 (화) (10:00)'
   DateTime? bidDate;
-  final dm = RegExp(r'(20\d{2})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})')
-      .firstMatch(text);
+  final datePattern = RegExp(
+    r'(20\d{2})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})',
+  );
+  final labelled = RegExp(
+    r'(?:매각기일|입찰기일|입찰일|매각일시)\s*[:：]?\s*([^\n]+)',
+  ).firstMatch(text);
+  final allDates = datePattern.allMatches(text).toList();
+  final dateText = labelled?.group(1) ?? (allDates.length == 1 ? text : '');
+  final dm = datePattern.firstMatch(dateText);
   if (dm != null) {
-    var hour = 10; // 경매는 통상 오전 10시. 못 찾으면 이 값.
-    final hm = RegExp(r'\((\d{1,2}):(\d{2})\)').firstMatch(text);
-    final km = RegExp(r'(오전|오후)\s*(\d{1,2})\s*시').firstMatch(text);
+    final year = int.parse(dm.group(1)!),
+        month = int.parse(dm.group(2)!),
+        day = int.parse(dm.group(3)!);
+    var hour = 10, minute = 0;
+    final hm = RegExp(r'(\d{1,2}):(\d{2})').firstMatch(dateText);
+    final km = RegExp(r'(오전|오후)\s*(\d{1,2})\s*시').firstMatch(dateText);
     if (hm != null) {
       hour = int.parse(hm.group(1)!);
+      minute = int.parse(hm.group(2)!);
     } else if (km != null) {
       hour = int.parse(km.group(2)!);
-      if (km.group(1) == '오후' && hour < 12) hour += 12;
+      if (hour == 12) hour = 0;
+      if (km.group(1) == '오후') hour += 12;
     }
-    bidDate = DateTime(int.parse(dm.group(1)!), int.parse(dm.group(2)!),
-        int.parse(dm.group(3)!), hour);
+    final parsed = DateTime(year, month, day, hour, minute);
+    if (parsed.year == year &&
+        parsed.month == month &&
+        parsed.day == day &&
+        hour < 24 &&
+        minute < 60)
+      bidDate = parsed;
   }
 
   // 주소: 시·도로 시작하는 줄
   String? address;
   for (final line in text.split('\n')) {
-    final t = line.trim();
-    if (RegExp(r'^(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)')
-            .hasMatch(t) &&
+    final t = line.trim().replaceFirst(RegExp(r'^(?:소재지|주소)\s*[:：]?\s*'), '');
+    if (RegExp(
+          r'^(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)',
+        ).hasMatch(t) &&
         RegExp(r'(시|군|구)').hasMatch(t)) {
       // '주소복사' 같은 버튼 텍스트는 잘라낸다.
       address = t.split(RegExp(r'\s{2,}|주소복사|새주소검색')).first.trim();
@@ -165,28 +183,22 @@ ParsedAuction parseAuctionText(String raw) {
 
   // 전용면적: '전용' 라벨 뒤의 ㎡ 값.
   double exclusiveArea = 0;
-  final exm = RegExp(r'전용\s*([\d.]+)\s*㎡').firstMatch(text);
+  final exm = RegExp(r'전용(?:면적)?\s*[:：]?\s*([\d.]+)\s*㎡').firstMatch(text);
   if (exm != null) exclusiveArea = double.tryParse(exm.group(1)!) ?? 0;
-  // 전용이 못 잡히면 가장 작은 ㎡ 를 전용으로 추정 (건물면적 > 전용면적).
-  if (exclusiveArea == 0 && area > 0) {
-    double smallest = area;
-    for (final m in RegExp(r'([\d.]+)\s*㎡').allMatches(text)) {
-      final v = double.tryParse(m.group(1)!) ?? 0;
-      if (v > 0 && v < smallest) smallest = v;
-    }
-    if (smallest < area) exclusiveArea = smallest;
-  }
+  // 대지권/공급면적 중 최솟값을 전용면적으로 추정하지 않는다.
 
   // ── 자동 감지 플래그 ──
   // 부정문("없음", "없다", "해당없음") 바로 뒤에 오는 매칭은 제외한다.
   bool violation = false;
-  for (final m in RegExp(r'위반\s*건축물|무단\s*증축|이행\s*강제금|불법\s*건축')
-      .allMatches(text)) {
-    final after = text.substring(m.end, (m.end + 10).clamp(0, text.length));
-    final before = text.substring((m.start - 10).clamp(0, text.length), m.start);
-    // "위반건축물 없음", "해당없음", "없다" → 오탐 제외
-    if (RegExp(r'없[음다]|해당\s*없').hasMatch(after) ||
-        RegExp(r'없[음다]|해당\s*없').hasMatch(before)) continue;
+  for (final m in RegExp(
+    r'위반\s*건축물|무단\s*증축|이행\s*강제금|불법\s*건축',
+  ).allMatches(text)) {
+    final after = text.substring(m.end).split(RegExp(r'[\n,;]')).first;
+    if (RegExp(
+      r'^\s*(?:표기|여부)?\s*[:：=]?\s*(?:없음|없다|없습니다|해당\s*없음|아님|미해당)',
+    ).hasMatch(after)) {
+      continue;
+    }
     violation = true;
     break;
   }
@@ -200,14 +212,13 @@ ParsedAuction parseAuctionText(String raw) {
   final fm = RegExp(r'(\d+)\s*회?\s*유찰|유찰\s*(\d+)\s*회').firstMatch(text);
   if (fm != null) {
     failed = int.tryParse(fm.group(1) ?? fm.group(2) ?? '') ?? 0;
-  } else if (text.contains('재매각')) {
-    failed = 1; // 재매각 = 최소 1회 유찰
-  }
+  } // 재매각은 대금미납 등 사유도 있으므로 유찰로 환산하지 않는다.
 
   // 물건명: 괄호 안 단지명 → 없으면 '래미안 …' 같은 브랜드 줄 → 없으면 첫 줄
   String? title;
-  final paren = RegExp(r'\(([^()]*(?:아파트|빌라|타워|캐슬|파크|힐스|자이|푸르지오|래미안|e편한세상|더샵|메가트리아)[^()]*)\)')
-      .firstMatch(text);
+  final paren = RegExp(
+    r'\(([^()]*(?:아파트|빌라|타워|캐슬|파크|힐스|자이|푸르지오|래미안|e편한세상|더샵|메가트리아)[^()]*)\)',
+  ).firstMatch(text);
   if (paren != null) {
     title = paren.group(1)!.split(',').last.trim();
   }
@@ -215,8 +226,9 @@ ParsedAuction parseAuctionText(String raw) {
     for (final line in text.split('\n')) {
       final t = line.trim();
       if (t.isEmpty) continue;
-      if (RegExp(r'(래미안|자이|푸르지오|힐스테이트|아이파크|e편한세상|더샵|캐슬|,?\s*\d+평)')
-          .hasMatch(t)) {
+      if (RegExp(
+        r'(래미안|자이|푸르지오|힐스테이트|아이파크|e편한세상|더샵|캐슬|,?\s*\d+평)',
+      ).hasMatch(t)) {
         title = t.replaceAll(RegExp(r'[!]+'), '').trim();
         break;
       }
@@ -238,6 +250,6 @@ ParsedAuction parseAuctionText(String raw) {
     violationDetected: violation,
     hugDetected: hug,
     failedBids: failed,
-    exclusiveArea: exclusiveArea > 0 ? exclusiveArea : area,
+    exclusiveArea: exclusiveArea,
   );
 }

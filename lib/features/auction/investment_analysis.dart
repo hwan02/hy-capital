@@ -68,6 +68,7 @@ class InvestmentInputs {
     final value = values[key];
     return value is num && value.isFinite ? value.toDouble() : 0;
   }
+
   bool b(String key) => values[key] == true;
   double get bid => n('bid');
   double get share => n('share') / 100;
@@ -81,9 +82,16 @@ class InvestmentInputs {
   List<String> get errors {
     final out = <String>[];
     for (final e in values.entries) {
-      if (!const ['tax_note', 'market_note', 'target_scope',
-          'credit_confirmed', 'mortgage_confirmed', 'joint_confirmed'].contains(e.key)
-          && e.value != null && e.value is! num) {
+      if (!const [
+            'tax_note',
+            'market_note',
+            'target_scope',
+            'credit_confirmed',
+            'mortgage_confirmed',
+            'joint_confirmed',
+          ].contains(e.key) &&
+          e.value != null &&
+          e.value is! num) {
         out.add('${e.key}: 숫자 형식을 확인하세요');
       }
       if (e.value is num &&
@@ -156,6 +164,7 @@ class InvestmentScenario {
       additionalTax,
       corporateInterest,
       personalInterest,
+      jointPreferredProfit,
       projectProfit,
       ownProfit,
       peakCash,
@@ -169,6 +178,7 @@ class InvestmentScenario {
     required this.additionalTax,
     required this.corporateInterest,
     required this.personalInterest,
+    required this.jointPreferredProfit,
     required this.projectProfit,
     required this.ownProfit,
     required this.peakCash,
@@ -191,11 +201,7 @@ InvestmentScenario calculateInvestment(
       i.n('takeover');
   final expenses = i.n('expenses');
   final corporateInterest =
-      (i.approvedMortgage * i.n('mortgage_rate') +
-          i.approvedJoint * i.n('joint_rate')) /
-      100 *
-      months /
-      12;
+      i.approvedMortgage * i.n('mortgage_rate') / 100 * months / 12;
   final personalInterest =
       i.approvedCredit * i.n('credit_rate') / 100 * months / 12;
   final saleFee = sale * i.n('sale_fee_pct') / 100;
@@ -215,8 +221,14 @@ InvestmentScenario calculateInvestment(
       saleFee -
       ordinaryTax -
       additionalTax;
+  // 공투 출자금의 우선배분은 이익 한도 내에서 세후 배분한다.
+  // 법인 차입이자가 아니므로 일반 손금이나 보유기간 현금유출에 넣지 않는다.
+  final jointPreferredProfit = math.min(
+    math.max(0.0, projectProfit),
+    i.approvedJoint * i.n('joint_rate') / 100 * months / 12,
+  );
   final ownProfit =
-      projectProfit * i.share -
+      (projectProfit - jointPreferredProfit) * i.share -
       personalInterest -
       i.n('distribution_cost') -
       i.n('reserve') * i.share;
@@ -230,6 +242,7 @@ InvestmentScenario calculateInvestment(
     additionalTax: additionalTax,
     corporateInterest: corporateInterest,
     personalInterest: personalInterest,
+    jointPreferredProfit: jointPreferredProfit,
     projectProfit: projectProfit,
     ownProfit: ownProfit,
     peakCash: peakCash,
@@ -278,6 +291,7 @@ InvestmentDecision analyzeInvestment(InvestmentInputs i, DateTime now) {
       ? base.projectProfit
       : base.ownProfit;
   if (base.fundingGap > 0) actions.add('잔금·보유 재원이 부족해요. 승인 자금 또는 입찰가를 조정하세요');
+  if (low.fundingGap > 0) actions.add('매도 지연 시 보수적 시나리오의 현금이 부족해요');
   if (base.depositGap > 0) actions.add('입찰일 보증금 현금을 확보하세요');
   if (selected < i.target) actions.add('기준 시나리오 목표 미달: 입찰가 또는 매도 근거를 재검토하세요');
   if (low.ownProfit < 0) actions.add('보수적 시나리오 본인 손실: 손실 한도·매도 지연을 검토하세요');
@@ -304,7 +318,9 @@ InvestmentDecision analyzeInvestment(InvestmentInputs i, DateTime now) {
         i.target;
   });
   final cashLimit = bound(
-    (b) => calculateInvestment(i, 'base', bidOverride: b).fundingGap == 0,
+    (b) =>
+        calculateInvestment(i, 'base', bidOverride: b).fundingGap == 0 &&
+        calculateInvestment(i, 'low', bidOverride: b).fundingGap == 0,
   );
   return InvestmentDecision(
     actions.isEmpty ? '입찰 검토' : '보류',

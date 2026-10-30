@@ -152,7 +152,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody>
             child: TabBarView(
               controller: _tab,
               children: [
-                InvestmentAnalysisTab(property: p),
+                InvestmentAnalysisTab(key: ValueKey(p.id), property: p),
                 _MoaTab(
                   p: p,
                   price: effectivePrice(
