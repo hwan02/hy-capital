@@ -105,7 +105,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
             : ['tax', 'funding'];
         for (final key in keys) {
           final e = evidence[key];
-          if (e?.status == 'pass')
+          if (e?.status == 'pass') {
             evidence[key] = InvestmentEvidence(
               status: 'unknown',
               kind: e!.kind,
@@ -113,6 +113,7 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
               checkedOn: e.checkedOn,
               detail: '가정 변경 후 재확인 필요. ${e.detail}',
             );
+          }
         }
       }
       _draft = InvestmentInputs({...current.values, ...values}, evidence);
@@ -431,18 +432,21 @@ class _InvestmentAnalysisTabState extends ConsumerState<InvestmentAnalysisTab>
         _draft = InvestmentInputs(values, evidence);
         _dirty = true;
         _insight = insight;
-        if (llmStatus == 'not_configured')
+        if (llmStatus == 'not_configured') {
           _analysisError = '서버 AI 설정이 없어 자료 정리만 수행했습니다. Buzz 원문 조사를 이용할 수 있어요.';
-        if (llmStatus == 'failed')
+        }
+        if (llmStatus == 'failed') {
           _analysisError = '서버 AI 응답에 실패해 자료 정리 결과만 표시합니다. 기존 자금 승인값은 보존했어요.';
+        }
       });
       _notice('자료 분석을 불러왔어요. 새 근거는 확인 대기이며 자금 승인값은 유지했어요');
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _analysisError =
               '서버 자료 분석을 완료하지 못했어요. 함수 배포·서버 설정·로그인 상태를 확인하거나 Buzz 조사 요청을 사용하세요. 기존 초안은 유지됩니다.',
         );
+      }
     } finally {
       if (mounted) setState(() => _analyzing = false);
     }

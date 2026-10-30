@@ -154,8 +154,9 @@ ParsedAuction parseAuctionText(String raw) {
         parsed.month == month &&
         parsed.day == day &&
         hour < 24 &&
-        minute < 60)
+        minute < 60) {
       bidDate = parsed;
+    }
   }
 
   // 주소: 시·도로 시작하는 줄
