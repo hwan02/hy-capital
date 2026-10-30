@@ -43,7 +43,6 @@ class ScenarioAnalysis {
   final ScenarioResult aggressive; // 공격적 (매도가 +10%)
   final double maxBidForTarget; // 세후3천 상한 입찰가 (기준 매도가 기준)
   final double maxBidPct; // 상한이 최저가의 몇 % 인지
-  final double competitionBidProfit; // 경쟁(116%) 입찰 시 기준 매도가 세후 수익
 
   const ScenarioAnalysis({
     required this.conservative,
@@ -51,11 +50,11 @@ class ScenarioAnalysis {
     required this.aggressive,
     required this.maxBidForTarget,
     required this.maxBidPct,
-    required this.competitionBidProfit,
   });
 
-  /// 전체 판정: 보수적에서도 목표 충족이면 GO, 기준만 충족이면 HOLD, 기준도 미달이면 PASS.
-  String get autoVerdict {
+  /// 참고용 판정. DB에 자동 저장하지 않는다 — 근거 없는 매도가로 verdict를
+  /// 확정하면 이번 조사에서 바로잡은 핵심이 앱에서 다시 고정된다.
+  String get verdict {
     if (conservative.meetsTarget()) return 'GO';
     if (standard.meetsTarget()) return 'HOLD';
     return 'PASS';
@@ -64,7 +63,7 @@ class ScenarioAnalysis {
 
 /// 시나리오 분석 실행.
 ///
-/// [salePrice] 기준 매도가 (실거래가 또는 감정가).
+/// [salePrice] 기준 매도가 (사용자 입력 또는 시세조사 기반). 감정가를 넣지 않는다.
 /// [bidPrice] 입찰 예정가 (통상 최저가).
 /// [acqTaxPct] 취득세율 % (공시가 1억↓ 모아타운 조합설립 전 = 1.1, 그 외 = 13.4).
 /// [legalFee] 등기비용 (원). 미입력이면 200만 가정.
@@ -75,7 +74,6 @@ class ScenarioAnalysis {
 /// [corpTaxPct] 법인세+추가과세 실효세율 % (기본 40).
 /// [loanPct] 경락잔금대출 비율 % (기본 0 — 확인 전 적용하지 않음).
 /// [targetProfit] 세후 목표 수익 (원, 기본 3천만).
-/// [competitionPct] 경쟁 입찰 비율 % (기본 116 — 601호 낙찰 기준).
 ScenarioAnalysis runScenarios({
   required double salePrice,
   required double bidPrice,
@@ -88,7 +86,6 @@ ScenarioAnalysis runScenarios({
   double corpTaxPct = 40,
   double loanPct = 0,
   double targetProfit = 30000000,
-  double competitionPct = 116,
 }) {
   ScenarioResult calc(String label, double sale, double bid) {
     final acqTax = bid * acqTaxPct / 100;
@@ -133,28 +130,23 @@ ScenarioAnalysis runScenarios({
 
   final maxBidPct = bidPrice > 0 ? (maxBid / bidPrice) * 100 : 0;
 
-  // 경쟁 시나리오 (116% 입찰 시 기준 매도가)
-  final compBid = bidPrice * competitionPct / 100;
-  final compResult = calc('경쟁', salePrice, compBid);
-
   return ScenarioAnalysis(
     conservative: conservative,
     standard: standard,
     aggressive: aggressive,
     maxBidForTarget: maxBid,
     maxBidPct: maxBidPct.toDouble(),
-    competitionBidProfit: compResult.afterTaxProfit,
   );
 }
 
-/// 물건에서 자동 시나리오를 돌릴 때 사용할 기준 매도가를 정한다.
-/// 우선순위: ① 사용자가 입력한 expectedSalePrice ② 감정가 ③ 현재시세.
+/// 물건에서 시나리오를 돌릴 때 사용할 기준 매도가.
+/// 근거 있는 매도가(사용자 입력 또는 시세조사)만 사용한다.
+/// 감정가는 매도가가 아니므로 fallback으로 쓰지 않는다.
+/// 0을 반환하면 시나리오를 돌리지 말고 '매도가 입력 필요'를 표시한다.
 double pickSalePrice({
   double expectedSalePrice = 0,
-  double appraisalPrice = 0,
   double currentPrice = 0,
 }) {
   if (expectedSalePrice > 0) return expectedSalePrice;
-  if (appraisalPrice > 0) return appraisalPrice;
   return currentPrice;
 }

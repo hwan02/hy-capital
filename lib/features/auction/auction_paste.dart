@@ -178,10 +178,22 @@ ParsedAuction parseAuctionText(String raw) {
   }
 
   // ── 자동 감지 플래그 ──
-  final violation = RegExp(r'위반\s*건축물|무단\s*증축|이행\s*강제금|불법\s*건축', caseSensitive: false)
-      .hasMatch(text);
-  final hug = RegExp(r'HUG|주택도시보증|대항력\s*포기', caseSensitive: false)
-      .hasMatch(text);
+  // 부정문("없음", "없다", "해당없음") 바로 뒤에 오는 매칭은 제외한다.
+  bool violation = false;
+  for (final m in RegExp(r'위반\s*건축물|무단\s*증축|이행\s*강제금|불법\s*건축')
+      .allMatches(text)) {
+    final after = text.substring(m.end, (m.end + 10).clamp(0, text.length));
+    final before = text.substring((m.start - 10).clamp(0, text.length), m.start);
+    // "위반건축물 없음", "해당없음", "없다" → 오탐 제외
+    if (RegExp(r'없[음다]|해당\s*없').hasMatch(after) ||
+        RegExp(r'없[음다]|해당\s*없').hasMatch(before)) continue;
+    violation = true;
+    break;
+  }
+  // HUG 존재와 대항력 포기는 별개 — 각각 표시만 하고 판정에 쓰지 않는다.
+  final hug = RegExp(r'HUG|주택도시보증', caseSensitive: false).hasMatch(text);
+  // 대항력 포기는 별도 매각물건명세서에서만 확인 가능 — 텍스트에 있으면 참고 표시만.
+  // "대항력 포기"가 있어도 조건을 확인해야 하므로 hugDetected 에 넣지 않는다.
 
   // 유찰 횟수: '유찰 3회' / '3회 유찰' / '재매각' 패턴.
   int failed = 0;

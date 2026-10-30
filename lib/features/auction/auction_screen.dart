@@ -107,25 +107,9 @@ Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
   final acq = res.$2;
   final addr = saved.address ?? prefillAddress;
 
-  // ── 자동 시나리오 분석 ──
-  // 감정가 또는 최저가가 있으면 3-시나리오를 돌려 verdict·비용을 자동 채운다.
-  final saleEst = pickSalePrice(
-    appraisalPrice: saved.appraisalPrice,
-  );
-  final bidEst = saved.minPrice > 0 ? saved.minPrice : 0.0;
-
-  // 위반건축물 감지 시 자동 PASS.
-  String autoVerdict = 'HOLD';
-  double autoAcqCost = 0;
-  double autoTarget = 30000000; // 세후 3천만 기본
-  if (saved.violationDetected) {
-    autoVerdict = 'PASS';
-  } else if (saleEst > 0 && bidEst > 0) {
-    final analysis = runScenarios(salePrice: saleEst, bidPrice: bidEst);
-    autoVerdict = analysis.autoVerdict;
-    autoAcqCost = analysis.standard.acqTax;
-    autoTarget = 30000000;
-  }
+  // 위반건축물 감지 시만 PASS로 표시. 그 외는 HOLD — 근거 있는 매도가가
+  // 입력될 때까지 verdict를 확정하지 않는다.
+  final autoVerdict = saved.violationDetected ? 'PASS' : 'HOLD';
 
   try {
     final sb = ref.read(supabaseProvider);
@@ -137,7 +121,7 @@ Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
           'status': 'interest',
           'verdict': autoVerdict,
           'acquisition': acq,
-          'target_profit': autoTarget,
+          'target_profit': 30000000,
           if (saved.caseNo != null) 'case_no': saved.caseNo,
           if (addr != null) 'address': addr,
           if (saved.court != null) 'court': saved.court,
@@ -148,8 +132,8 @@ Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
           if (saved.depositOrTenth > 0) 'deposit': saved.depositOrTenth,
           if (saved.bidDate != null)
             'bid_date': saved.bidDate!.toUtc().toIso8601String(),
-          if (saleEst > 0) 'expected_sale_price': saleEst,
-          if (autoAcqCost > 0) 'acquisition_cost': autoAcqCost,
+          // expected_sale_price·acquisition_cost는 사용자가 근거 있는 매도가를
+          // 입력할 때 설정한다. 감정가에서 자동 파생하지 않는다.
         })
         .select()
         .single();
@@ -338,7 +322,7 @@ class _PasteDialogState extends State<_PasteDialog> {
                           color: AppColors.sky),
                       Gap(8),
                       Expanded(child: Text(
-                        'HUG 보증 / 대항력 포기 감지',
+                        'HUG 보증 감지 — 대항력 포기 조건은 명세서에서 확인',
                         style: TextStyle(fontSize: AppFont.label,
                             fontWeight: FontWeight.w700,
                             color: AppColors.sky),
@@ -426,11 +410,33 @@ class _QuickScenario extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sale = pickSalePrice(appraisalPrice: parsed.appraisalPrice);
-    if (sale <= 0 || parsed.minPrice <= 0) return const SizedBox.shrink();
+    // 근거 있는 매도가가 없으면 수익 계산 대신 입력 안내를 보여준다.
+    if (parsed.minPrice <= 0) return const SizedBox.shrink();
+
+    // 감정가만 있고 시세/사용자 매도가가 없으면 입력 필요 표시.
+    final sale = pickSalePrice(); // 사용자 입력 없으므로 0
+    if (sale <= 0) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+        ),
+        child: const Row(children: [
+          Icon(Icons.edit_rounded, size: 16, color: AppColors.gold),
+          Gap(6),
+          Expanded(child: Text(
+            '매도가 입력 필요 — 등록 후 시세조사·비교거래로 매도가를 넣으면 수익 분석이 나옵니다',
+            style: TextStyle(fontSize: AppFont.label,
+                fontWeight: FontWeight.w700, color: AppColors.gold),
+          )),
+        ]),
+      );
+    }
 
     final a = runScenarios(salePrice: sale, bidPrice: parsed.minPrice);
-    final vColor = switch (a.autoVerdict) {
+    final vColor = switch (a.verdict) {
       'GO' => AppColors.primary,
       'PASS' => AppColors.rose,
       _ => AppColors.gold,
@@ -448,15 +454,15 @@ class _QuickScenario extends StatelessWidget {
         children: [
           Row(children: [
             Icon(
-              a.autoVerdict == 'GO'
+              a.verdict == 'GO'
                   ? Icons.check_circle_rounded
-                  : a.autoVerdict == 'PASS'
+                  : a.verdict == 'PASS'
                       ? Icons.cancel_rounded
                       : Icons.help_rounded,
               size: 16, color: vColor,
             ),
             const Gap(6),
-            Text('자동 판정: ${a.autoVerdict}',
+            Text('참고 판정: ${a.verdict}',
                 style: TextStyle(
                     fontSize: AppFont.label,
                     fontWeight: FontWeight.w800,
@@ -507,16 +513,6 @@ class _QuickScenario extends StatelessWidget {
                 ),
               ]),
             ),
-          const Gap(4),
-          Row(children: [
-            Text('경쟁(116%) 시 세후 ${Won.compact(a.competitionBidProfit)}',
-                style: TextStyle(
-                    fontSize: AppFont.caption,
-                    fontWeight: FontWeight.w600,
-                    color: a.competitionBidProfit >= 30000000
-                        ? AppColors.primary
-                        : AppColors.textFaint)),
-          ]),
         ],
       ),
     );
@@ -1718,17 +1714,34 @@ class _ScenarioBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final sale = pickSalePrice(
       expectedSalePrice: p.expectedSalePrice,
-      appraisalPrice: p.appraisalPrice,
       currentPrice: p.currentPrice,
     );
     final bid = p.bidPrice > 0 ? p.bidPrice : p.minPrice;
-    if (sale <= 0 || bid <= 0) return const SizedBox.shrink();
+    if (bid <= 0) return const SizedBox.shrink();
+
+    // 근거 있는 매도가가 없으면 수익 대신 입력 안내.
+    if (sale <= 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: const Row(children: [
+          Icon(Icons.edit_rounded, size: 15, color: AppColors.gold),
+          Gap(6),
+          Text('매도가 입력 필요',
+              style: TextStyle(fontSize: AppFont.caption,
+                  fontWeight: FontWeight.w700, color: AppColors.gold)),
+        ]),
+      );
+    }
 
     final acqPct = p.acquisitionCost > 0 && bid > 0
         ? (p.acquisitionCost / bid * 100)
         : 13.4;
     final a = runScenarios(salePrice: sale, bidPrice: bid, acqTaxPct: acqPct);
-    final vColor = switch (a.autoVerdict) {
+    final vColor = switch (a.verdict) {
       'GO' => AppColors.primary,
       'PASS' => AppColors.rose,
       _ => AppColors.gold,
@@ -1742,16 +1755,15 @@ class _ScenarioBar extends StatelessWidget {
       ),
       child: Row(children: [
         Icon(
-          a.autoVerdict == 'GO'
+          a.verdict == 'GO'
               ? Icons.trending_up_rounded
-              : a.autoVerdict == 'PASS'
+              : a.verdict == 'PASS'
                   ? Icons.trending_down_rounded
                   : Icons.trending_flat_rounded,
           size: 15,
           color: vColor,
         ),
         const Gap(6),
-        // 보수적 세후
         _scenCol('보수', a.conservative.afterTaxProfit, a.conservative.meetsTarget()),
         const Gap(12),
         _scenCol('기준', a.standard.afterTaxProfit, a.standard.meetsTarget()),
