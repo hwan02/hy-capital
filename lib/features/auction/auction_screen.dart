@@ -29,6 +29,7 @@ import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
+import 'scenario_calc.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
@@ -105,6 +106,11 @@ Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
   final saved = res.$1;
   final acq = res.$2;
   final addr = saved.address ?? prefillAddress;
+
+  // 위반건축물 감지 시만 PASS로 표시. 그 외는 HOLD — 근거 있는 매도가가
+  // 입력될 때까지 verdict를 확정하지 않는다.
+  final autoVerdict = saved.violationDetected ? 'PASS' : 'HOLD';
+
   try {
     final sb = ref.read(supabaseProvider);
     final row = await sb
@@ -113,17 +119,21 @@ Future<void> quickAddAuction(BuildContext context, WidgetRef ref,
           'user_id': sb.auth.currentUser!.id,
           'title': saved.title ?? '이름 없는 물건',
           'status': 'interest',
-          'verdict': 'HOLD',
+          'verdict': autoVerdict,
           'acquisition': acq,
+          'target_profit': 30000000,
           if (saved.caseNo != null) 'case_no': saved.caseNo,
           if (addr != null) 'address': addr,
           if (saved.court != null) 'court': saved.court,
           if (saved.propertyKind != null) 'property_kind': saved.propertyKind,
           if (saved.appraisalPrice > 0) 'appraisal_price': saved.appraisalPrice,
           if (saved.minPrice > 0) 'min_price': saved.minPrice,
+          if (saved.minPrice > 0) 'bid_price': saved.minPrice,
           if (saved.depositOrTenth > 0) 'deposit': saved.depositOrTenth,
           if (saved.bidDate != null)
             'bid_date': saved.bidDate!.toUtc().toIso8601String(),
+          // expected_sale_price·acquisition_cost는 사용자가 근거 있는 매도가를
+          // 입력할 때 설정한다. 감정가에서 자동 파생하지 않는다.
         })
         .select()
         .single();
@@ -272,6 +282,59 @@ class _PasteDialogState extends State<_PasteDialog> {
                     : '${_p.bidDate!.year}.${_p.bidDate!.month}.${_p.bidDate!.day}'
                         ' ${_p.bidDate!.hour}시'),
                 _row('법원', _p.court),
+                if (_p.exclusiveArea > 0)
+                  _row('전용면적', '${_p.exclusiveArea}㎡'),
+                if (_p.estimatedFailedBids > 0)
+                  _row('유찰', '${_p.estimatedFailedBids}회 추정'
+                      ' (${(_p.minPrice / _p.appraisalPrice * 100).toStringAsFixed(0)}%)'),
+                // ── 자동 감지 경고 ──
+                if (_p.violationDetected) ...[
+                  const Gap(8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.rose.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.warning_rounded, size: 16,
+                          color: AppColors.rose),
+                      Gap(8),
+                      Expanded(child: Text(
+                        '위반건축물 감지 — 패스 기준 해당',
+                        style: TextStyle(fontSize: AppFont.label,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.rose),
+                      )),
+                    ]),
+                  ),
+                ],
+                if (_p.hugDetected) ...[
+                  const Gap(6),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.sky.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.verified_user_rounded, size: 16,
+                          color: AppColors.sky),
+                      Gap(8),
+                      Expanded(child: Text(
+                        'HUG 보증 감지 — 대항력 포기 조건은 명세서에서 확인',
+                        style: TextStyle(fontSize: AppFont.label,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.sky),
+                      )),
+                    ]),
+                  ),
+                ],
+                // ── 즉석 수익 분석 ──
+                if (_p.minPrice > 0 && _p.appraisalPrice > 0) ...[
+                  const Gap(10),
+                  _QuickScenario(parsed: _p),
+                ],
               ],
             ],
           ),
@@ -300,6 +363,10 @@ class _PasteDialogState extends State<_PasteDialog> {
                           deposit: _p.deposit,
                           bidDate: _p.bidDate,
                           areaSqm: _p.areaSqm,
+                          violationDetected: _p.violationDetected,
+                          hugDetected: _p.hugDetected,
+                          failedBids: _p.failedBids,
+                          exclusiveArea: _p.exclusiveArea,
                         ), _acq)),
           child: const Text('추가'),
         ),
@@ -333,6 +400,123 @@ class _PasteDialogState extends State<_PasteDialog> {
           ],
         ),
       );
+}
+
+/// 붙여넣기 다이얼로그 안에서 즉석 3-시나리오 요약을 보여준다.
+/// 등록 전에 이 물건이 세후 3천 기준을 충족하는지 미리 판단할 수 있다.
+class _QuickScenario extends StatelessWidget {
+  final ParsedAuction parsed;
+  const _QuickScenario({required this.parsed});
+
+  @override
+  Widget build(BuildContext context) {
+    // 근거 있는 매도가가 없으면 수익 계산 대신 입력 안내를 보여준다.
+    if (parsed.minPrice <= 0) return const SizedBox.shrink();
+
+    // 감정가만 있고 시세/사용자 매도가가 없으면 입력 필요 표시.
+    final sale = pickSalePrice(); // 사용자 입력 없으므로 0
+    if (sale <= 0) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+        ),
+        child: const Row(children: [
+          Icon(Icons.edit_rounded, size: 16, color: AppColors.gold),
+          Gap(6),
+          Expanded(child: Text(
+            '매도가 입력 필요 — 등록 후 시세조사·비교거래로 매도가를 넣으면 수익 분석이 나옵니다',
+            style: TextStyle(fontSize: AppFont.label,
+                fontWeight: FontWeight.w700, color: AppColors.gold),
+          )),
+        ]),
+      );
+    }
+
+    final a = runScenarios(salePrice: sale, bidPrice: parsed.minPrice);
+    final vColor = switch (a.verdict) {
+      'GO' => AppColors.primary,
+      'PASS' => AppColors.rose,
+      _ => AppColors.gold,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: vColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: vColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(
+              a.verdict == 'GO'
+                  ? Icons.check_circle_rounded
+                  : a.verdict == 'PASS'
+                      ? Icons.cancel_rounded
+                      : Icons.help_rounded,
+              size: 16, color: vColor,
+            ),
+            const Gap(6),
+            Text('참고 판정: ${a.verdict}',
+                style: TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w800,
+                    color: vColor)),
+            const Spacer(),
+            Text('세후3천 상한 ${(a.maxBidPct).toStringAsFixed(0)}%',
+                style: TextStyle(
+                    fontSize: AppFont.caption,
+                    fontWeight: FontWeight.w700,
+                    color: vColor)),
+          ]),
+          const Gap(8),
+          for (final s in [a.conservative, a.standard, a.aggressive])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(children: [
+                SizedBox(
+                  width: 40,
+                  child: Text(s.label,
+                      style: const TextStyle(
+                          fontSize: AppFont.caption,
+                          color: AppColors.textSecondary)),
+                ),
+                Text('매도 ${Won.compact(s.salePrice)}',
+                    style: const TextStyle(
+                        fontSize: AppFont.caption,
+                        color: AppColors.textSecondary)),
+                const Spacer(),
+                Text(
+                  '세후 ${Won.compact(s.afterTaxProfit)}',
+                  style: TextStyle(
+                    fontSize: AppFont.caption,
+                    fontWeight: FontWeight.w700,
+                    color: s.meetsTarget()
+                        ? AppColors.primary
+                        : AppColors.rose,
+                  ),
+                ),
+                const Gap(4),
+                Text(
+                  s.meetsTarget() ? '✓' : '✗',
+                  style: TextStyle(
+                    fontSize: AppFont.caption,
+                    color: s.meetsTarget()
+                        ? AppColors.primary
+                        : AppColors.rose,
+                  ),
+                ),
+              ]),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // 상태 이름·색은 «progress.dart 가 유일한 출처»다.
@@ -1366,6 +1550,11 @@ class _AuctionCardState extends State<_AuctionCard> {
                   color: AppColors.sky),
             ],
           ),
+          // ── 시나리오 요약 바 ──
+          if (p.expectedSalePrice > 0 && p.minPrice > 0) ...[
+            const Gap(10),
+            _ScenarioBar(p: p),
+          ],
           if (_open && (p.memo ?? '').isNotEmpty) ...[
             const Gap(12),
             Container(
@@ -1513,6 +1702,96 @@ class _ScorePill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 물건 카드 안에 3-시나리오 요약을 한 줄로 보여준다.
+/// 보수적·기준·공격적 세후 수익과 자동 판정을 카드에서 바로 확인.
+class _ScenarioBar extends StatelessWidget {
+  final AuctionProperty p;
+  const _ScenarioBar({required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    final sale = pickSalePrice(
+      expectedSalePrice: p.expectedSalePrice,
+      currentPrice: p.currentPrice,
+    );
+    final bid = p.bidPrice > 0 ? p.bidPrice : p.minPrice;
+    if (bid <= 0) return const SizedBox.shrink();
+
+    // 근거 있는 매도가가 없으면 수익 대신 입력 안내.
+    if (sale <= 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: const Row(children: [
+          Icon(Icons.edit_rounded, size: 15, color: AppColors.gold),
+          Gap(6),
+          Text('매도가 입력 필요',
+              style: TextStyle(fontSize: AppFont.caption,
+                  fontWeight: FontWeight.w700, color: AppColors.gold)),
+        ]),
+      );
+    }
+
+    final acqPct = p.acquisitionCost > 0 && bid > 0
+        ? (p.acquisitionCost / bid * 100)
+        : 13.4;
+    final a = runScenarios(salePrice: sale, bidPrice: bid, acqTaxPct: acqPct);
+    final vColor = switch (a.verdict) {
+      'GO' => AppColors.primary,
+      'PASS' => AppColors.rose,
+      _ => AppColors.gold,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: vColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(children: [
+        Icon(
+          a.verdict == 'GO'
+              ? Icons.trending_up_rounded
+              : a.verdict == 'PASS'
+                  ? Icons.trending_down_rounded
+                  : Icons.trending_flat_rounded,
+          size: 15,
+          color: vColor,
+        ),
+        const Gap(6),
+        _scenCol('보수', a.conservative.afterTaxProfit, a.conservative.meetsTarget()),
+        const Gap(12),
+        _scenCol('기준', a.standard.afterTaxProfit, a.standard.meetsTarget()),
+        const Gap(12),
+        _scenCol('공격', a.aggressive.afterTaxProfit, a.aggressive.meetsTarget()),
+        const Spacer(),
+        Text('상한 ${a.maxBidPct.toStringAsFixed(0)}%',
+            style: TextStyle(
+                fontSize: AppFont.caption,
+                fontWeight: FontWeight.w700,
+                color: vColor)),
+      ]),
+    );
+  }
+
+  Widget _scenCol(String label, double profit, bool ok) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: AppFont.micro, color: AppColors.textFaint)),
+          Text(Won.compact(profit),
+              style: TextStyle(
+                  fontSize: AppFont.caption,
+                  fontWeight: FontWeight.w800,
+                  color: ok ? AppColors.primary : AppColors.rose)),
+        ],
+      );
 }
 
 class _Warn extends StatelessWidget {
