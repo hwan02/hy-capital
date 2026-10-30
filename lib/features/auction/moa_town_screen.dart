@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,7 @@ import 'auction_screen.dart' show quickAddAuction;
 import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'buy_band.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 /// 모아타운/신통기획 신청지 — 서울 자치구 개요 → 자치구별 구역 리스트 →
 /// 구역 안에서 경매물건 추가·상세(임장)·네이버 지도.
@@ -25,7 +27,9 @@ Color _kindColor(String k) => k == '신통기획' ? AppColors.violet : _teal;
 /// 카드의 «다음에 할 일» 한 줄(매도 시점·다음 매수 자리).
 /// 표는 buy_band.dart 에 있다(종류마다 축이 다르다).
 String? _nextMove(Zone z) =>
-    z.isSin ? kSinNextMove[z.stage] : kMoaNextMove[z.stage];
+    z.isSin
+        ? (isRebuild(z.name) ? kSinNextMove : kSinNextMoveRedev)[z.stage]
+        : kMoaNextMove[z.stage];
 
 // 입지 우선 체크 — 매수 밴드(단계)보다 «입지»가 먼저다. (은천 사례 기준)
 // (key, 라벨, 설명)
@@ -64,6 +68,45 @@ int _locDone(Zone z) => _locItems.where((it) => z.locChecks[it.$1] == true).leng
 /// 조합설립 «진행 중»(매수 가능) 세부구역 수.
 int _buySubs(Zone z) =>
     z.subs.where((s) => _subInfo(s['status'] ?? '').tag.contains('매수 가능')).length;
+
+/// 행크옥션 가격 상한 — 지도 «가격» 칸에 붙여넣을 값. 가격은 주소로 못 넘겨서
+/// 버튼을 누를 때 클립보드에 넣어 둔다.
+const _hankPriceMax = '2억 5,000만'; // 행크옥션 가격 칸 표기 그대로
+
+/// 행크옥션 «부동산지도»를 구역 위치로 연다 — 연립/다세대 · 경매+공매.
+///
+/// 경매검색 탭은 주소로 조건(지역·물건종류)을 받지 않는다. 부동산지도는
+/// 좌표를 받으면 지도를 그리로 옮기고 시/구/동까지 채운다(2026-10-12 확인).
+/// type=연립/다세대 는 행크옥션이 자기 메뉴에서 쓰는 값 그대로다.
+Future<void> _openHankMap(BuildContext context, Zone z) async {
+  // 복사·새 탭은 브라우저가 막을 수 있다 — 하나가 실패해도 나머지는 한다.
+  var copied = false;
+  try {
+    await Clipboard.setData(const ClipboardData(text: _hankPriceMax));
+    copied = true;
+  } catch (_) {}
+  final q = Uri(queryParameters: {
+    'lat': z.lat!.toStringAsFixed(6),
+    'lng': z.lng!.toStringAsFixed(6),
+    // 15 = 300m 축척 — 구역과 그 주변이 한 화면에 든다. 안 주면 100m 축척으로
+    // 너무 확대돼 물건이 0건으로 보였다(신림10: 0건 → 41건).
+    'zoom': '15',
+    'isActiveAuction': 'true',
+    'isActiveOnbid': 'true',
+    'type': '연립/다세대',
+  }).query;
+  try {
+    await launchUrl(Uri.parse('https://www.hauction.co.kr/search/map?$q'),
+        webOnlyWindowName: '_blank');
+  } catch (_) {}
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    duration: const Duration(seconds: 5),
+    content: Text(copied
+        ? '「$_hankPriceMax」 복사됨 — 행크옥션 «가격» 칸에 붙여넣기'
+        : '행크옥션 «가격» 칸에 「$_hankPriceMax」'),
+  ));
+}
 
 Future<void> _openNaver(String query) async {
   final uri = Uri.parse(
@@ -122,7 +165,16 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
   String get _kind => widget.kind;
   bool get _sin => widget.kind == '신통기획';
   // 단계 필터: -1 전체 / 0 살 수 있는 것(A+B) / 1 매수A / 2 매수B / 3 진입불가
-  int _stageF = -1;
+  // 처음 열면 «매수적기» — 이 화면에 들어오는 이유가 «지금 살 구역 찾기»라서.
+  int _stageF = 1;
+
+  @override
+  void didUpdateWidget(covariant MoaTownView old) {
+    super.didUpdateWidget(old);
+    // 모아타운 ↔ 신통 탭을 오가면 같은 State 가 재사용된다 — 탭을 바꿀 때도
+    // 매수적기로 다시 시작한다.
+    if (old.kind != widget.kind) _stageF = 1;
+  }
 
   /// 필터는 «단계 번호»가 아니라 «밴드»로 건다.
   /// 모아 4 와 신통 5 가 둘 다 매수 A 이므로 번호로는 못 거른다.
@@ -184,10 +236,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
     final aWhen = _sin ? '선정 후~확정 전' : '후보지선정~주민공람(통합심의 전)';
     return Wrap(spacing: 6, runSpacing: 6, children: [
       chip(-1, '전체', _kindColor(_kind)),
-      chip(0, '🟢 살 수 있는 것', AppColors.primary),
       chip(1, '🟢 매수적기 · $aWhen', AppColors.primary),
       chip(2, '🟢 조합설립 진행중 · 세부구역', AppColors.gold),
-      chip(3, '🚫 진입 불가(조합설립↑)', AppColors.rose),
+      chip(3, _sin ? '🚫 진입 불가(승계 제한)' : '🚫 진입 불가(조합설립↑)',
+          AppColors.rose),
     ]);
   }
 
@@ -230,12 +282,12 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           TextButton(
               onPressed: () => Navigator.pop(dctx, false),
               child: const Text('취소')),
-          FilledButton(
+          SaveKey(child: FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: _teal,
                   foregroundColor: const Color(0xFF04211D)),
               onPressed: () => Navigator.pop(dctx, true),
-              child: const Text('저장')),
+              child: const Text('저장'))),
         ],
       ),
     );
@@ -545,73 +597,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
         ]),
         const Gap(12),
         _stageChips(),
-        // 왜 이 구간인지 — 「가격이 뛰는 구간」(자료실 2026-08-31) 기준.
-        if (_stageF >= 0) ...[
-          const Gap(8),
-          Builder(builder: (_) {
-            final b = switch (_stageF) {
-              0 => null,
-              1 => BuyBand.early,
-              2 => BuyBand.late_,
-              _ => BuyBand.blocked,
-            };
-            if (b == null) {
-              return const Text(
-                  '★ 조합설립인가 «전»만 산다. 인가가 나면 조합원 지위 양도가 막혀 낙찰받아도 승계가 안 된다.',
-                  style: TextStyle(
-                      fontSize: AppFont.caption,
-                      color: AppColors.primary,
-                      height: 1.55,
-                      fontWeight: FontWeight.w600));
-            }
-            if (b == BuyBand.blocked) {
-              return Text('★ ${b.why}',
-                  style: TextStyle(
-                      fontSize: AppFont.caption,
-                      color: b.color,
-                      height: 1.55,
-                      fontWeight: FontWeight.w600));
-            }
-            Widget row(String tag, String plan) => Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 34,
-                        margin: const EdgeInsets.only(top: 1),
-                        child: Text(tag,
-                            style: TextStyle(
-                                fontSize: AppFont.caption,
-                                color: b.color,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                      Expanded(
-                        child: Text(plan,
-                            style: const TextStyle(
-                                fontSize: AppFont.caption,
-                                color: AppColors.textSecondary,
-                                height: 1.5,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('★ ${b.label} — ${b.short}',
-                    style: TextStyle(
-                        fontSize: AppFont.caption,
-                        color: b.color,
-                        fontWeight: FontWeight.w800)),
-                // 보고 있는 종류만. 둘 다 그리면 신통 탭에서 모아 설명이
-                // 같이 떠서 「왜 모아가 나오나」가 된다.
-                row(_sin ? '신통' : '모아', _sin ? sinPlan(b) : moaPlan(b)),
-              ],
-            );
-          }),
-        ],
         const Gap(16),
         if (dists.isEmpty)
           const Padding(
@@ -626,12 +611,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             ratio: 1.35,
             children: [for (final d in dists) _distTile(d, byDist[d]!)],
           ),
-        const Gap(14),
-        const Text('※ 등록된 신청지입니다. 새 지정은 «세제→정비» 타임라인·슬랙으로 매일 갱신돼요.',
-            style: TextStyle(
-                fontSize: AppFont.caption,
-                color: AppColors.textFaint,
-                height: 1.5)),
       ],
     );
   }
@@ -718,9 +697,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
           _RefreshBtn(onTap: _refresh),
         ]),
         const Gap(12),
-        // 단계 사다리 — 고른 종류의 절차만 그린다.
-        _StageLadder(zones: zs, sin: _sin),
-        const Gap(14),
         _stageChips(),
         const Gap(14),
         // 「틈」 요약 — 이 자치구에서 지금 살 수 있는 세부구역만 평평하게 모아 앞에 띄운다.
@@ -802,6 +778,10 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
               key: _keyFor(z.id), child: _zoneCard(z, props, zones)),
           const Gap(10),
         ],
+        // 단계 사다리(사업 진행 순서) — 참고용이라 맨 아래. 들어오자마자
+        // 구역 카드를 바로 누를 수 있게 목록을 위로 올렸다.
+        const Gap(8),
+        _StageLadder(zones: zs, sin: _sin),
       ],
     );
   }
@@ -862,7 +842,6 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
                                   : AppColors.textFaint),
                         // 「해제 위험」 칩은 뺐다. 구역별 신호가 아니라 «단계 1~5면
                         // 무조건» 붙어서(48곳) 「초기 단계다」를 한 번 더 말할 뿐이었다.
-                        // 뜻은 위 사다리 카드(kDropRiskNote)에 한 번 적혀 있다.
                         //
                         // 반면 이건 «구역별» 신호다 — 포털 대상지 목록에 없다.
                         // 자양2동 681 은 2026.07.16 해제됐는데 서울시 표에는 두 달
@@ -1047,8 +1026,12 @@ class _MoaTownViewState extends ConsumerState<MoaTownView> {
             const Divider(height: 1, color: AppColors.border),
             const Gap(12),
             // 구역 지도
-            _actionRow(Icons.map_rounded, '구역 지도 (네이버)',
+            _actionRow(Icons.map_rounded, '네이버 지도',
                 () => _openNaver(_zoneSeed(z)), _teal),
+            // 좌표가 채워진 구역만 — 매일 배치가 카카오 주소검색으로 채운다.
+            if (z.lat != null && z.lng != null)
+              _actionRow(Icons.gavel_rounded, '행크옥션 지도',
+                  () => _openHankMap(context, z), AppColors.gold),
             // 세부구역 — A2-1·A3-1… 각각 단계가 다르다. 타깃은 «조합설립 진행 중».
             if (z.subs.isNotEmpty) ...[
               const Gap(12),
@@ -1461,93 +1444,83 @@ class _StageLadder extends StatelessWidget {
                   fontSize: AppFont.label,
                   color: AppColors.textSecondary,
                   height: 1.6)),
-          const Gap(5),
-          const Text(
-              '조합설립인가부터는 조합원 지위 양도가 막힌다 — 낙찰받아도 승계가 안 된다.',
-              style: TextStyle(
-                  fontSize: AppFont.label,
-                  color: AppColors.rose,
-                  height: 1.55)),
-          const Gap(3),
-          // 「진입 불가」에 «구멍»이 하나 있다. 이걸 모르면 조합설립 난 구역을
-          // 통째로 버리게 되는데, 실제로 경매에서 노릴 자리는 여기다.
-          const Text(
-              '단, 조합설립 «이후»라도 국가·지자체·금융기관 채무로 넘어간 '
-              '«경매·공매» 물건은 승계가 된다 — 양도제한의 법정 예외다. '
-              '경매정보에서 «채권자»가 은행·공공기관인지 먼저 본다.',
-              style: TextStyle(
-                  fontSize: AppFont.label,
-                  color: AppColors.primary,
-                  height: 1.55,
-                  fontWeight: FontWeight.w600)),
-          // 초기 단계 «해제 위험» — 이 설명은 «여기 한 번만» 적는다.
-          // 구역 카드마다 같은 문단을 붙였더니 화면이 이 글로 덮여 안 읽혔다.
-          // 카드에는 「해제 위험」 칩 하나만 달고, 뜻은 여기서 읽는다.
-          const Gap(10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.warning_amber_rounded,
-                  size: 14, color: AppColors.gold),
-              const Gap(8),
-              const Expanded(
-                child: Text('「해제 위험」 칩이 붙은 구역 — $kDropRiskNote',
-                    style: TextStyle(
-                        fontSize: AppFont.label,
-                        color: AppColors.gold,
-                        height: 1.6)),
-              ),
-            ]),
-          ),
+          const Gap(14),
+          _RuleTable(sin: _sin),
         ],
       ),
     );
   }
 
   Widget _rung(int stage, int n, bool isLast) {
-    final band = _sin ? bandOfSinStage(stage) : bandOfStage(stage);
+    // 신통 사다리는 «재개발» 기준으로 그린다 — 기본 화면이 재개발만 보여준다
+    // (아파트 재건축은 숨김). 재건축이 막히는 칸(8 조합설립인가)은 따로 표시.
+    final band = _sin ? bandOfSinStage(stage, redev: true) : bandOfStage(stage);
     final has = n > 0;
     final c = band.color;
-    // 조합설립인가로 넘어가는 칸에서 «문이 닫힌다» — 그 경계를 붉게 표시.
+    // 승계가 막히기 시작하는 칸에서 «문이 닫힌다» — 그 경계를 붉게 표시.
     final gate = band == BuyBand.blocked &&
-        (_sin ? bandOfSinStage(stage - 1) : bandOfStage(stage - 1)) !=
+        (_sin
+                ? bandOfSinStage(stage - 1, redev: true)
+                : bandOfStage(stage - 1)) !=
             BuyBand.blocked;
-    return Column(children: [
-      if (gate)
-        const Padding(
-          padding: EdgeInsets.only(bottom: 3),
-          child: Text('↓ 여기서 닫힌다',
-              style: TextStyle(
-                  fontSize: AppFont.label,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.rose)),
-        ),
-      Container(
-        height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: c.withValues(alpha: has ? 0.22 : 0.07),
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-              color: has ? c : c.withValues(alpha: 0.25),
-              width: has ? 1.3 : 1),
-        ),
-        child: Text(
-            _sin
-                ? (has ? '$stage · $n곳' : '$stage')
-                : [
-                    if (moaLetters(stage).isNotEmpty) moaLetters(stage),
-                    has ? '$stage · $n곳' : '$stage',
-                  ].join(' '),
-            style: TextStyle(
-                fontSize: AppFont.body,
-                fontWeight: FontWeight.w900,
-                color: has ? c : c.withValues(alpha: 0.45))),
+    // 신통 «재건축»은 조합설립인가(8)에서 닫힌다 — 보조 표시.
+    final rebuildGate = _sin && stage == 8;
+    final box = Container(
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: has ? 0.22 : 0.07),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(
+            color: gate
+                ? AppColors.rose
+                : (has ? c : c.withValues(alpha: 0.25)),
+            width: gate || has ? 1.3 : 1),
       ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (gate) ...[
+          const Icon(Icons.lock_rounded, size: 13, color: AppColors.rose),
+          const Gap(4),
+        ],
+        if (rebuildGate) ...[
+          Icon(Icons.lock_outline_rounded,
+              size: 13, color: AppColors.rose.withValues(alpha: 0.7)),
+          const Gap(4),
+        ],
+        Flexible(
+          child: Text(
+              _sin
+                  ? (has ? '$stage · $n곳' : '$stage')
+                  : [
+                      if (moaLetters(stage).isNotEmpty) moaLetters(stage),
+                      has ? '$stage · $n곳' : '$stage',
+                    ].join(' '),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: AppFont.body,
+                  fontWeight: FontWeight.w900,
+                  color: has ? c : c.withValues(alpha: 0.45))),
+        ),
+      ]),
+    );
+    return Column(children: [
+      // «여기서 닫힌다»는 칸 위에 글자로 얹으면 그 칸만 키가 커져서 같은 줄
+      // 칸들과 어긋났다(9번만 내려앉음). 자물쇠 + 붉은 테두리로 표시하고
+      // 설명은 툴팁으로 뺀다.
+      if (gate)
+        Tooltip(
+          message: '${_sin ? '여기서 닫힌다(재개발) — 관리처분인가부터 조합원 지위 승계가 막힌다.' : '여기서 닫힌다 — 이 단계부터 조합원 지위 승계가 막힌다.'}\n'
+              '예외: 국가·지자체·은행 채무로 넘어간 경매·공매 (HUG는 불가)',
+          child: box,
+        )
+      else if (rebuildGate)
+        Tooltip(
+          message: '재건축은 여기서 닫힌다 — 조합설립인가부터 승계가 막힌다.\n'
+              '재개발은 관리처분인가(10)까지 승계된다. «건조개관»',
+          child: box,
+        )
+      else
+        box,
       const Gap(5),
       SizedBox(
         height: 40,
@@ -1583,6 +1556,85 @@ class _StageLadder extends StatelessWidget {
         ),
       ),
     ]);
+  }
+}
+
+/// 토허가·취득세·조합원 지위 승계 — 사업 종류별로 «살 때 걸리는 것».
+/// 사용자가 정리한 표(2026-10-12)를 그대로 옮겼다. 공통 + 보고 있는 종류만.
+class _RuleTable extends StatelessWidget {
+  final bool sin;
+  const _RuleTable({required this.sin});
+
+  static const _common = <(String, String)>[
+    ('토허가', '토지거래허가구역 — 일반매매는 2년 실거주. 원칙적으로 법인 투자 불가'),
+    ('실거주 예외', '경매·압류재산 공매는 가능. 일반매매는 주택임대사업자 활용 가능'),
+    ('승계 예외', '경매 — 채권자가 국가·지자체·은행이면 가능, HUG는 불가!'),
+  ];
+  static const _sinRows = <(String, String)>[
+    ('취득세', '정비구역 지정 이후, 1주택 이상이 추가로 사면 중과 '
+        '(공시가 1억 이하도 마찬가지). 무주택자는 1.1% 유지'),
+    ('지위 승계', '재건축은 조합설립 이후, 재개발은 관리처분계획인가 이후 '
+        '매매하면 승계 안 됨'),
+    ('예외', '1세대 1주택 10년 보유·5년 거주, 경·공매'),
+    ('재당첨 제한', '있음'),
+  ];
+  static const _moaRows = <(String, String)>[
+    ('취득세', '조합설립 이후, 1주택 이상이 추가로 사면 공시가 1억 이하도 중과. '
+        '유권해석이 아직 없어 보수적으로 — 지자체 확인 필요'),
+    ('지위 승계', '조합설립 이후에는 승계 불가 (2022.8.4~)'),
+    ('예외', '1세대 1주택 5년 보유·3년 거주, 경·공매'),
+    ('재당첨 제한', '없음'),
+  ];
+
+  Widget _section(String title, Color c, List<(String, String)> rows) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title,
+          style: TextStyle(
+              fontSize: AppFont.label,
+              fontWeight: FontWeight.w800,
+              color: c)),
+      const Gap(6),
+      for (final (k, v) in rows)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(
+              width: 78,
+              child: Text(k,
+                  style: const TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary,
+                      height: 1.5)),
+            ),
+            Expanded(
+              child: Text(v,
+                  style: const TextStyle(
+                      fontSize: AppFont.label,
+                      color: AppColors.textPrimary,
+                      height: 1.5)),
+            ),
+          ]),
+        ),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _section('공통', AppColors.sky, _common),
+        const Gap(6),
+        _section(sin ? '신통 기준' : '모아타운 기준',
+            sin ? AppColors.violet : _teal, sin ? _sinRows : _moaRows),
+      ]),
+    );
   }
 }
 

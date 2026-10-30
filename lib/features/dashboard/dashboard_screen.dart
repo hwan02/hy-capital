@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../goals/goals_screen.dart' show goalToMap;
 import '../ipo/ipo_alert.dart';
 import '../plan/plan_roadmap.dart';
 
@@ -241,7 +242,7 @@ class _MonthlyBars extends StatelessWidget {
 
   static const _barArea = 128.0;
   static const _sources = [
-    ('에어비앤비', AppColors.sky),
+    ('에비', AppColors.sky),
     ('배당', AppColors.primary),
     ('숏폼', AppColors.rose),
   ];
@@ -392,6 +393,11 @@ class _MoneyFlowSummary extends ConsumerWidget {
     byMonth.forEach((k, v) {
       if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
     });
+    // 에비 부가세(자동)만 있는 달도 «데이터가 있는 달»이다.
+    final airbnbOut = ref.watch(airbnbOutflowByMonthProvider).value ?? const {};
+    airbnbOut.forEach((k, v) {
+      if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
+    });
     final lm = latest;
     final scope = lm == null
         ? <FlowEntry>[]
@@ -418,13 +424,25 @@ class _MoneyFlowSummary extends ConsumerWidget {
     final autoIncome = lm == null
         ? const <String, double>{}
         : byMonth[lm.toIso8601String().substring(0, 10)] ?? const {};
+    // 에비 부가세 — 투자한 돈에 따로 보이고, 순수익에서 이미
+    // 빠진 만큼 들어온 돈의 에비에 되돌린다(자금 흐름 화면과 같다).
+    final autoOut = lm == null
+        ? const <String, double>{}
+        : airbnbOut[lm.toIso8601String().substring(0, 10)] ?? const {};
+    final airbnbBack = autoOut.values.fold(0.0, (s, v) => s + v);
     autoIncome.forEach((k, v) {
-      if (v > 0) incomeBy[k] = (incomeBy[k] ?? 0) + v;
+      final add = k == '에비' ? v + airbnbBack : v;
+      if (add > 0) incomeBy[k] = (incomeBy[k] ?? 0) + add;
     });
+    if (airbnbBack > 0 && !autoIncome.containsKey('에비')) {
+      incomeBy['에비'] = (incomeBy['에비'] ?? 0) + airbnbBack;
+    }
     final outBy = <String, double>{};
     for (final e in scope.where((e) => !e.isIn)) {
+      if (autoOut.containsKey(e.label)) continue; // 자동값으로 대체
       outBy[e.label] = (outBy[e.label] ?? 0) + e.amount;
     }
+    autoOut.forEach((k, v) => outBy[k] = (outBy[k] ?? 0) + v);
     final inSlices = colorize(incomeBy);
     final outSlices = colorize(outBy);
     final totalIn = inSlices.fold(0.0, (s, a) => s + a.value);
@@ -655,13 +673,56 @@ class _NextGoalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goals = ref.watch(goalsProvider).asData?.value ?? [];
-    final active = goals.where((g) => g.status == 'active').toList()
+    // 달성한 목표는 빼고 Goals의 «달성한 목표»로 보관한다(10/20).
+    final active = goals.where((g) => !g.achieved).toList()
       ..sort((a, b) => (a.targetDate ?? DateTime(2100))
           .compareTo(b.targetDate ?? DateTime(2100)));
+    final achievedCount = goals.where((g) => g.achieved).length;
+
+    // 목표 줄을 누르면 수정·삭제 — 목표 화면까지 들어가 고치기 번거로웠다(10/19).
+    Future<void> menu(Goal g) async {
+      final pick = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(g.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: AppFont.section)),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, 'edit'),
+              child: const Row(children: [
+                Icon(Icons.edit_rounded, size: 18, color: AppColors.violet),
+                Gap(10),
+                Text('수정', style: TextStyle(fontSize: AppFont.body)),
+              ]),
+            ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, 'delete'),
+              child: const Row(children: [
+                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.rose),
+                Gap(10),
+                Text('삭제',
+                    style: TextStyle(fontSize: AppFont.body, color: AppColors.rose)),
+              ]),
+            ),
+          ],
+        ),
+      );
+      if (!context.mounted) return;
+      if (pick == 'edit') {
+        await editBuiltinRecord(context, ref, goalsSpec,
+            initial: goalToMap(g), id: g.id);
+      } else if (pick == 'delete') {
+        await deleteBuiltinRecord(context, ref, goalsSpec, g.id, name: g.title);
+      }
+    }
 
     return GlassCard(
       accent: AppColors.violet,
-      onTap: () => context.go('/goals'),
+      // 카드를 누르면 자금 흐름으로(10/19 요청). 목표 줄은 따로 눌러 수정·삭제.
+      onTap: () => context.go('/money'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -675,42 +736,94 @@ class _NextGoalsCard extends ConsumerWidget {
               )),
           const Gap(14),
           if (active.isEmpty)
-            const EmptyState(icon: Icons.flag, message: '목표를 추가해 보세요')
+            EmptyState(
+                icon: Icons.flag,
+                message: achievedCount > 0
+                    ? '진행 중인 목표를 모두 달성했어요 — 다음 목표를 추가해 보세요'
+                    : '목표를 추가해 보세요')
           else
             for (final g in active) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(g.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+              InkWell(
+                onTap: () => menu(g),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(g.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+                      ),
+                      if (g.targetDate != null)
+                        Text(Dates.dday(g.targetDate!),
+                            style: const TextStyle(
+                                color: AppColors.textFaint, fontSize: AppFont.caption)),
+                    ],
                   ),
-                  if (g.targetDate != null)
-                    Text(Dates.dday(g.targetDate!),
-                        style: const TextStyle(
-                            color: AppColors.textFaint, fontSize: AppFont.caption)),
-                ],
-              ),
-              const Gap(7),
-              ProgressBar(value: g.progress, color: AppColors.violet),
-              const Gap(5),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(_goalValue(g),
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: AppFont.caption)),
-                  Text('${(g.progress * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(
-                          color: AppColors.violet,
-                          fontWeight: FontWeight.w800,
-                          fontSize: AppFont.label)),
-                ],
+                  const Gap(7),
+                  ProgressBar(value: g.progress, color: AppColors.violet),
+                  const Gap(5),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: _goalValue(g)),
+                            // 건수 목표 — 목표일까지 하루에 몇 건(10/22).
+                            if (g.dailyPace != null)
+                              TextSpan(
+                                  text: '  ·  ${g.dailyPace}',
+                                  style: const TextStyle(
+                                      color: AppColors.gold,
+                                      fontWeight: FontWeight.w800)),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: AppFont.caption),
+                        ),
+                      ),
+                      Text('${(g.progress * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                              color: AppColors.violet,
+                              fontWeight: FontWeight.w800,
+                              fontSize: AppFont.label)),
+                    ],
+                  ),
+                    ],
+                  ),
+                ),
               ),
               const Gap(16),
             ],
+          if (achievedCount > 0)
+            InkWell(
+              onTap: () => context.go('/goals'),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  const Icon(Icons.emoji_events_rounded,
+                      size: 16, color: AppColors.gold),
+                  const Gap(6),
+                  Text('달성한 목표 $achievedCount개',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: AppFont.caption,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 18, color: AppColors.textFaint),
+                ]),
+              ),
+            ),
         ],
       ),
     );
@@ -729,7 +842,7 @@ class _BusinessEngines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final engines = [
-      _Engine('에어비앤비', Icons.house_rounded, AppColors.sky,
+      _Engine('에비', Icons.house_rounded, AppColors.sky,
           m.airbnbThisMonth, '/airbnb'),
       _Engine('배당', Icons.savings_rounded, AppColors.primary,
           m.dividendThisMonth, '/dividend'),

@@ -17,7 +17,7 @@ import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
-import '../../core/edit/record_form.dart' show confirmDelete;
+import '../../core/edit/record_form.dart' show confirmDelete, pickDay;
 import '../../core/format/formatters.dart';
 import '../../core/supabase/supabase_providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -25,6 +25,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 const _bookColor = Color(0xFFB4844E); // 나무 — 갈색
 
@@ -65,6 +66,79 @@ class BooksScreen extends ConsumerStatefulWidget {
 class _BooksScreenState extends ConsumerState<BooksScreen> {
   String _category = '부동산';
   bool _todoOnly = false;
+
+  /// 드래그 직후 화면에 «먼저» 보여줄 자리(id → 줄기·번호). 저장하고 목록을
+  /// 다시 받아오기까지 길게는 1분이 걸려(표지 포함 10MB+), 놓아도 그대로라
+  /// «드래그가 안 된다»처럼 보였다(10/15). 다시 받아오면 비운다.
+  final Map<String, (String, int)> _pending = {};
+
+  /// 오래된 큰 표지를 줄이는 작업 — 화면을 열 때 한 번만.
+  bool _shrinkStarted = false;
+
+  Book _with(Book b, String branch, int order) => Book(
+        id: b.id,
+        category: b.category,
+        branch: branch,
+        sortOrder: order,
+        title: b.title,
+        author: b.author,
+        level: b.level,
+        tags: b.tags,
+        cover: b.cover,
+        link: b.link,
+        status: b.status,
+        startedOn: b.startedOn,
+        readOn: b.readOn,
+        rating: b.rating,
+        memo: b.memo,
+        why: b.why,
+        reads: b.reads,
+      );
+
+  List<Book> _applyPending(List<Book> all) => _pending.isEmpty
+      ? all
+      : [
+          for (final b in all)
+            if (_pending[b.id] case (final br, final o)) _with(b, br, o) else b
+        ];
+
+  /// 표지 줄이기 — 높이 360px · JPEG. 카드 표지는 82px 높이라 화면 차이는 없고,
+  /// 1.5MB 넘던 표지가 30KB 안팎이 된다. 이미 작으면 그대로.
+  Future<String> _shrink(String dataUrl) async {
+    if (dataUrl.length < 150000) return dataUrl;
+    final img = html.ImageElement();
+    final loaded = img.onLoad.first;
+    img.src = dataUrl;
+    await loaded;
+    final w = img.naturalWidth, h = img.naturalHeight;
+    if (w == 0 || h == 0) return dataUrl;
+    final scale = h > 360 ? 360 / h : 1.0;
+    final c = html.CanvasElement(
+        width: (w * scale).round(), height: (h * scale).round());
+    c.context2D.drawImageScaled(img, 0, 0, c.width!, c.height!);
+    final out = c.toDataUrl('image/jpeg', 0.82);
+    return out.length < dataUrl.length ? out : dataUrl;
+  }
+
+  /// 이미 올린 큰 표지를 한 번 줄여 다시 저장한다 — 책 화면이 느리던 원인.
+  Future<void> _shrinkOld(List<Book> all) async {
+    if (_shrinkStarted) return;
+    _shrinkStarted = true;
+    final big = all.where((b) => (b.cover?.length ?? 0) >= 150000).toList();
+    if (big.isEmpty) return;
+    final sb = ref.read(supabaseProvider);
+    var done = 0;
+    for (final b in big) {
+      try {
+        final small = await _shrink(b.cover!);
+        if (small.length < b.cover!.length) {
+          await sb.from('books').update({'cover': small}).eq('id', b.id);
+          done++;
+        }
+      } catch (_) {}
+    }
+    if (done > 0) ref.invalidate(booksProvider);
+  }
   bool _calendar = false; // 나무 ↔ 달력
 
   Future<void> _save(Book b, Map<String, dynamic> patch) async {
@@ -111,7 +185,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     if (files == null || files.isEmpty) return;
     final reader = html.FileReader()..readAsDataUrl(files.first);
     await reader.onLoad.first;
-    await _save(b, {'cover': reader.result as String});
+    await _save(b, {'cover': await _shrink(reader.result as String)});
   }
 
   @override
@@ -139,8 +213,14 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                     'scripts/seed_books.py 를 돌리거나 ＋로 추가하세요.',
               );
             }
+            if (!_shrinkStarted) {
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _shrinkOld(all));
+            }
             final cats = {for (final b in all) b.category}.toList()..sort();
-            final books = all.where((b) => b.category == _category).toList();
+            final books = _applyPending(all)
+                .where((b) => b.category == _category)
+                .toList();
             final done = books.where((b) => b.isDone).length;
 
             return Column(
@@ -211,6 +291,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
                       onCover: _pickCover,
                       onEdit: (b) => _editBook(b),
                       onRenumber: _renumber,
+                      onMove: _move,
                     );
                   }),
 
@@ -234,7 +315,7 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
 
   /// 지금 카테고리의 책들 — 새 책 번호를 «마지막 다음»으로 매기는 데 쓴다.
   List<Book> _siblings() =>
-      (ref.read(booksProvider).value ?? const <Book>[])
+      _applyPending(ref.read(booksProvider).value ?? const <Book>[])
           .where((b) => b.category == _category)
           .toList();
 
@@ -251,6 +332,86 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     ref.invalidate(booksProvider);
   }
 
+  /// 드래그로 옮긴다 — [dragged]를 [toBranch] 줄기의 [before] 앞에(없으면 맨 끝).
+  /// 옮긴 줄기와 원래 줄기를 둘 다 1..N 으로 다시 매긴다(빈 번호·겹친 번호 없이).
+  Future<void> _move(Book dragged, Book? before, String toBranch) async {
+    if (before?.id == dragged.id) return;
+    final others = _siblings()
+        .where((b) => b.branch == toBranch && b.id != dragged.id)
+        .toList()
+      ..sort(_byOrder);
+    final at = before == null
+        ? others.length
+        : others.indexWhere((b) => b.id == before.id);
+    await _placeAt(dragged, toBranch, at < 0 ? others.length : at);
+  }
+
+  static int _byOrder(Book a, Book b) => a.sortOrder != b.sortOrder
+      ? a.sortOrder.compareTo(b.sortOrder)
+      : a.title.compareTo(b.title);
+
+  /// [book]을 [toBranch] 줄기의 [index] 자리(0부터)에 끼워 넣고, 그 줄기와
+  /// 원래 줄기를 1..N 으로 다시 매긴다. 드래그·수정 창·새 책 추가가 같이 쓴다.
+  ///
+  /// 수정 창에서 「순서」를 3 으로 바꾸면 그 책만 3 이 되고 원래 3 번 책은
+  /// 그대로라 번호가 겹쳤다(10/15) — 이제는 원래 3 번부터 한 칸씩 밀린다.
+  Future<void> _placeAt(Book dragged, String toBranch, int index) async {
+    final all = _siblings();
+    final target = all
+        .where((b) => b.branch == toBranch && b.id != dragged.id)
+        .toList()
+      ..sort(_byOrder);
+    target.insert(index.clamp(0, target.length), dragged);
+    final rest = dragged.branch == toBranch
+        ? <Book>[]
+        : (all
+            .where((b) => b.branch == dragged.branch && b.id != dragged.id)
+            .toList()
+          ..sort(_byOrder));
+
+    // 화면부터 바꾼다 — 저장은 뒤에서.
+    setState(() {
+      for (var i = 0; i < target.length; i++) {
+        _pending[target[i].id] = (toBranch, i + 1);
+      }
+      for (var i = 0; i < rest.length; i++) {
+        _pending[rest[i].id] = (dragged.branch, i + 1);
+      }
+    });
+
+    final sb = ref.read(supabaseProvider);
+    try {
+      for (var i = 0; i < target.length; i++) {
+        final b = target[i];
+        final moved = b.id == dragged.id && b.branch != toBranch;
+        if (b.sortOrder == i + 1 && !moved) continue;
+        await sb.from('books').update({
+          'sort_order': i + 1,
+          if (moved) 'branch': toBranch,
+        }).eq('id', b.id);
+      }
+      // 다른 줄기로 옮겼으면 원래 줄기의 빈 번호를 메운다.
+      if (rest.isNotEmpty) {
+        for (var i = 0; i < rest.length; i++) {
+          if (rest[i].sortOrder == i + 1) continue;
+          await sb.from('books').update({'sort_order': i + 1})
+              .eq('id', rest[i].id);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('순서 저장 실패 — $e')));
+      }
+    }
+    ref.invalidate(booksProvider);
+    // 다시 받아온 목록이 들어오면 «먼저 보여준 자리»를 거둔다.
+    try {
+      await ref.read(booksProvider.future);
+    } catch (_) {}
+    if (mounted) setState(_pending.clear);
+  }
+
   Future<void> _addBook() async {
     final res = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -258,12 +419,14 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
     );
     if (res == null) return;
     final sb = ref.read(supabaseProvider);
-    await sb.from('books').insert({
+    final row = await sb.from('books').insert({
       ...res,
       'user_id': sb.auth.currentUser!.id,
       'category': _category,
-    });
-    ref.invalidate(booksProvider);
+    }).select().single();
+    // 고른 번호 자리에 끼워 넣는다 — 그 번호의 책부터 한 칸씩 민다.
+    final order = (res['sort_order'] as int?) ?? 1;
+    await _placeAt(Book.fromMap(row), res['branch'] as String, order - 1);
   }
 
   Future<void> _editBook(Book b) async {
@@ -277,7 +440,13 @@ class _BooksScreenState extends ConsumerState<BooksScreen> {
       ref.invalidate(booksProvider);
       return;
     }
+    // 순서·줄기는 따로 — 그 자리에 끼워 넣고 나머지를 민다(번호가 겹치지 않게).
+    final order = res.remove('sort_order') as int?;
+    final branch = (res.remove('branch') as String?) ?? b.branch;
     await _save(b, res);
+    if (order != b.sortOrder || branch != b.branch) {
+      await _placeAt(b, branch, (order ?? b.sortOrder) - 1);
+    }
   }
 }
 
@@ -402,6 +571,9 @@ class _BranchBlock extends StatelessWidget {
   /// 이 줄기의 번호를 순서대로 1..N 으로 다시 매긴다.
   final Future<void> Function(List<Book>) onRenumber;
 
+  /// 드래그로 옮긴다 — (끈 책, 이 책 앞에 / null 이면 맨 끝, 줄기).
+  final Future<void> Function(Book, Book?, String) onMove;
+
   const _BranchBlock({
     required this.branch,
     required this.books,
@@ -411,6 +583,7 @@ class _BranchBlock extends StatelessWidget {
     required this.onEdit,
     required this.branchAll,
     required this.onRenumber,
+    required this.onMove,
   });
 
   /// 번호가 «겹치는» 줄기인가. 겹칠 때만 정리 버튼을 띄운다.
@@ -493,24 +666,137 @@ class _BranchBlock extends StatelessWidget {
                           fontSize: AppFont.caption,
                           color: AppColors.textSecondary)),
                   const Gap(14),
-                  // 가지 — 책들
+                  // 가지 — 책들. 왼쪽 손잡이(⠿)를 끌어 다른 책 위에 놓으면
+                  // 그 앞으로 간다. 카드 전체를 끌게 하면 폰에서 스크롤과 싸운다.
                   for (final b in books)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _BookCard(
-                        book: b,
-                        color: branch.color,
-                        onCycle: () => onCycle(b),
-                        onCover: () => onCover(b),
-                        onEdit: () => onEdit(b),
+                    DragTarget<Book>(
+                      onWillAcceptWithDetails: (d) => d.data.id != b.id,
+                      onAcceptWithDetails: (d) => onMove(d.data, b, branch.key),
+                      builder: (context, cand, _) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (cand.isNotEmpty) _DropLine(color: branch.color),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _DragHandle(book: b, color: branch.color),
+                                Expanded(
+                                  child: _BookCard(
+                                    book: b,
+                                    color: branch.color,
+                                    onCycle: () => onCycle(b),
+                                    onCover: () => onCover(b),
+                                    onEdit: () => onEdit(b),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  // 줄기 맨 끝 — 여기에 놓으면 마지막으로(빈 줄기로 옮길 때도).
+                  DragTarget<Book>(
+                    onAcceptWithDetails: (d) => onMove(d.data, null, branch.key),
+                    builder: (context, cand, _) => cand.isEmpty
+                        ? const SizedBox(height: 6)
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: _DropLine(
+                                color: branch.color, label: '${branch.label} 맨 끝으로'),
+                          ),
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 끌어서 옮기는 손잡이. 끄는 동안 책 제목이 손을 따라온다.
+class _DragHandle extends StatelessWidget {
+  final Book book;
+  final Color color;
+  const _DragHandle({required this.book, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = Padding(
+      padding: const EdgeInsets.fromLTRB(0, 14, 4, 0),
+      child: Icon(Icons.drag_indicator_rounded,
+          size: 20, color: AppColors.textFaint.withValues(alpha: 0.8)),
+    );
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Draggable<Book>(
+        data: book,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 280),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Text(book.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: AppFont.label,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.3, child: handle),
+        child: handle,
+      ),
+    );
+  }
+}
+
+/// 놓을 자리 표시 — 끈 책이 이 줄 자리로 들어간다.
+class _DropLine extends StatelessWidget {
+  final Color color;
+  final String? label;
+  const _DropLine({required this.color, this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        Expanded(
+          child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        if (label != null) ...[
+          const Gap(8),
+          Text(label!,
+              style: TextStyle(
+                  fontSize: AppFont.micro,
+                  fontWeight: FontWeight.w800,
+                  color: color)),
+        ],
+      ]),
     );
   }
 }
@@ -843,14 +1129,9 @@ class _BookDialogState extends State<_BookDialog> {
   Future<void> _pick(int i, bool start) async {
     final now = DateTime.now();
     final r = _reads[i];
-    final d = await showDatePicker(
-      context: context,
-      initialDate: (start ? r.start : r.end) ?? now,
-      firstDate: DateTime(now.year - 30),
-      lastDate: now,
-      helpText: start ? '${i + 1}회독 시작한 날' : '${i + 1}회독 다 읽은 날',
-    );
-    if (d == null) return;
+    // 앱 공용 달력 — 더블클릭하면 바로 선택된다(기본 달력은 더블클릭이 안 먹었다).
+    final d = await pickDay(context, initial: (start ? r.start : r.end) ?? now);
+    if (d == null || !mounted) return;
     setState(() {
       // 다 읽은 날을 넣으면 그 회독은 «읽음»이 된다.
       _reads[i] = start ? r.copyWith(start: d) : r.copyWith(end: d, done: true);
@@ -1086,7 +1367,7 @@ class _BookDialogState extends State<_BookDialog> {
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('취소')),
-        FilledButton(
+        SaveKey(child: FilledButton(
           style: FilledButton.styleFrom(
               backgroundColor: _bookColor,
               foregroundColor: const Color(0xFF1B1400)),
@@ -1114,7 +1395,7 @@ class _BookDialogState extends State<_BookDialog> {
             });
           },
           child: const Text('저장'),
-        ),
+        )),
       ],
     );
   }

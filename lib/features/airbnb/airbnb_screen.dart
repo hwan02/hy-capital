@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
+import 'airbnb_month_chart.dart';
 import '../../core/data/data_providers.dart';
 import '../../core/edit/builtin_crud.dart';
 import '../../core/edit/builtin_specs.dart';
@@ -21,6 +22,7 @@ Map<String, dynamic> _unitToMap(AirbnbUnit u) => {
       'expected_open': u.expectedOpen?.toIso8601String().substring(0, 10),
       'monthly_profit': u.monthlyProfit,
       'monthly_target': u.monthlyTarget,
+      'monthly_rent': u.monthlyRent,
     };
 
 class AirbnbScreen extends ConsumerStatefulWidget {
@@ -49,7 +51,7 @@ class _AirbnbScreenState extends ConsumerState<AirbnbScreen> {
     final async = ref.watch(airbnbProvider);
     const amber = Color(0xFFF59E0B);
     return ModulePage(
-      title: 'Airbnb',
+      title: '에비',
       icon: Icons.house_rounded,
       color: _tab == 0 ? AppColors.sky : amber,
       action: _tab == 0
@@ -234,6 +236,11 @@ class _UnitMonthly extends ConsumerWidget {
   final String unitId;
   const _UnitMonthly({required this.unitId});
 
+  /// 「157.4만」 — 이번 달 세 숫자는 소수 첫째 자리까지. Won.compact 는 100만
+  /// 이상을 정수로 반올림해서 비용 157.4만·순이익 156.5만이 둘 다 「157만」으로
+  /// 보여 «고장 난 것처럼» 보였다(10/19).
+  static String _man(double v) => AirbnbMonthChart.man(v);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(airbnbMonthlyProvider(unitId));
@@ -243,9 +250,6 @@ class _UnitMonthly extends ConsumerWidget {
       data: (months) {
         if (months.isEmpty) return const SizedBox.shrink();
         final recent = months.length > 6 ? months.sublist(months.length - 6) : months;
-        final maxAbs = recent
-            .map((m) => m.netProfit.abs())
-            .fold(1.0, (a, b) => a > b ? a : b);
         // "이번 달" 은 실제 현재 달 기준 (내역 없으면 0).
         final now = DateTime.now();
         AirbnbMonthly? cur;
@@ -255,15 +259,20 @@ class _UnitMonthly extends ConsumerWidget {
         final curRev = cur?.revenue ?? 0;
         final curCost = cur?.totalCost ?? 0;
         final curNet = cur?.netProfit ?? 0;
+        final margin = curRev > 0 ? curNet / curRev * 100 : 0.0;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _m('이번 달 매출', Won.compact(curRev), AppColors.gold),
-                _m('이번 달 비용', Won.compact(curCost), AppColors.rose),
-                _m('이번 달 순이익', Won.compact(curNet),
-                    curNet >= 0 ? AppColors.primary : AppColors.rose),
+                _m('이번 달 매출', _man(curRev), AppColors.gold,
+                    cur == null ? null : '${cur.bookings}건 · ${cur.nights.toStringAsFixed(0)}박'),
+                _m('이번 달 비용', _man(curCost), AppColors.rose,
+                    curRev > 0 ? '매출의 ${(curCost / curRev * 100).toStringAsFixed(0)}%' : null),
+                _m('이번 달 순이익', _man(curNet),
+                    curNet >= 0 ? AppColors.primary : AppColors.rose,
+                    curRev > 0 ? '순이익률 ${margin.toStringAsFixed(0)}%' : null),
               ],
             ),
             if (cur == null) ...[
@@ -275,59 +284,23 @@ class _UnitMonthly extends ConsumerWidget {
             const Gap(16),
             const Divider(color: AppColors.border, height: 1),
             const Gap(14),
-            const Text('월별 순이익',
-                style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-            const Gap(14),
-            SizedBox(
-              height: 116,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final m in recent)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('${Won.compact(m.netProfit)}원',
-                                style: TextStyle(
-                                    color: m.netProfit >= 0
-                                        ? AppColors.primary
-                                        : AppColors.rose,
-                                    fontSize: AppFont.label,
-                                    fontWeight: FontWeight.w800)),
-                            const Gap(6),
-                            Container(
-                              height: (m.netProfit.abs() / maxAbs * 66)
-                                  .clamp(6, 66),
-                              decoration: BoxDecoration(
-                                color: m.netProfit >= 0
-                                    ? AppColors.primary
-                                    : AppColors.rose,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                            ),
-                            const Gap(7),
-                            Text(Dates.ym(m.month),
-                                style: const TextStyle(
-                                    color: AppColors.textFaint,
-                                    fontSize: AppFont.caption)),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            Row(children: [
+              const Text('월별 손익',
+                  style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text('월평균 순이익 ${_man(recent.fold(0.0, (s, m) => s + m.netProfit) / recent.length)}원',
+                  style: const TextStyle(
+                      fontSize: AppFont.caption, color: AppColors.textFaint)),
+            ]),
+            const Gap(10),
+            AirbnbMonthChart(months: recent, highlight: now),
           ],
         );
       },
     );
   }
 
-  Widget _m(String label, String won, Color color) => Expanded(
+  Widget _m(String label, String won, Color color, String? sub) => Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -338,6 +311,12 @@ class _UnitMonthly extends ConsumerWidget {
             Text('$won원',
                 style: TextStyle(
                     fontSize: AppFont.section, fontWeight: FontWeight.w800, color: color)),
+            if (sub != null) ...[
+              const Gap(2),
+              Text(sub,
+                  style: const TextStyle(
+                      color: AppColors.textFaint, fontSize: AppFont.micro)),
+            ],
           ],
         ),
       );

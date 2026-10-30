@@ -492,7 +492,7 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
 
 /// 자금 흐름 '들어온 돈' 자동 연동 — 각 사업 엔진 수익.
 ///
-/// 월별 모듈 수익 — {'2026-09-01': {'에어비앤비': …, '배당': …, '숏폼': …, '토지': …}}.
+/// 월별 모듈 수익 — {'2026-09-01': {'에비': …, '배당': …, '숏폼': …, '토지': …}}.
 ///
 /// 자금 흐름은 월 탭을 고를 수 있는데, 전에는 모듈 수익을 «달력상 이번 달»
 /// 것만 가져왔다. 그래서 10/1 에 열면(10월은 아직 기록 전) 에어비앤비·배당이
@@ -520,12 +520,12 @@ final moduleIncomeByMonthProvider =
     if (month == null || v == 0) return;
     final k = '${month.toString().substring(0, 7)}-01';
     final m = out.putIfAbsent(
-        k, () => {'에어비앤비': 0, '배당': 0, '숏폼': 0, '토지': 0});
+        k, () => {'에비': 0, '배당': 0, '숏폼': 0, '토지': 0});
     m[label] = (m[label] ?? 0) + v;
   }
 
   for (final r in await amF) {
-    add(r['month'], '에어비앤비', (r['net_profit'] as num?)?.toDouble() ?? 0);
+    add(r['month'], '에비', (r['net_profit'] as num?)?.toDouble() ?? 0);
   }
   for (final r in await entF) {
     final amt = (r['amount'] as num?)?.toDouble() ?? 0;
@@ -547,11 +547,45 @@ final moduleIncomeThisMonthProvider =
   final all = await ref.watch(moduleIncomeByMonthProvider.future);
   final now = DateTime.now();
   final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
-  return all[m0] ?? {'에어비앤비': 0, '배당': 0, '숏폼': 0, '토지': 0};
+  return all[m0] ?? {'에비': 0, '배당': 0, '숏폼': 0, '토지': 0};
+});
+
+/// 에비에서 «투자한 돈»으로 따로 보여줄 지출 — 월별. {'2026-10-01': {'에비 부가세': …}}
+///
+/// 에비 거래 중 메모에 «부가세»가 들어간 줄의 변동비 → 「에비 부가세」.
+/// 월세는 넣지 않는다 — 투자한 돈이 아니라 에비 고정비다(순수익에서 빠진다).
+///
+/// 부가세는 에비 순수익에서 이미 빠져 있다. 자금 흐름에서 «투자한 돈»에
+/// 보여주는 만큼 «들어온 돈»의 에비에 다시 더해야 두 번 빠지지 않는다.
+// 이름은 자금 흐름에 손으로 넣던 이름(「에비 부가세」)에 맞춘다 — 같은 달에
+// 손으로도 넣으면 자동값 하나로 합쳐진다(이름이 다르면 두 번 잡혔다).
+const kAirbnbVatLabel = '에비 부가세';
+/// 이 달부터 자동으로 잡는다. 그 전 달은 손으로 넣은 기록 그대로.
+const kAirbnbAutoFrom = '2026-10-01';
+final airbnbOutflowByMonthProvider =
+    FutureProvider<Map<String, Map<String, double>>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  final rows = await sb
+      .from('airbnb_transactions')
+      .select('txn_date,variable_cost,memo')
+      .ilike('memo', '%부가세%');
+  final out = <String, Map<String, double>>{};
+  for (final r in rows) {
+    final k = '${(r['txn_date'] as String).substring(0, 7)}-01';
+    // 9월까지는 자금 흐름에 손으로 다 넣었다 — 그 달들은 건드리지 않는다.
+    if (k.compareTo(kAirbnbAutoFrom) < 0) continue;
+    final n = (r['variable_cost'] as num?)?.toDouble() ?? 0;
+    if (n <= 0) continue;
+    final m = out.putIfAbsent(k, () => {});
+    m[kAirbnbVatLabel] = (m[kAirbnbVatLabel] ?? 0) + n;
+  }
+  return out;
 });
 
 /// 자금 흐름 자동 연동 라벨(이 라벨의 수동 입력은 자동값으로 대체).
-const kAutoIncomeLabels = {'에어비앤비', '배당', '숏폼', '토지'};
+// 화면 이름은 «에비»로 통일했다(2026-10-12). 예전에 손으로 «에어비앤비»라고
+// 넣은 기록도 자동값으로 대체되도록 둘 다 둔다.
+const kAutoIncomeLabels = {'에비', '에어비앤비', '배당', '숏폼', '토지'};
 
 /// 월급 제외 현금흐름(이번 달) = 각 사업 엔진 이번 달 수익 합.
 final nonSalaryCashflowThisMonthProvider = FutureProvider<double>((ref) async {
@@ -635,6 +669,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(airbnbTransactionsProvider);
   ref.invalidate(monthlyEntriesProvider);
   ref.invalidate(moduleIncomeByMonthProvider);
+  ref.invalidate(airbnbOutflowByMonthProvider);
   ref.invalidate(moduleIncomeThisMonthProvider);
   ref.invalidate(nonSalaryCashflowThisMonthProvider);
   ref.invalidate(planPhasesProvider);

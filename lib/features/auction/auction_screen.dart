@@ -34,6 +34,7 @@ import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
 import '../../core/edit/plain_controller.dart';
+import '../../core/widgets/save_key.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -1079,12 +1080,12 @@ class _AuctionCardState extends State<_AuctionCard> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('취소')),
-            FilledButton(
+            SaveKey(child: FilledButton(
                 style: FilledButton.styleFrom(
                     backgroundColor: _teal,
                     foregroundColor: const Color(0xFF04211D)),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('저장')),
+                child: const Text('저장'))),
           ],
         ),
       );

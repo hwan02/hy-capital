@@ -9,6 +9,7 @@ import 'core/config/env.dart';
 import 'core/data/data_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/save_key.dart';
 import 'core/widgets/tab_dedupe.dart';
 
 Future<void> main() async {
@@ -102,7 +103,8 @@ class _HyCapitalAppState extends ConsumerState<HyCapitalApp> {
       theme: AppTheme.dark,
       routerConfig: router,
       // 팝업 폼에서 한글 입력 후 Tab 이 두 칸 넘어가는 것 방지.
-      builder: (context, child) => TabDedupe(child: child!),
+      builder: (context, child) =>
+          TabDedupe(child: SaveKeyScope(child: child!)),
     );
   }
 }

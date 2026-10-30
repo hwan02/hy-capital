@@ -14,6 +14,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../models/models.dart';
 import 'progress.dart';
+import '../../core/edit/record_form.dart' show pickDay;
 
 /// 기한 한 건 — 무엇이 언제까지인가.
 class _Due {
@@ -88,12 +89,7 @@ class _ProgressViewState extends ConsumerState<ProgressView> {
 
   Future<void> _pickDate(AuctionProperty p, String col, DateTime? cur) async {
     final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: cur ?? now,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 5),
-    );
+    final d = await pickDay(context, initial: cur ?? now);
     if (d == null) return;
     await ref
         .read(supabaseProvider)

@@ -106,6 +106,7 @@ class AirbnbUnit {
   final DateTime? expectedOpen;
   final double monthlyProfit;
   final double monthlyTarget;
+  final double monthlyRent; // 매월 10일 자동 고정비
   final double roi;
   final double occupancy;
 
@@ -118,6 +119,7 @@ class AirbnbUnit {
     required this.expectedOpen,
     required this.monthlyProfit,
     required this.monthlyTarget,
+    this.monthlyRent = 0,
     required this.roi,
     required this.occupancy,
   });
@@ -134,6 +136,7 @@ class AirbnbUnit {
         expectedOpen: _date(m['expected_open']),
         monthlyProfit: _d(m['monthly_profit']),
         monthlyTarget: _d(m['monthly_target']),
+        monthlyRent: _d(m['monthly_rent']),
         roi: _d(m['roi']),
         occupancy: _d(m['occupancy']),
       );
@@ -629,6 +632,9 @@ class Goal {
   final DateTime? targetDate;
   final String status;
 
+  /// 달성한 날 — DB 트리거가 찍는다(0063). 마이그레이션 전엔 null.
+  final DateTime? achievedAt;
+
   Goal({
     required this.id,
     required this.title,
@@ -637,10 +643,35 @@ class Goal {
     required this.unit,
     required this.targetDate,
     required this.status,
+    this.achievedAt,
   });
 
   double get progress =>
       targetValue <= 0 ? 0 : (currentValue / targetValue).clamp(0, 1).toDouble();
+
+  /// 현재값이 목표에 닿았거나 직접 «done»으로 바꾼 목표.
+  bool get achieved => status == 'done' || (targetValue > 0 && progress >= 1);
+
+  /// 건수 목표의 하루 할당량 — 「하루 2건」 / 「3일에 1건」 / 「기한 지남 · 남은 5건」.
+  /// 남은 건수를 오늘~목표일(둘 다 포함) 일수로 나눈 평균(소수 첫째 자리). 건수 목표·목표일이
+  /// 있고 아직 달성 전일 때만.
+  String? get dailyPace {
+    if (unit != 'count' || targetDate == null || achieved) return null;
+    final left = (targetValue - currentValue).ceil();
+    if (left <= 0) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final end = DateTime(targetDate!.year, targetDate!.month, targetDate!.day);
+    final days = end.difference(today).inDays + 1;
+    if (days <= 0) return '기한 지남 · 남은 $left건';
+    final per = left / days;
+    // 이틀에 한 건보다 드물 때만 「N일에 1건」 — 「1일에 1건」처럼 어색해지지 않게.
+    if (per < 0.5) return '${(days / left).round()}일에 1건';
+    final txt = per == per.roundToDouble()
+        ? per.toStringAsFixed(0)
+        : per.toStringAsFixed(1);
+    return '하루 $txt건';
+  }
 
   factory Goal.fromMap(Map<String, dynamic> m) => Goal(
         id: m['id'],
@@ -650,6 +681,7 @@ class Goal {
         unit: m['unit'],
         targetDate: _date(m['target_date']),
         status: m['status'],
+        achievedAt: _date(m['achieved_at']),
       );
 }
 
@@ -1377,6 +1409,10 @@ class Zone {
   final DateTime? visitOn;
   final String? visitMemo;
 
+  /// 구역 대표 지번의 좌표(0062). 행크옥션 부동산지도를 여기로 연다.
+  final double? lat;
+  final double? lng;
+
   Zone({
     required this.id,
     required this.name,
@@ -1399,6 +1435,8 @@ class Zone {
     this.visitPlan = false,
     this.visitOn,
     this.visitMemo,
+    this.lat,
+    this.lng,
   });
 
   /// 조합설립 임박 여부 — 물건 고르는 기준 ②.
@@ -1511,6 +1549,8 @@ class Zone {
         visitPlan: m['visit_plan'] == true,
         visitOn: _date(m['visit_on']),
         visitMemo: m['visit_memo'],
+        lat: (m['lat'] as num?)?.toDouble(),
+        lng: (m['lng'] as num?)?.toDouble(),
       );
 }
 

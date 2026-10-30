@@ -46,14 +46,18 @@ TOPIC_OF = [
 # 「모아타운」·「신속통합기획」만 걸면 서울시 전체 기사가 쏟아진다. 정작
 # 필요한 건 «내 구역에 무슨 일이 생겼나»라서, 절차가 움직였다는 신호
 # (공람·심의·고시·조합설립)를 붙인 검색어를 같이 돌린다.
-# 「모아타운」·「신속통합기획」 두 개면 각각 100건씩 와서 사실상 다 덮는다.
-# 검색어를 8개까지 늘렸더니 구글이 스로틀을 걸어 배치가 멈췄다 —
-# 넓은 것 2개 + 놓치면 안 되는 신호 2개만 남긴다.
+# 검색어를 8개까지 늘렸더니 구글이 스로틀을 걸어 배치가 멈췄다 — 4개만 돌린다.
+#
+# 【«when:1d»를 꼭 붙인다】 (2026-10-15)
+# 구글 뉴스 RSS 는 «관련도 순» 100건을 준다. 그대로 두면 그 100건이 몇 달치에
+# 걸쳐 있어서, 어제 기사는 관련도에서 밀려 1~2건만 걸렸다(10/14: 모아타운 1건).
+# when:1d 를 붙이면 최근 24시간 기사만 온다 — 같은 날 모아타운 31건·모아주택
+# 30건·신속통합기획 20건. 공람·지정 같은 «신호» 검색어는 이 안에 다 들어온다.
 QUERIES = [
-    ('모아타운', '모아타운'),
-    ('모아타운 주민공람', '모아타운'),   # 공람 = 통합심의 임박 = 마지막 매수 기회
-    ('신속통합기획', '신통기획'),
-    ('신속통합기획 정비구역 지정', '신통기획'),
+    ('모아타운 when:1d', '모아타운'),
+    ('모아주택 when:1d', '모아타운'),
+    ('신속통합기획 when:1d', '신통기획'),
+    ('신통기획 when:1d', '신통기획'),
 ]
 
 def today_kst():
@@ -293,32 +297,112 @@ def new_items(get, post, today=None):
     return [i for i in items if not seen(i)]
 
 
-def slack_lines(fresh, limit=10):
-    """슬랙에 넣을 줄 — «제목 + 한 줄 요약»만. 링크는 없다.
+# ── 투자에 쓸 만한 기사 고르기 ─────────────────────────────
+# 하루 수십 건이 와도 아침에 읽는 건 3건이다(2026-10-15 «3건만, 투자에 쓸 만한 것»).
+# 모아타운·신통에서 «살 구역을 고르고 팔 때를 정하는» 데 쓰는 소식에 점수를 준다.
 
-    【링크를 뺐다】 (2026-09-30)
-    링크가 있어도 결국 눌러 들어가서 읽지 않았다. 아침에 슬랙만 보고
-    «무슨 일이 있었나»를 알면 된다. 그래서 기사 첫 문장(리드)을 붙인다.
-    더 보고 싶은 건 제목으로 검색하면 된다.
+# 구역 단계가 움직였다 — 매수·매도 시점을 바꾸는 소식.
+_STAGE = re.compile(
+    r'후보지|공모|선정|관리계획|주민공람|공람|통합심의|심의\s*통과|수정가결|가결|'
+    r'고시|정비구역\s*지정|구역\s*지정|추진위|조합설립|조합\s*설립|기획\s*확정|'
+    r'확정|해제|철회|취소')
+# 투자 조건을 바꾸는 제도 — 권리·동의율·사업성.
+_RULE = re.compile(
+    r'권리산정|분양권|입주권|동의율|용적률|층수|단축|완화|규제|토지거래|투기|승계|'
+    r'조합원\s*지위|분담금|사업성|인센티브')
+_SEOUL_GU = re.compile(
+    r'강남|강동|강북|강서|관악|광진|구로|금천|노원|도봉|동대문|동작|마포|서대문|'
+    r'서초|성동|성북|송파|양천|영등포|용산|은평|종로|중랑|중구')
+# 서울 밖 — 이 전략(서울 모아·신통)과 무관하다.
+_OUTSIDE = re.compile(
+    r'부산|대구|인천|광주광역|대전|울산|세종|수원|성남|고양|용인|부천|안양|안산|'
+    r'의정부|평택|창원|전주|청주|천안|경기도|경기\s')
+# 투자 판단에 안 쓰는 것 — 업체 선정·입찰, 분양·청약, 인사·부고.
+_NOISE = re.compile(r'시공사|시공자|업체\s*선정|입찰|협력업체|분양|청약|인사|부고|'
+                    r'MOU|협약식|봉사|기부')
+
+
+def worth(item, gist=''):
+    """투자에 쓸 만한 정도. 높을수록 위."""
+    # 점수는 «제목» 위주로 매긴다. 요약은 최대 +1 — 원문을 못 읽어 요약이 빈
+    # 기사가 밀리고, 일반 정책 기사가 요약 속 낱말로 뛰어오르던 것(10/15:
+    # 신림8구역 조합설립인가가 빠지고 «연내 3만호 착공»이 2위).
+    title = item['title']
+    sc = 0.0
+    if re.search(r'모아타운|모아주택|모아통합|신통|신속통합', title):
+        sc += 2                                   # 제목이 바로 모아·신통 얘기
+    sc += min(len(set(_STAGE.findall(title))), 3) * 1.2
+    sc += min(len(set(_RULE.findall(title))), 2) * 1.0
+    if gist:
+        extra = (set(_STAGE.findall(gist)) | set(_RULE.findall(gist))) \
+            - set(_STAGE.findall(title)) - set(_RULE.findall(title))
+        sc += min(len(extra) * 0.3, 1.0)
+    if _SEOUL_GU.search(title) or re.search(r'[가-힣]+동\s*\d', title):
+        sc += 1                                   # 구체적인 구·동이 나온다
+    # 특정 구역 소식(「신림8구역」「서계동 모아타운」「망우동 127」) — 내 구역 단계가
+    # 움직였는지가 제일 쓸모 있다.
+    if re.search(r'[가-힣]+\d+구역|[가-힣]+동\s*\d+|[가-힣]+동\s*모아타운', title):
+        sc += 1
+    # 제목에 정비사업 얘기가 아예 없으면(휴먼타운·국감 등) 내린다.
+    if not re.search(r'모아|신통|신속통합|재개발|정비|추진위|조합|가로주택', title):
+        sc -= 1.5
+    if _OUTSIDE.search(title):
+        sc -= 4
+    if _NOISE.search(title):
+        sc -= 2
+    if re.search(r'재건축|아파트', title) and not re.search(r'모아|신통|신속통합', title):
+        sc -= 1.5                                 # 아파트 재건축은 이 전략 밖
+    sc += min(item.get('also') or 0, 5) * 0.3     # 여러 매체가 받아쓴 큰 소식
+    return sc
+
+
+def slack_lines(fresh, limit=3):
+    """슬랙에 넣을 줄 — «제목(원문 링크) + 요약 + 짧은 주소».
+
+    【링크는 제목에 건다】 (2026-10-15)
+    9/30 에 링크를 아예 뺐더니, 궁금한 기사를 다시 찾아 들어갈 길이 없었다.
+    맨 URL 을 줄마다 붙이면 지저분하므로 제목 자체를 하이퍼링크로 만든다
+    (슬랙 <주소|제목>). 구글 뉴스 주소는 원문으로 풀어서 건다.
 
     요약은 기사 본문에서 «제목에 없는 사실»을 담은 문장 두 개다(summary).
     못 가져오면 제목만 보낸다 — 요약이 없다고 기사를 버리지 않는다.
     """
-    # «여러 매체가 받아쓴 것»을 위로 올린다.
-    # 큰 발표가 나면 그 하나를 20곳이 조금씩 다른 제목으로 쓴다. 제목이
-    # 제각각이라 중복 묶기가 다 못 잡고, 날짜순으로 자르면 그 한 사건의
-    # 아류 기사들이 열 자리를 전부 차지한다. also(받아쓴 곳 수)가 큰
-    # 대표 기사를 먼저 보내면, 같은 열 줄로 «서로 다른 사건»을 더 많이 본다.
-    fresh = sorted(fresh, key=lambda x: (-(x.get('also') or 0),
-                                         x['published_on'] or datetime.date.min),
-                   reverse=False)
-    lines = []
-    for i in fresh[:limit]:
-        # 「(+7곳)」은 붙이지 않는다 — 몇 곳이 받아썼는지는 읽는 사람에게
-        # 쓸모가 없었다. 순서(많이 받아쓴 것이 위)로만 쓴다.
-        head = f"*{i['title'][:70]}*"
+    # 제목만으로 1차 점수를 매겨 후보 8건만 본문을 읽고(요약 = 원문을 연다),
+    # 요약까지 넣어 다시 매겨 상위 limit 건을 보낸다.
+    cands = sorted(fresh, key=lambda x: -worth(x))[:8]
+    scored = []
+    for i in cands:
         gist = summary(i)
-        lines.append(f"{head}\n{gist}" if gist else head)
+        scored.append((worth(i, gist), i, gist))
+    scored.sort(key=lambda t: -t[0])
+    # 서로 «다른 소식»으로 채운다 — 같은 발표를 매체마다 다른 제목으로 써서
+    # 1·2위가 같은 얘기였다(10/15 모아통합기획 공모). 제목이 비슷하거나
+    # 따옴표 속 이름(‘모아통합기획’)이 같으면 같은 소식으로 본다.
+    picked = []
+    for t in scored:
+        _, i, _ = t
+        sh = _shingles(i['title'])
+        quoted = set(re.findall(r"[‘'\"“]([^’'\"”]{2,20})[’'\"”]", i['title']))
+        dup = any(_same(sh, _shingles(p[1]['title'])) >= 0.3 or
+                  (quoted & set(re.findall(r"[‘'\"“]([^’'\"”]{2,20})[’'\"”]",
+                                           p[1]['title'])))
+                  for p in picked)
+        if not dup:
+            picked.append(t)
+        if len(picked) >= limit:
+            break
+    lines = []
+    for _, i, gist in picked:
+        # 제목에 기사 링크를 건다 — 슬랙에서 누르면 바로 원문.
+        # (구글 주소는 원문으로 풀어 둔 것이 있으면 그걸 쓴다 — summary 가 채운다.)
+        title = i['title'][:70].replace('&', '&amp;').replace('<', '&lt;') \
+            .replace('>', '&gt;').replace('|', '｜')
+        url = i.get('link') or i['url']
+        head = f"*<{url}|{title}>*"
+        # 짧은 주소를 맨 끝 줄에 «글자로» 한 번 더 둔다. 제목 링크는 서식이라
+        # 카톡·메모장처럼 글자만 받는 곳에 복사해 붙이면 떨어져 나갔다(10/15).
+        body = [head] + ([gist] if gist else []) + [short(url)]
+        lines.append('\n'.join(body))
     # 잘린 건수는 말하지 않는다. 하루치만 보므로 잘린 건 다시 안 온다 —
     # 「그 밖에 24건은 생략」은 할 수 있는 게 없는 정보라 소음이었다.
     return lines
@@ -423,8 +507,11 @@ def _sentences(page, title):
         if len(b) < 40:
             continue
         b = _BYLINE.sub('', b, count=1)
+        # 숫자 사이 점(「2.0」「3.5%」)에서는 끊지 않는다 — 「휴먼타운 2.0」이
+        # 「0’ 사업대상지…」로 잘려 나왔다.
         out += [m.group(0).strip()
-                for m in re.finditer(r'[^.?!。]{15,400}?다[.。]', b)]
+                for m in re.finditer(
+                    r'(?:[^.?!。]|(?<=\d)\.(?=\d)){15,400}?다[.。]', b)]
         if len(out) > 40:
             break
     return out
@@ -446,6 +533,8 @@ def summary(item, k=2):
     본문을 못 읽으면 요약 없이 제목만 나간다.
     """
     url = original(item['url'])
+    if url:
+        item['link'] = url          # 슬랙 제목 링크는 원문 주소로
     if not url:
         return ''
     try:
@@ -470,6 +559,25 @@ def summary(item, k=2):
         scored.append((new * 1.5 + min(info, 3) + fit - i * 0.03, i, sent))
     top = sorted(sorted(scored, reverse=True)[:k], key=lambda x: x[1])
     return ' '.join(sent for _, _, sent in top)
+
+
+def short(url):
+    """긴 주소를 tinyurl 로 줄인다. 실패하면 원래 주소를 그대로 쓴다.
+
+    원문 주소는 대개 60~120자라 복사용으로 붙이기엔 길다. 짧은 주소(전문지
+    기사 등 45자 이하)는 그대로 둔다. 단축이 안 된다고 뉴스를 못 보내면
+    안 되므로 어떤 실패든 원래 주소로. (is.gd 는 2026-09-23 에 오류가 나서 뺐다)
+    """
+    if len(url) <= 45:
+        return url
+    try:
+        req = u.Request('https://tinyurl.com/api-create.php?url='
+                        + urllib.parse.quote(url, safe=''), headers=UA)
+        with u.urlopen(req, timeout=8) as r:
+            s = r.read().decode().strip()
+        return s if s.startswith('https://tinyurl.com/') else url
+    except Exception:  # noqa: BLE001
+        return url
 
 
 def main():
