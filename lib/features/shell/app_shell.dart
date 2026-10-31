@@ -72,6 +72,10 @@ class AppShell extends ConsumerWidget {
   }
 }
 
+// 로고 그라데이션 양끝 — 가운데는 AppColors.gold.
+const _goldLight = Color(0xFFFFE7A3);
+const _goldDeep = Color(0xFFC8921E);
+
 class _SideNav extends ConsumerWidget {
   final String location;
   final List<CustomModule> customs;
@@ -97,17 +101,29 @@ class _SideNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 황금 모노그램 «HY». 전엔 초록·파랑 지갑 아이콘이었다.
     final logo = Container(
       height: 34,
       width: 34,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primary, Color(0xFF0EA5E9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_goldLight, AppColors.gold, _goldDeep],
         ),
         borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.28), blurRadius: 10),
+        ],
       ),
-      child: const Icon(Icons.account_balance_wallet_rounded,
-          color: Colors.white, size: 19),
+      child: const Text('HY',
+          style: TextStyle(
+              color: Color(0xFF2A1D00),
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              fontSize: AppFont.label)),
     );
     final toggle = onToggle == null
         ? null
@@ -151,6 +167,7 @@ class _SideNav extends ConsumerWidget {
                               softWrap: false,
                               overflow: TextOverflow.clip,
                               style: TextStyle(
+                                  color: AppColors.gold,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1,
                                   fontSize: AppFont.section)),
@@ -163,7 +180,7 @@ class _SideNav extends ConsumerWidget {
               child: ListView(
                 padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 12),
                 children: [
-                  for (final m in kModules)
+                  for (final m in kModules.where((m) => !m.hidden))
                     _NavItem(
                       icon: m.icon,
                       label: m.label,
@@ -285,7 +302,7 @@ class _AddModuleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (collapsed) {
       return Tooltip(
-        message: '모듈 추가',
+        message: '메뉴 추가',
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
@@ -318,7 +335,7 @@ class _AddModuleButton extends StatelessWidget {
           children: [
             Icon(Icons.add_rounded, size: 19, color: AppColors.textSecondary),
             Gap(12),
-            Text('모듈 추가',
+            Text('메뉴 추가',
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,

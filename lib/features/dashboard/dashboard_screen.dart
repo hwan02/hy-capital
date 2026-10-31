@@ -52,53 +52,102 @@ class DashboardScreen extends ConsumerWidget {
           data: (m) => _FreedomHero(m: m, onEdit: () => _editProfile(context, ref)),
         ),
         const Gap(14),
-        // 목표(개별 목표 + 재무 로드맵) | 오늘 해야 할 일 — 넓으면 2단, 좁으면
-        // 위아래. 할 일은 체크하면 사라지고 「지난 완료」로 간다.
+        // 2단 두 줄 — [목표 | 오늘 해야 할 일], [사업 엔진 | 메모].
+        // 칸마다 높이를 정해 두고, 내용이 더 길면 칸 안에서 세로로 스크롤한다
+        // (카드가 길어지면 아래 카드들이 밀려 내려갔다). 좁으면 위아래로 쌓는다.
+        // 할 일은 체크하면 사라지고 「지난 완료」로 간다.
         const _TwoColumns(
-          left: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [_NextGoalsCard(), Gap(14), PlanRoadmapCompact()],
-          ),
+          height: 440,
+          left: _NextGoalsCard(),
           right: _TodayTasks(),
         ),
         const Gap(14),
-        const _Memos(),
-        const Gap(14),
-        metricsAsync.maybeWhen(
-          data: (m) => _BusinessEngines(m: m),
-          orElse: () => const SizedBox.shrink(),
+        _TwoColumns(
+          height: 300,
+          left: metricsAsync.when(
+            loading: () => GlassCard(child: AsyncStatus.loading()),
+            error: (e, st) => GlassCard(child: AsyncStatus.error(e, st)),
+            data: (m) => _BusinessEngines(m: m),
+          ),
+          right: const _Memos(),
         ),
         const Gap(14),
         const _CapitalProgress(),
+        const Gap(14),
+        // 재무 로드맵은 맨 아래(10/31 요청).
+        const PlanRoadmapCompact(),
       ],
     );
   }
 }
 
-/// 넓은 화면은 좌우 2단, 좁은 화면은 위아래로 쌓는다.
-/// 두 카드의 높이가 달라서 ResponsiveGrid(고정 비율) 대신 쓴다.
+/// 넓은 화면은 좌우 2단 — 두 칸 모두 [height] 로 높이를 맞추고, 카드 안
+/// 목록은 [_ScrollBody] 로 칸 안에서 스크롤한다.
+///
+/// 좁은 화면(폰)은 위아래로 쌓고 높이를 «풀어» 내용만큼 늘린다. 폰에서
+/// 칸마다 안쪽 스크롤이 있으면 손가락으로 끌 때 안쪽 목록만 움직이고
+/// 페이지가 안 내려간다(Flutter 는 터치 스크롤을 바깥으로 넘기지 않는다).
 class _TwoColumns extends StatelessWidget {
   final Widget left, right;
-  const _TwoColumns({required this.left, required this.right});
+  final double height;
+  const _TwoColumns(
+      {required this.left, required this.right, required this.height});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth < 760) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [left, const Gap(14), right],
+        return _PanelFixed(
+          fixed: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [left, const Gap(14), right],
+          ),
         );
       }
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: left),
-          const Gap(14),
-          Expanded(child: right),
-        ],
+      return SizedBox(
+        height: height,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: left),
+            const Gap(14),
+            Expanded(child: right),
+          ],
+        ),
       );
     });
+  }
+}
+
+/// 카드 높이가 정해져 있나 — [_TwoColumns] 가 좁은 화면에서 false 로 내린다.
+class _PanelFixed extends InheritedWidget {
+  final bool fixed;
+  const _PanelFixed({required this.fixed, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PanelFixed>()?.fixed ?? true;
+
+  @override
+  bool updateShouldNotify(_PanelFixed old) => old.fixed != fixed;
+}
+
+/// 높이가 정해진 카드의 «본문» — 남은 높이를 채우고 넘치면 세로 스크롤.
+/// 높이가 풀린 카드(폰)에서는 그냥 내용만큼 늘어난다.
+class _ScrollBody extends StatelessWidget {
+  final Widget child;
+  const _ScrollBody({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_PanelFixed.of(context)) return child;
+    return Expanded(
+      child: SingleChildScrollView(
+        // 스크롤바가 글자를 덮지 않게 오른쪽을 조금 비운다.
+        padding: const EdgeInsets.only(right: 10),
+        child: child,
+      ),
+    );
   }
 }
 
@@ -520,95 +569,102 @@ class _NextGoalsCard extends ConsumerWidget {
                 label: const Text('추가'),
               )),
           const Gap(14),
-          if (active.isEmpty)
-            EmptyState(
-                icon: Icons.flag,
-                message: achievedCount > 0
-                    ? '진행 중인 목표를 모두 달성했어요 — 다음 목표를 추가해 보세요'
-                    : '목표를 추가해 보세요')
-          else
-            for (final g in active) ...[
-              InkWell(
-                onTap: () => menu(g),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(g.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+          _ScrollBody(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+              if (active.isEmpty)
+                EmptyState(
+                    icon: Icons.flag,
+                    message: achievedCount > 0
+                        ? '진행 중인 목표를 모두 달성했어요 — 다음 목표를 추가해 보세요'
+                        : '목표를 추가해 보세요')
+              else
+                for (final g in active) ...[
+                  InkWell(
+                    onTap: () => menu(g),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(g.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+                          ),
+                          if (g.targetDate != null)
+                            Text(Dates.dday(g.targetDate!),
+                                style: const TextStyle(
+                                    color: AppColors.textFaint, fontSize: AppFont.caption)),
+                        ],
                       ),
-                      if (g.targetDate != null)
-                        Text(Dates.dday(g.targetDate!),
-                            style: const TextStyle(
-                                color: AppColors.textFaint, fontSize: AppFont.caption)),
-                    ],
-                  ),
-                  const Gap(7),
-                  ProgressBar(value: g.progress, color: AppColors.violet),
-                  const Gap(5),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: _goalValue(g)),
-                            // 건수 목표 — 목표일까지 하루에 몇 건(10/22).
-                            if (g.dailyPace != null)
-                              TextSpan(
-                                  text: '  ·  ${g.dailyPace}',
-                                  style: const TextStyle(
-                                      color: AppColors.gold,
-                                      fontWeight: FontWeight.w800)),
-                          ]),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: AppFont.caption),
-                        ),
+                      const Gap(7),
+                      ProgressBar(value: g.progress, color: AppColors.violet),
+                      const Gap(5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(children: [
+                                TextSpan(text: _goalValue(g)),
+                                // 건수 목표 — 목표일까지 하루에 몇 건(10/22).
+                                if (g.dailyPace != null)
+                                  TextSpan(
+                                      text: '  ·  ${g.dailyPace}',
+                                      style: const TextStyle(
+                                          color: AppColors.gold,
+                                          fontWeight: FontWeight.w800)),
+                              ]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary, fontSize: AppFont.caption),
+                            ),
+                          ),
+                          Text('${(g.progress * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                  color: AppColors.violet,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: AppFont.label)),
+                        ],
                       ),
-                      Text('${(g.progress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                              color: AppColors.violet,
-                              fontWeight: FontWeight.w800,
-                              fontSize: AppFont.label)),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                    ],
+                  const Gap(16),
+                ],
+              if (achievedCount > 0)
+                InkWell(
+                  onTap: () => context.go('/goals'),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      const Icon(Icons.emoji_events_rounded,
+                          size: 16, color: AppColors.gold),
+                      const Gap(6),
+                      Text('달성한 목표 $achievedCount개',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 18, color: AppColors.textFaint),
+                    ]),
                   ),
                 ),
-              ),
-              const Gap(16),
-            ],
-          if (achievedCount > 0)
-            InkWell(
-              onTap: () => context.go('/goals'),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(children: [
-                  const Icon(Icons.emoji_events_rounded,
-                      size: 16, color: AppColors.gold),
-                  const Gap(6),
-                  Text('달성한 목표 $achievedCount개',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: AppFont.caption,
-                          fontWeight: FontWeight.w700)),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right_rounded,
-                      size: 18, color: AppColors.textFaint),
-                ]),
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -634,66 +690,123 @@ class _BusinessEngines extends StatelessWidget {
       _Engine('숏폼', Icons.play_circle_fill_rounded, AppColors.rose,
           m.shortsThisMonth, '/shorts'),
     ].where((e) => e.amount > 0).toList();
-    if (engines.isEmpty) return const SizedBox.shrink();
 
-    final month = DateTime.now().month;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 12, left: 2),
-          child: Text('사업 엔진',
-              style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w700)),
-        ),
-        // 엔진 수만큼만 자리를 잡는다 — 하나뿐일 때 행 전체로 늘어나지 않게.
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            for (final e in engines)
-              SizedBox(
-                width: 240,
-                child: GlassCard(
-                  accent: e.color,
-                  padding: const EdgeInsets.all(16),
-                  onTap: () => context.go(e.route),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    // 카드 크기는 고정이고, 엔진이 늘면 «그 안을» 나눈다 —
+    // 1개 = 통째로, 2개 = 좌우, 3~4개 = 2×2, 5개부터 3열.
+    final cols = engines.length <= 1
+        ? 1
+        : engines.length <= 4
+            ? 2
+            : 3;
+    final rows = <List<_Engine>>[
+      for (var i = 0; i < engines.length; i += cols)
+        engines.sublist(i, (i + cols).clamp(0, engines.length)),
+    ];
+
+    final grid = engines.isEmpty
+        ? const EmptyState(
+            icon: Icons.bolt_rounded,
+            message: '이번 달 기록된 수익이 없습니다')
+        : Column(
+            children: [
+              for (var r = 0; r < rows.length; r++) ...[
+                if (r > 0) const Gap(10),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          Icon(e.icon, color: e.color, size: 18),
-                          const Gap(8),
-                          Text(e.name,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: AppFont.body)),
-                          const Spacer(),
-                          const Icon(Icons.chevron_right,
-                              color: AppColors.textFaint, size: 16),
-                        ],
-                      ),
-                      const Gap(10),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text('${Won.compact(e.amount)}원',
-                            maxLines: 1,
-                            style: TextStyle(
-                                fontSize: AppFont.title,
-                                fontWeight: FontWeight.w800,
-                                color: e.color)),
-                      ),
-                      Text('$month월 실적',
-                          style: const TextStyle(
-                              color: AppColors.textFaint, fontSize: AppFont.micro)),
+                      for (var c = 0; c < cols; c++) ...[
+                        if (c > 0) const Gap(10),
+                        Expanded(
+                          child: c < rows[r].length
+                              ? _EngineTile(
+                                  e: rows[r][c], big: cols == 1)
+                              // 마지막 줄 빈칸 — 자리만 맞춘다.
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
                     ],
                   ),
                 ),
+              ],
+            ],
+          );
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader('사업 엔진'),
+          const Gap(12),
+          // 높이가 풀린 카드(폰)에서도 칸을 나누려면 높이가 있어야 한다.
+          if (_PanelFixed.of(context))
+            Expanded(child: grid)
+          else
+            SizedBox(height: 220, child: grid),
+        ],
+      ),
+    );
+  }
+}
+
+/// 사업 엔진 칸 하나. 누르면 그 메뉴로 간다.
+class _EngineTile extends StatelessWidget {
+  final _Engine e;
+
+  /// 엔진이 하나뿐이라 칸을 통째로 쓸 때 — 금액을 크게.
+  final bool big;
+  const _EngineTile({required this.e, this.big = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final month = DateTime.now().month;
+    return Material(
+      color: e.color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.go(e.route),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: e.color.withValues(alpha: 0.30)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(e.icon, color: e.color, size: 18),
+                  const Gap(8),
+                  Expanded(
+                    child: Text(e.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: AppFont.body)),
+                  ),
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.textFaint, size: 16),
+                ],
               ),
-          ],
+              const Spacer(),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text('${Won.compact(e.amount)}원',
+                    maxLines: 1,
+                    style: TextStyle(
+                        fontSize: big ? AppFont.hero : AppFont.title,
+                        fontWeight: FontWeight.w800,
+                        color: e.color)),
+              ),
+              Text('$month월 실적',
+                  style: const TextStyle(
+                      color: AppColors.textFaint, fontSize: AppFont.caption)),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -769,69 +882,71 @@ class _TodayTasks extends ConsumerWidget {
                 ],
               )),
           const Gap(6),
-          tasksAsync.when(
-            loading: AsyncStatus.loading,
-            error: AsyncStatus.error,
-            data: (all) {
-              // 체크한 것은 여기 남지 않는다 —「지난 완료」로 간다.
-              final tasks = all.where((t) => !t.done).toList();
-              if (tasks.isEmpty) {
-                return const EmptyState(
-                    icon: Icons.task_alt_rounded, message: '오늘 할 일을 다 끝냈습니다');
-              }
-              return Column(
-                children: [
-                  for (final t in tasks)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: false,
-                            onChanged: (_) => _check(context, ref, t),
-                            activeColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6)),
-                          ),
-                          // 태그를 맨 앞에.
-                          if (t.module != null) ...[
-                            Pill(t.module!,
-                                color: AppColors.module[t.module] ??
-                                    AppColors.textFaint),
-                            const Gap(10),
-                          ],
-                          Expanded(
-                            child: Text(
-                              t.title,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: AppFont.body,
-                                color: AppColors.textPrimary,
+          _ScrollBody(
+            child: tasksAsync.when(
+                loading: AsyncStatus.loading,
+                error: AsyncStatus.error,
+                data: (all) {
+                  // 체크한 것은 여기 남지 않는다 —「지난 완료」로 간다.
+                  final tasks = all.where((t) => !t.done).toList();
+                  if (tasks.isEmpty) {
+                    return const EmptyState(
+                        icon: Icons.task_alt_rounded, message: '오늘 할 일을 다 끝냈습니다');
+                  }
+                  return Column(
+                    children: [
+                      for (final t in tasks)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: false,
+                                onChanged: (_) => _check(context, ref, t),
+                                activeColor: AppColors.primary,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6)),
                               ),
-                            ),
+                              // 태그를 맨 앞에.
+                              if (t.module != null) ...[
+                                Pill(t.module!,
+                                    color: AppColors.module[t.module] ??
+                                        AppColors.textFaint),
+                                const Gap(10),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  t.title,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: AppFont.body,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              RecordMenu(
+                                onEdit: () => editBuiltinRecord(
+                                    context, ref, taskSpec,
+                                    initial: {
+                                      'title': t.title,
+                                      'module': t.module,
+                                      'due_date': t.dueDate
+                                          ?.toIso8601String()
+                                          .substring(0, 10),
+                                      'done': t.done,
+                                    },
+                                    id: t.id),
+                                onDelete: () => deleteBuiltinRecord(
+                                    context, ref, taskSpec, t.id,
+                                    name: t.title),
+                              ),
+                            ],
                           ),
-                          RecordMenu(
-                            onEdit: () => editBuiltinRecord(
-                                context, ref, taskSpec,
-                                initial: {
-                                  'title': t.title,
-                                  'module': t.module,
-                                  'due_date': t.dueDate
-                                      ?.toIso8601String()
-                                      .substring(0, 10),
-                                  'done': t.done,
-                                },
-                                id: t.id),
-                            onDelete: () => deleteBuiltinRecord(
-                                context, ref, taskSpec, t.id,
-                                name: t.title),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
+                        ),
+                    ],
+                  );
+                },
+              ),
           ),
         ],
       ),
@@ -1063,83 +1178,85 @@ class _Memos extends ConsumerWidget {
                 label: const Text('추가'),
               )),
           const Gap(6),
-          async.when(
-            loading: AsyncStatus.loading,
-            error: AsyncStatus.error,
-            data: (memos) {
-              if (memos.isEmpty) {
-                return const EmptyState(
-                    icon: Icons.sticky_note_2_rounded,
-                    message: '메모가 없습니다');
-              }
-              return Column(
-                children: [
-                  for (final m in memos)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          IconButton(
-                            onPressed: () => _togglePin(ref, m),
-                            icon: Icon(
-                              m.pinned
-                                  ? Icons.push_pin_rounded
-                                  : Icons.push_pin_outlined,
-                              size: 16,
-                            ),
-                            color: m.pinned
-                                ? AppColors.gold
-                                : AppColors.textFaint,
-                            tooltip: m.pinned ? '고정 해제' : '위에 고정',
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.only(top: 2),
-                            constraints: const BoxConstraints(),
-                          ),
-                          const Gap(10),
-                          // 카드에는 6줄까지(전엔 3줄이라 너무 짧았다). 넘치면
-                          // «…»로 접고, 누르면 전체를 팝업으로 연다 — 다 펼치면
-                          // 긴 메모 하나가 대시보드를 밀어낸다.
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => _showMemo(context, ref, m),
-                              borderRadius: BorderRadius.circular(6),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    m.body.trim(),
-                                    maxLines: 6,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: AppFont.body,
-                                        height: 1.5,
-                                        color: AppColors.textPrimary),
-                                  ),
-                                  const Gap(2),
-                                  Text(Dates.md(m.createdAt),
-                                      style: const TextStyle(
-                                          fontSize: AppFont.caption,
-                                          color: AppColors.textFaint)),
-                                ],
+          _ScrollBody(
+            child: async.when(
+                loading: AsyncStatus.loading,
+                error: AsyncStatus.error,
+                data: (memos) {
+                  if (memos.isEmpty) {
+                    return const EmptyState(
+                        icon: Icons.sticky_note_2_rounded,
+                        message: '메모가 없습니다');
+                  }
+                  return Column(
+                    children: [
+                      for (final m in memos)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              IconButton(
+                                onPressed: () => _togglePin(ref, m),
+                                icon: Icon(
+                                  m.pinned
+                                      ? Icons.push_pin_rounded
+                                      : Icons.push_pin_outlined,
+                                  size: 16,
+                                ),
+                                color: m.pinned
+                                    ? AppColors.gold
+                                    : AppColors.textFaint,
+                                tooltip: m.pinned ? '고정 해제' : '위에 고정',
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.only(top: 2),
+                                constraints: const BoxConstraints(),
                               ),
-                            ),
+                              const Gap(10),
+                              // 카드에는 6줄까지(전엔 3줄이라 너무 짧았다). 넘치면
+                              // «…»로 접고, 누르면 전체를 팝업으로 연다 — 다 펼치면
+                              // 긴 메모 하나가 대시보드를 밀어낸다.
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () => _showMemo(context, ref, m),
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        m.body.trim(),
+                                        maxLines: 6,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: AppFont.body,
+                                            height: 1.5,
+                                            color: AppColors.textPrimary),
+                                      ),
+                                      const Gap(2),
+                                      Text(Dates.md(m.createdAt),
+                                          style: const TextStyle(
+                                              fontSize: AppFont.caption,
+                                              color: AppColors.textFaint)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              RecordMenu(
+                                onEdit: () => editBuiltinRecord(
+                                    context, ref, memoSpec,
+                                    initial: {'body': m.body, 'pinned': m.pinned},
+                                    id: m.id),
+                                onDelete: () => deleteBuiltinRecord(
+                                    context, ref, memoSpec, m.id,
+                                    name: m.firstLine),
+                              ),
+                            ],
                           ),
-                          RecordMenu(
-                            onEdit: () => editBuiltinRecord(
-                                context, ref, memoSpec,
-                                initial: {'body': m.body, 'pinned': m.pinned},
-                                id: m.id),
-                            onDelete: () => deleteBuiltinRecord(
-                                context, ref, memoSpec, m.id,
-                                name: m.firstLine),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
+                        ),
+                    ],
+                  );
+                },
+              ),
           ),
         ],
       ),
