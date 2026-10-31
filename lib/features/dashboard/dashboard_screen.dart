@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -53,26 +52,53 @@ class DashboardScreen extends ConsumerWidget {
           data: (m) => _FreedomHero(m: m, onEdit: () => _editProfile(context, ref)),
         ),
         const Gap(14),
+        // 목표(개별 목표 + 재무 로드맵) | 오늘 해야 할 일 — 넓으면 2단, 좁으면
+        // 위아래. 할 일은 체크하면 사라지고 「지난 완료」로 간다.
+        const _TwoColumns(
+          left: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [_NextGoalsCard(), Gap(14), PlanRoadmapCompact()],
+          ),
+          right: _TodayTasks(),
+        ),
+        const Gap(14),
+        const _Memos(),
+        const Gap(14),
         metricsAsync.maybeWhen(
           data: (m) => _BusinessEngines(m: m),
           orElse: () => const SizedBox.shrink(),
         ),
         const Gap(14),
-        const _MoneyFlowSummary(),
-        const Gap(14),
         const _CapitalProgress(),
-        const Gap(14),
-        // 목표 섹션 = 재무 로드맵 + 개별 목표
-        const PlanRoadmapCompact(),
-        const Gap(14),
-        const _NextGoalsCard(),
-        const Gap(14),
-        // 오늘 해야 할 일 (전체 폭). 체크하면 사라지고 「지난 완료」로 간다.
-        const _TodayTasks(),
-        const Gap(14),
-        const _Memos(),
       ],
     );
+  }
+}
+
+/// 넓은 화면은 좌우 2단, 좁은 화면은 위아래로 쌓는다.
+/// 두 카드의 높이가 달라서 ResponsiveGrid(고정 비율) 대신 쓴다.
+class _TwoColumns extends StatelessWidget {
+  final Widget left, right;
+  const _TwoColumns({required this.left, required this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      if (c.maxWidth < 760) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [left, const Gap(14), right],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const Gap(14),
+          Expanded(child: right),
+        ],
+      );
+    });
   }
 }
 
@@ -361,247 +387,6 @@ class _MonthlyBars extends StatelessWidget {
   }
 }
 
-// ── 자금 흐름 요약 (들어오는 돈 / 나가는 돈 도넛 2개) ──────────
-class _MoneyFlowSummary extends ConsumerWidget {
-  const _MoneyFlowSummary();
-
-  static const _palette = [
-    AppColors.primary, AppColors.sky, AppColors.gold, AppColors.rose,
-    AppColors.violet, Color(0xFFB4844E), Color(0xFF34D399), Color(0xFFFB923C),
-    Color(0xFFE879F9), Color(0xFF2DD4BF),
-  ];
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entries = ref.watch(flowEntriesProvider).asData?.value ?? [];
-    final byMonth = ref.watch(moduleIncomeByMonthProvider).value ?? const {};
-
-    // 가장 최근 데이터가 있는 달을 이번 달로 본다.
-    //
-    // «수동 기록과 모듈 수익을 같이» 본다. 전에는 수동 기록(flowEntries)만
-    // 보고 달을 정해서, 10월 에어비앤비 정산을 넣어도 수동 기록이 9월에
-    // 멈춰 있으면 카드가 9월에 그대로 머물렀다. 모듈 수익만 보던 때는
-    // 그 반대로 틀렸으므로(아직 기록 전인 달로 넘어가 월급만 남았다),
-    // 둘 중 «늦은 쪽»을 쓴다.
-    DateTime? latest;
-    void bump(DateTime m) {
-      if (latest == null || m.isAfter(latest!)) latest = m;
-    }
-    for (final e in entries) {
-      bump(DateTime(e.date.year, e.date.month));
-    }
-    byMonth.forEach((k, v) {
-      if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
-    });
-    // 에비 부가세(자동)만 있는 달도 «데이터가 있는 달»이다.
-    final airbnbOut = ref.watch(airbnbOutflowByMonthProvider).value ?? const {};
-    airbnbOut.forEach((k, v) {
-      if (v.values.any((x) => x != 0)) bump(DateTime.parse(k));
-    });
-    final lm = latest;
-    final scope = lm == null
-        ? <FlowEntry>[]
-        : entries
-            .where((e) => e.date.year == lm.year && e.date.month == lm.month)
-            .toList();
-
-    List<_MiniSlice> colorize(Map<String, double> by) {
-      final list = by.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      return [
-        for (var i = 0; i < list.length; i++)
-          _MiniSlice(list[i].key, list[i].value, _palette[i % _palette.length]),
-      ];
-    }
-
-    // 들어온 돈 = 수동 기록(비모듈 라벨) + 자동(«같은 달» 모듈 수익).
-    // 전에는 모듈 수익만 달력상 이번 달 것을 붙여서, 카드는 9월인데
-    // 10월(아직 기록 전) 에어비앤비·배당을 찾느라 월급만 남았다.
-    final incomeBy = <String, double>{};
-    for (final e in scope
-        .where((e) => e.isIn && !kAutoIncomeLabels.contains(e.label))) {
-      incomeBy[e.label] = (incomeBy[e.label] ?? 0) + e.amount;
-    }
-    final autoIncome = lm == null
-        ? const <String, double>{}
-        : byMonth[lm.toIso8601String().substring(0, 10)] ?? const {};
-    // 에비 부가세 — 투자한 돈에 따로 보이고, 순수익에서 이미
-    // 빠진 만큼 들어온 돈의 에비에 되돌린다(자금 흐름 화면과 같다).
-    final autoOut = lm == null
-        ? const <String, double>{}
-        : airbnbOut[lm.toIso8601String().substring(0, 10)] ?? const {};
-    final airbnbBack = autoOut.values.fold(0.0, (s, v) => s + v);
-    autoIncome.forEach((k, v) {
-      final add = k == '에비' ? v + airbnbBack : v;
-      if (add > 0) incomeBy[k] = (incomeBy[k] ?? 0) + add;
-    });
-    if (airbnbBack > 0 && !autoIncome.containsKey('에비')) {
-      incomeBy['에비'] = (incomeBy['에비'] ?? 0) + airbnbBack;
-    }
-    final outBy = <String, double>{};
-    for (final e in scope.where((e) => !e.isIn)) {
-      if (autoOut.containsKey(e.label)) continue; // 자동값으로 대체
-      outBy[e.label] = (outBy[e.label] ?? 0) + e.amount;
-    }
-    autoOut.forEach((k, v) => outBy[k] = (outBy[k] ?? 0) + v);
-    final inSlices = colorize(incomeBy);
-    final outSlices = colorize(outBy);
-    final totalIn = inSlices.fold(0.0, (s, a) => s + a.value);
-    final totalOut = outSlices.fold(0.0, (s, a) => s + a.value);
-
-    return GlassCard(
-      accent: AppColors.gold,
-      onTap: () => context.go('/money'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(child: SectionHeader('자금 흐름')),
-              Text(lm == null ? '' : Dates.ym(lm),
-                  style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: AppFont.label)),
-              const Gap(6),
-              const Icon(Icons.chevron_right, color: AppColors.textFaint, size: 18),
-            ],
-          ),
-          const Gap(18),
-          LayoutBuilder(builder: (context, c) {
-            final inD = _MiniDonut(
-                title: '들어온 돈', slices: inSlices, total: totalIn,
-                color: AppColors.gold, emptyMsg: '유입 없음');
-            final outD = _MiniDonut(
-                title: '투자한 돈', slices: outSlices, total: totalOut,
-                color: AppColors.sky, emptyMsg: '투자 없음');
-            if (c.maxWidth < 620) {
-              return Column(children: [inD, const Gap(20), outD]);
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: inD),
-                const Gap(28),
-                Expanded(child: outD),
-              ],
-            );
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniSlice {
-  final String label;
-  final double value;
-  final Color color;
-  _MiniSlice(this.label, this.value, this.color);
-}
-
-class _MiniDonut extends StatelessWidget {
-  final String title;
-  final List<_MiniSlice> slices;
-  final double total;
-  final Color color;
-  final String emptyMsg;
-  const _MiniDonut({
-    required this.title,
-    required this.slices,
-    required this.total,
-    required this.color,
-    required this.emptyMsg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w800)),
-        const Gap(16),
-        if (total <= 0)
-          SizedBox(
-            height: 150,
-            child: EmptyState(icon: Icons.donut_large_rounded, message: emptyMsg),
-          )
-        else
-          Row(
-            children: [
-              SizedBox(
-                height: 150,
-                width: 150,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    PieChart(PieChartData(
-                      sectionsSpace: 2,
-                      centerSpaceRadius: 44,
-                      sections: [
-                        for (final s in slices)
-                          PieChartSectionData(
-                            value: s.value,
-                            color: s.color,
-                            radius: 30,
-                            showTitle: false,
-                          ),
-                      ],
-                    )),
-                    Text('${Won.compact(total)}원',
-                        style: TextStyle(
-                            fontSize: AppFont.section, fontWeight: FontWeight.w900, color: color)),
-                  ],
-                ),
-              ),
-              const Gap(16),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final s in slices.take(6))
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 10, height: 10,
-                              decoration: BoxDecoration(
-                                  color: s.color,
-                                  borderRadius: BorderRadius.circular(3)),
-                            ),
-                            const Gap(9),
-                            Flexible(
-                              child: Text(s.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: AppFont.label, fontWeight: FontWeight.w600)),
-                            ),
-                            const Gap(8),
-                            Text('${(s.value / total * 100).toStringAsFixed(0)}%',
-                                style: TextStyle(
-                                    color: color,
-                                    fontSize: AppFont.label,
-                                    fontWeight: FontWeight.w800)),
-                            const Gap(8),
-                            Text('${Won.compact(s.value)}원',
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: AppFont.label,
-                                    fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
 // ── 사업자금 모으기 (에비/토지 준비금 진행률) ──────────────────
 class _CapitalProgress extends ConsumerWidget {
   const _CapitalProgress();
@@ -860,46 +645,50 @@ class _BusinessEngines extends StatelessWidget {
           child: Text('사업 엔진',
               style: TextStyle(fontSize: AppFont.section, fontWeight: FontWeight.w700)),
         ),
-        ResponsiveGrid(
-          minTileWidth: 180,
-          ratio: 1.4,
+        // 엔진 수만큼만 자리를 잡는다 — 하나뿐일 때 행 전체로 늘어나지 않게.
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
           children: [
             for (final e in engines)
-              GlassCard(
-                accent: e.color,
-                padding: const EdgeInsets.all(16),
-                onTap: () => context.go(e.route),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(e.icon, color: e.color, size: 18),
-                        const Gap(8),
-                        Text(e.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: AppFont.body)),
-                        const Spacer(),
-                        const Icon(Icons.chevron_right,
-                            color: AppColors.textFaint, size: 16),
-                      ],
-                    ),
-                    const Gap(10),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text('${Won.compact(e.amount)}원',
-                          maxLines: 1,
-                          style: TextStyle(
-                              fontSize: AppFont.title,
-                              fontWeight: FontWeight.w800,
-                              color: e.color)),
-                    ),
-                    Text('$month월 실적',
-                        style: const TextStyle(
-                            color: AppColors.textFaint, fontSize: AppFont.micro)),
-                  ],
+              SizedBox(
+                width: 240,
+                child: GlassCard(
+                  accent: e.color,
+                  padding: const EdgeInsets.all(16),
+                  onTap: () => context.go(e.route),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(e.icon, color: e.color, size: 18),
+                          const Gap(8),
+                          Text(e.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: AppFont.body)),
+                          const Spacer(),
+                          const Icon(Icons.chevron_right,
+                              color: AppColors.textFaint, size: 16),
+                        ],
+                      ),
+                      const Gap(10),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text('${Won.compact(e.amount)}원',
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontSize: AppFont.title,
+                                fontWeight: FontWeight.w800,
+                                color: e.color)),
+                      ),
+                      Text('$month월 실적',
+                          style: const TextStyle(
+                              color: AppColors.textFaint, fontSize: AppFont.micro)),
+                    ],
+                  ),
                 ),
               ),
           ],

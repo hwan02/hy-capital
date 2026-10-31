@@ -10,7 +10,7 @@ import '../../models/custom.dart';
 import '../custom/module_editor.dart';
 import 'modules.dart';
 
-/// 반응형 셸: 넓은 화면은 사이드바, 좁은 화면은 Drawer.
+/// 반응형 셸: 넓은 화면은 사이드바(접으면 아이콘만), 좁은 화면은 Drawer.
 class AppShell extends ConsumerWidget {
   final Widget child;
   final String location;
@@ -35,7 +35,13 @@ class AppShell extends ConsumerWidget {
       return Scaffold(
         body: Row(
           children: [
-            _SideNav(location: location, customs: customs),
+            _SideNav(
+              location: location,
+              customs: customs,
+              collapsed: ref.watch(sideNavCollapsedProvider),
+              onToggle: () =>
+                  ref.read(sideNavCollapsedProvider.notifier).toggle(),
+            ),
             const VerticalDivider(width: 1, color: AppColors.border),
             Expanded(child: child),
           ],
@@ -70,10 +76,18 @@ class _SideNav extends ConsumerWidget {
   final String location;
   final List<CustomModule> customs;
   final VoidCallback? onNavigate;
+
+  /// 아이콘만 남긴 좁은 레일. Drawer(모바일)에서는 쓰지 않는다.
+  final bool collapsed;
+
+  /// 접기/펼치기 버튼. null 이면 버튼을 안 그린다(Drawer).
+  final VoidCallback? onToggle;
   const _SideNav({
     required this.location,
     required this.customs,
     this.onNavigate,
+    this.collapsed = false,
+    this.onToggle,
   });
 
   void _go(BuildContext context, String path) {
@@ -83,41 +97,71 @@ class _SideNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final logo = Container(
+      height: 34,
+      width: 34,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, Color(0xFF0EA5E9)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.account_balance_wallet_rounded,
+          color: Colors.white, size: 19),
+    );
+    final toggle = onToggle == null
+        ? null
+        : IconButton(
+            tooltip: collapsed ? '메뉴 펼치기' : '메뉴 접기',
+            onPressed: onToggle,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+                collapsed
+                    ? Icons.keyboard_double_arrow_right_rounded
+                    : Icons.keyboard_double_arrow_left_rounded,
+                size: 18,
+                color: AppColors.textFaint),
+          );
+
+    // 애니메이션은 넣지 않는다 — 폭이 바뀌는 도중에 펼친 레이아웃이 좁은
+    // 폭에 그려져 넘친다.
     return Container(
-      width: 236,
+      width: collapsed ? 68 : 236,
       color: AppColors.surface,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-              child: Row(
-                children: [
-                  Container(
-                    height: 34,
-                    width: 34,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, Color(0xFF0EA5E9)],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
+              padding: collapsed
+                  ? const EdgeInsets.fromLTRB(0, 22, 0, 12)
+                  : const EdgeInsets.fromLTRB(20, 22, 8, 20),
+              child: collapsed
+                  // 접힌 레일: 로고 아래에 펼치기 버튼.
+                  ? Center(
+                      child: Column(children: [logo, const Gap(8), ?toggle]),
+                    )
+                  : Row(
+                      children: [
+                        logo,
+                        const Gap(10),
+                        const Expanded(
+                          child: Text('HY CAPITAL',
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.clip,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                  fontSize: AppFont.section)),
+                        ),
+                        ?toggle,
+                      ],
                     ),
-                    child: const Icon(Icons.account_balance_wallet_rounded,
-                        color: Colors.white, size: 19),
-                  ),
-                  const Gap(10),
-                  const Text('HY CAPITAL',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                          fontSize: AppFont.section)),
-                ],
-              ),
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 12),
                 children: [
                   for (final m in kModules)
                     _NavItem(
@@ -125,6 +169,7 @@ class _SideNav extends ConsumerWidget {
                       label: m.label,
                       color: m.color,
                       selected: location.startsWith(m.path),
+                      collapsed: collapsed,
                       onTap: () => _go(context, m.path),
                     ),
                   // 직접 만든 모듈도 같은 목록에 이어서 표시 (구분 없음).
@@ -134,10 +179,12 @@ class _SideNav extends ConsumerWidget {
                       label: m.name,
                       color: colorFromHex(m.colorHex),
                       selected: location == m.route,
+                      collapsed: collapsed,
                       onTap: () => _go(context, m.route),
                     ),
                   const Gap(6),
                   _AddModuleButton(
+                    collapsed: collapsed,
                     onTap: () {
                       onNavigate?.call();
                       showModuleEditor(context, ref);
@@ -159,6 +206,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final Color color;
   final bool selected;
+  final bool collapsed;
   final VoidCallback onTap;
   const _NavItem({
     required this.icon,
@@ -166,10 +214,32 @@ class _NavItem extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    this.collapsed = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final iconW =
+        Icon(icon, size: 20, color: selected ? color : AppColors.textFaint);
+    if (collapsed) {
+      // 아이콘만. 이름은 마우스를 올리면 보인다.
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Tooltip(
+          message: label,
+          waitDuration: const Duration(milliseconds: 300),
+          child: Material(
+            color: selected ? color.withValues(alpha: 0.14) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: SizedBox(height: 42, child: Center(child: iconW)),
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
@@ -183,8 +253,7 @@ class _NavItem extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             child: Row(
               children: [
-                Icon(icon,
-                    size: 20, color: selected ? color : AppColors.textFaint),
+                iconW,
                 const Gap(12),
                 Expanded(
                   child: Text(
@@ -210,9 +279,31 @@ class _NavItem extends StatelessWidget {
 
 class _AddModuleButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _AddModuleButton({required this.onTap});
+  final bool collapsed;
+  const _AddModuleButton({required this.onTap, this.collapsed = false});
   @override
   Widget build(BuildContext context) {
+    if (collapsed) {
+      return Tooltip(
+        message: '모듈 추가',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            margin: const EdgeInsets.only(top: 4),
+            height: 42,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Center(
+              child: Icon(Icons.add_rounded,
+                  size: 19, color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,

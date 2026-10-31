@@ -892,6 +892,11 @@ final salaryUnlockedProvider =
 final salaryMaskedProvider =
     NotifierProvider<BoolFlag, bool>(() => BoolFlag(true));
 
+/// 넓은 화면 사이드바를 접었나. 기본은 «접힘»(아이콘만) — 본문을 넓게 쓴다.
+/// 화면을 옮겨 다녀도 유지되고, 새로고침하면 다시 접힌다.
+final sideNavCollapsedProvider =
+    NotifierProvider<BoolFlag, bool>(() => BoolFlag(true));
+
 void invalidateSalary(WidgetRef ref) {
   ref.invalidate(salaryMonthsProvider);
   ref.invalidate(budgetItemsProvider);
