@@ -691,46 +691,40 @@ class _BusinessEngines extends StatelessWidget {
           m.shortsThisMonth, '/shorts'),
     ].where((e) => e.amount > 0).toList();
 
-    // 카드 크기는 고정이고, 엔진이 늘면 «그 안을» 나눈다 —
-    // 1개 = 통째로, 2개 = 좌우, 3~4개 = 2×2, 5개부터 3열.
-    final cols = engines.length <= 1
-        ? 1
-        : engines.length <= 4
-            ? 2
-            : 3;
-    final rows = <List<_Engine>>[
-      for (var i = 0; i < engines.length; i += cols)
-        engines.sublist(i, (i + cols).clamp(0, engines.length)),
+    // 칸은 늘 «4개(2×2)»로 나눠 두고 엔진을 앞에서부터 채운다 — 하나뿐일 때
+    // 칸 전체를 쓰면 너무 컸다(10/31). 빈 칸은 자리만 보인다.
+    // 5개를 넘으면 3열로 늘린다.
+    final cols = engines.length <= 4 ? 2 : 3;
+    final slots = engines.length <= 4
+        ? 4
+        : (engines.length / cols).ceil() * cols;
+    final rows = <List<_Engine?>>[
+      for (var i = 0; i < slots; i += cols)
+        [for (var j = i; j < i + cols; j++) j < engines.length ? engines[j] : null],
     ];
 
-    final grid = engines.isEmpty
-        ? const EmptyState(
-            icon: Icons.bolt_rounded,
-            message: '이번 달 기록된 수익이 없습니다')
-        : Column(
-            children: [
-              for (var r = 0; r < rows.length; r++) ...[
-                if (r > 0) const Gap(10),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (var c = 0; c < cols; c++) ...[
-                        if (c > 0) const Gap(10),
-                        Expanded(
-                          child: c < rows[r].length
-                              ? _EngineTile(
-                                  e: rows[r][c], big: cols == 1)
-                              // 마지막 줄 빈칸 — 자리만 맞춘다.
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    ],
+    final grid = Column(
+      children: [
+        for (var r = 0; r < rows.length; r++) ...[
+          if (r > 0) const Gap(10),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var c = 0; c < cols; c++) ...[
+                  if (c > 0) const Gap(10),
+                  Expanded(
+                    child: rows[r][c] == null
+                        ? const _EmptySlot()
+                        : _EngineTile(e: rows[r][c]!),
                   ),
-                ),
+                ],
               ],
-            ],
-          );
+            ),
+          ),
+        ],
+      ],
+    );
 
     return GlassCard(
       child: Column(
@@ -749,13 +743,25 @@ class _BusinessEngines extends StatelessWidget {
   }
 }
 
+/// 아직 엔진이 없는 칸 — 테두리만.
+class _EmptySlot extends StatelessWidget {
+  const _EmptySlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+    );
+  }
+}
+
 /// 사업 엔진 칸 하나. 누르면 그 메뉴로 간다.
 class _EngineTile extends StatelessWidget {
   final _Engine e;
-
-  /// 엔진이 하나뿐이라 칸을 통째로 쓸 때 — 금액을 크게.
-  final bool big;
-  const _EngineTile({required this.e, this.big = false});
+  const _EngineTile({required this.e});
 
   @override
   Widget build(BuildContext context) {
@@ -796,7 +802,7 @@ class _EngineTile extends StatelessWidget {
                 child: Text('${Won.compact(e.amount)}원',
                     maxLines: 1,
                     style: TextStyle(
-                        fontSize: big ? AppFont.hero : AppFont.title,
+                        fontSize: AppFont.title,
                         fontWeight: FontWeight.w800,
                         color: e.color)),
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -32,7 +33,8 @@ class AppShell extends ConsumerWidget {
     final customs = ref.watch(customModulesProvider).asData?.value ?? [];
 
     if (wide) {
-      return Scaffold(
+      return _NavToggleKey(
+          child: Scaffold(
         body: Row(
           children: [
             _SideNav(
@@ -46,7 +48,7 @@ class AppShell extends ConsumerWidget {
             Expanded(child: child),
           ],
         ),
-      );
+      ));
     }
 
     return Scaffold(
@@ -72,6 +74,52 @@ class AppShell extends ConsumerWidget {
   }
 }
 
+/// `[` 키로 사이드바를 접고 편다.
+///
+/// 저장(Alt+Enter, [SaveKeyScope])과 같이 «키보드 자체»에 건다 — 포커스를
+/// 가진 위젯이 없는 화면에서도 먹게. 입력칸에서 글을 쓰는 중이면 `[` 는
+/// 글자이므로 건드리지 않는다. 조합키(Ctrl·Alt·Cmd)가 눌렸어도 무시한다.
+class _NavToggleKey extends ConsumerStatefulWidget {
+  final Widget child;
+  const _NavToggleKey({required this.child});
+
+  @override
+  ConsumerState<_NavToggleKey> createState() => _NavToggleKeyState();
+}
+
+class _NavToggleKeyState extends ConsumerState<_NavToggleKey> {
+  bool _onKey(KeyEvent e) {
+    if (e is! KeyDownEvent || e.logicalKey != LogicalKeyboardKey.bracketLeft) {
+      return false;
+    }
+    final kb = HardwareKeyboard.instance;
+    if (kb.isControlPressed || kb.isAltPressed || kb.isMetaPressed) return false;
+    final focus = FocusManager.instance.primaryFocus?.context;
+    if (focus != null &&
+        (focus.widget is EditableText ||
+            focus.findAncestorStateOfType<EditableTextState>() != null)) {
+      return false;
+    }
+    ref.read(sideNavCollapsedProvider.notifier).toggle();
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 // 로고 그라데이션 양끝 — 가운데는 AppColors.gold.
 const _goldLight = Color(0xFFFFE7A3);
 const _goldDeep = Color(0xFFC8921E);
@@ -84,7 +132,7 @@ class _SideNav extends ConsumerWidget {
   /// 아이콘만 남긴 좁은 레일. Drawer(모바일)에서는 쓰지 않는다.
   final bool collapsed;
 
-  /// 접기/펼치기 버튼. null 이면 버튼을 안 그린다(Drawer).
+  /// 로고를 눌렀을 때 접기/펼치기. null 이면 로고는 그냥 그림이다(Drawer).
   final VoidCallback? onToggle;
   const _SideNav({
     required this.location,
@@ -125,18 +173,17 @@ class _SideNav extends ConsumerWidget {
               letterSpacing: -0.5,
               fontSize: AppFont.label)),
     );
-    final toggle = onToggle == null
-        ? null
-        : IconButton(
-            tooltip: collapsed ? '메뉴 펼치기' : '메뉴 접기',
-            onPressed: onToggle,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-                collapsed
-                    ? Icons.keyboard_double_arrow_right_rounded
-                    : Icons.keyboard_double_arrow_left_rounded,
-                size: 18,
-                color: AppColors.textFaint),
+    // 로고를 누르면 접고 편다(단축키 `[`). 따로 «/» 버튼은 두지 않는다.
+    // Drawer(모바일)에서는 onToggle 이 없어 로고는 그냥 그림이다.
+    final logoTap = onToggle == null
+        ? logo
+        : Tooltip(
+            message: collapsed ? '메뉴 펼치기  [' : '메뉴 접기  [',
+            waitDuration: const Duration(milliseconds: 400),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(onTap: onToggle, child: logo),
+            ),
           );
 
     // 애니메이션은 넣지 않는다 — 폭이 바뀌는 도중에 펼친 레이아웃이 좁은
@@ -150,16 +197,13 @@ class _SideNav extends ConsumerWidget {
           children: [
             Padding(
               padding: collapsed
-                  ? const EdgeInsets.fromLTRB(0, 22, 0, 12)
-                  : const EdgeInsets.fromLTRB(20, 22, 8, 20),
+                  ? const EdgeInsets.fromLTRB(0, 22, 0, 20)
+                  : const EdgeInsets.fromLTRB(20, 22, 20, 20),
               child: collapsed
-                  // 접힌 레일: 로고 아래에 펼치기 버튼.
-                  ? Center(
-                      child: Column(children: [logo, const Gap(8), ?toggle]),
-                    )
+                  ? Center(child: logoTap)
                   : Row(
                       children: [
-                        logo,
+                        logoTap,
                         const Gap(10),
                         const Expanded(
                           child: Text('HY CAPITAL',
@@ -172,7 +216,6 @@ class _SideNav extends ConsumerWidget {
                                   letterSpacing: 1,
                                   fontSize: AppFont.section)),
                         ),
-                        ?toggle,
                       ],
                     ),
             ),
