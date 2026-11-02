@@ -1,0 +1,65 @@
+# 매시 배치 — 돈이 «들어온 날» 바로 앱에 찍히게 하는 것들.
+#
+#   · 월급   — 입금일(주말·공휴일이면 전 영업일)이 되면 자금 흐름에 넣는다.
+#   · 에비   — 에어비앤비 예약 확정·취소 메일을 읽어 거래 장부에 반영한다.
+#
+# 【시크릿 — 저장소가 «공개»라 코드에 절대 넣지 않는다】
+#   AUTO_EMAIL / AUTO_PASSWORD   앱 계정 (daily 와 같은 값)
+#   PAYDAY_PLAN                  월급 «일:금액» 쉼표 구분. 예) 20:2000000,25:2000000
+#   KAKAO_MAIL_USER              예약 메일을 받는 메일 주소
+#   KAKAO_MAIL_APP_PASSWORD      카카오 «앱 비밀번호»
+# 하나라도 없으면 그 스텝만 «건너뜀» 한 줄을 남기고 끝난다.
+#
+# 【로그도 공개된다】 금액·게스트 이름은 찍지 않는다. 날짜와 건수만.
+
+name: 매시 동기화
+
+on:
+  schedule:
+    - cron: '41 * * * *'     # 정각을 비껴서(정각은 GitHub 가 제일 많이 미룬다)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hourly
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AUTO_EMAIL: ${{ secrets.AUTO_EMAIL }}
+      AUTO_PASSWORD: ${{ secrets.AUTO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet holidays==0.108
+
+      - name: 월급 — 자금 흐름
+        id: salary
+        continue-on-error: true
+        env:
+          PAYDAY_PLAN: ${{ secrets.PAYDAY_PLAN }}
+        run: python3 scripts/salary_auto.py
+
+      - name: 에비 — 예약 메일
+        id: mail
+        if: always()
+        continue-on-error: true
+        env:
+          KAKAO_MAIL_USER: ${{ secrets.KAKAO_MAIL_USER }}
+          KAKAO_MAIL_APP_PASSWORD: ${{ secrets.KAKAO_MAIL_APP_PASSWORD }}
+        run: |
+          if [ -z "$KAKAO_MAIL_APP_PASSWORD" ]; then echo '메일 시크릿 없음 — 건너뜀'; exit 0; fi
+          python3 scripts/airbnb_mail.py
+
+      - name: 결과
+        if: always()
+        run: |
+          echo "월급: ${{ steps.salary.outcome }} · 메일: ${{ steps.mail.outcome }}"
+          if [ "${{ steps.salary.outcome }}" = failure ] || [ "${{ steps.mail.outcome }}" = failure ]; then exit 1; fi
