@@ -143,6 +143,117 @@ class _AssetEditorState extends ConsumerState<_AssetEditor> {
   @override
   Widget build(BuildContext context) {
     final color = assetColor(_cat);
+    return _EditorShell(
+      title: _isNew ? '자산 추가' : '자산 수정',
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: _isNew,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) {
+            if (_nameMissing) setState(() => _nameMissing = false);
+          },
+          style: _fieldText,
+          decoration: _field('이름', error: _nameMissing ? '이름을 적어 주세요' : null),
+        ),
+        const Gap(14),
+        MoneyField(
+          label: '잔액',
+          initial: _amount,
+          accent: color,
+          autofocus: !_isNew,
+          onChanged: (v) => _amount = v,
+          onSubmitted: (_) => _save(),
+        ),
+        const Gap(16),
+        // 분류 — 칩 하나 누르면 끝. 칩은 모두 같은 높이.
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final c in _cats)
+            _CatChip(
+              label: c,
+              color: assetColor(c),
+              selected: c == _cat,
+              onTap: () => setState(() => _cat = c),
+            ),
+          if (_adding)
+            SizedBox(
+              width: 130,
+              height: _chipH,
+              child: TextField(
+                controller: _newCat,
+                autofocus: true,
+                onSubmitted: (v) {
+                  final c = v.trim();
+                  setState(() {
+                    _adding = false;
+                    _newCat.clear();
+                    if (c.isEmpty) return;
+                    if (!_cats.contains(c)) _cats.add(c);
+                    _cat = c;
+                  });
+                },
+                style: const TextStyle(fontSize: AppFont.label, fontWeight: FontWeight.w700),
+                decoration: InputDecoration(
+                  hintText: '새 분류',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(_chipH / 2)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(_chipH / 2),
+                      borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(_chipH / 2),
+                      borderSide: const BorderSide(color: AppColors.textSecondary)),
+                ),
+              ),
+            )
+          else
+            _CatChip(
+              label: '+ 분류',
+              color: AppColors.textSecondary,
+              selected: false,
+              onTap: () => setState(() => _adding = true),
+            ),
+        ]),
+        const Gap(16),
+        TextField(
+          controller: _memo,
+          onSubmitted: (_) => _save(),
+          style: _fieldText,
+          decoration: _field('메모'),
+        ),
+        const Gap(22),
+        _Buttons(
+          busy: _busy,
+          color: color,
+          onSave: _save,
+          onDelete: _isNew ? null : _delete,
+          deleteLabel: _armDelete ? '한 번 더 누르면 삭제' : '삭제',
+          armed: _armDelete,
+        ),
+      ],
+    );
+  }
+}
+
+// ── 두 창이 같이 쓰는 모양 — 칸·버튼 높이를 하나로 맞춘다 ──
+
+const _chipH = 36.0;
+const _fieldText = TextStyle(fontSize: AppFont.section);
+
+InputDecoration _field(String label, {String? error}) => InputDecoration(
+      labelText: label,
+      errorText: error,
+      // MoneyField 와 같게 — 라벨은 늘 위에, 칸 높이는 기본값.
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+    );
+
+class _EditorShell extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const _EditorShell({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.surface,
       insetPadding: const EdgeInsets.all(20),
@@ -150,136 +261,93 @@ class _AssetEditorState extends ConsumerState<_AssetEditor> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 18, 14, 16),
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 이름 + 닫기
               Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _name,
-                    autofocus: _isNew,
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) {
-                      if (_nameMissing) setState(() => _nameMissing = false);
-                    },
+                Text(title,
                     style: const TextStyle(
-                        fontSize: AppFont.title, fontWeight: FontWeight.w800),
-                    decoration: InputDecoration.collapsed(
-                      hintText: _nameMissing ? '이름을 적어 주세요' : '이름',
-                      hintStyle: TextStyle(
-                          color: _nameMissing ? AppColors.rose : AppColors.textFaint,
-                          fontSize: AppFont.title,
-                          fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
+                        fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+                const Spacer(),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
+                  visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.close_rounded, color: AppColors.textFaint),
                   tooltip: '닫기',
                 ),
               ]),
               const Gap(14),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: MoneyField(
-                  label: '잔액',
-                  initial: _amount,
-                  accent: color,
-                  autofocus: !_isNew,
-                  onChanged: (v) => _amount = v,
-                  onSubmitted: (_) => _save(),
-                ),
-              ),
-              const Gap(16),
-              // 분류 — 칩 하나 누르면 끝
-              Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                for (final c in _cats)
-                  _CatChip(
-                    label: c,
-                    color: assetColor(c),
-                    selected: c == _cat,
-                    onTap: () => setState(() => _cat = c),
-                  ),
-                if (_adding)
-                  SizedBox(
-                    width: 120,
-                    child: TextField(
-                      controller: _newCat,
-                      autofocus: true,
-                      onSubmitted: (v) {
-                        final c = v.trim();
-                        setState(() {
-                          _adding = false;
-                          _newCat.clear();
-                          if (c.isEmpty) return;
-                          if (!_cats.contains(c)) _cats.add(c);
-                          _cat = c;
-                        });
-                      },
-                      style: const TextStyle(fontSize: AppFont.label),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: '새 분류',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      ),
-                    ),
-                  )
-                else
-                  _CatChip(
-                    label: '+ 분류',
-                    color: AppColors.textSecondary,
-                    selected: false,
-                    onTap: () => setState(() => _adding = true),
-                  ),
-              ]),
-              const Gap(14),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: TextField(
-                  controller: _memo,
-                  onSubmitted: (_) => _save(),
-                  style: const TextStyle(
-                      fontSize: AppFont.body, color: AppColors.textSecondary),
-                  decoration: const InputDecoration.collapsed(
-                    hintText: '메모',
-                    hintStyle: TextStyle(
-                        color: AppColors.textFaint, fontSize: AppFont.body),
-                  ),
-                ),
-              ),
-              const Gap(18),
-              Row(children: [
-                if (!_isNew)
-                  TextButton.icon(
-                    onPressed: _busy ? null : _delete,
-                    style: TextButton.styleFrom(
-                      foregroundColor: _armDelete ? Colors.white : AppColors.rose,
-                      backgroundColor: _armDelete ? AppColors.rose : null,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    label: Text(_armDelete ? '한 번 더 누르면 삭제' : '삭제'),
-                  ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: _busy ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                  ),
-                  child: const Text('저장', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
-                const Gap(8),
-              ]),
+              ...children,
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 아래 버튼 줄 — 삭제(있으면) 1 : 저장 2, 둘 다 높이 48.
+class _Buttons extends StatelessWidget {
+  final bool busy;
+  final Color color;
+  final VoidCallback? onSave;
+  final VoidCallback? onDelete;
+  final String deleteLabel;
+  final bool armed;
+  const _Buttons({
+    required this.busy,
+    required this.color,
+    required this.onSave,
+    required this.onDelete,
+    required this.deleteLabel,
+    required this.armed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
+    return SizedBox(
+      height: 48,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (onDelete != null) ...[
+          Expanded(
+            child: OutlinedButton(
+              onPressed: busy ? null : onDelete,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: armed ? Colors.white : AppColors.rose,
+                backgroundColor: armed ? AppColors.rose : null,
+                side: BorderSide(color: AppColors.rose.withValues(alpha: 0.6)),
+                shape: shape,
+                padding: EdgeInsets.zero,
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(deleteLabel,
+                    style: const TextStyle(
+                        fontSize: AppFont.body, fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ),
+          const Gap(10),
+        ],
+        if (onSave != null)
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: busy ? null : onSave,
+              style: FilledButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.black,
+                shape: shape,
+                padding: EdgeInsets.zero,
+              ),
+              child: const Text('저장',
+                  style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w800)),
+            ),
+          ),
+      ]),
     );
   }
 }
@@ -299,13 +367,15 @@ class _CatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(_chipH / 2),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        height: _chipH,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: selected ? color : color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(_chipH / 2),
         ),
         child: Text(label,
             style: TextStyle(
@@ -379,73 +449,27 @@ class _CategoryEditorState extends ConsumerState<_CategoryEditor> {
   @override
   Widget build(BuildContext context) {
     final color = assetColor(widget.category);
-    return Dialog(
-      backgroundColor: AppColors.surface,
-      insetPadding: const EdgeInsets.all(20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 18, 14, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(children: [
-                Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                        color: color, borderRadius: BorderRadius.circular(3))),
-                const Gap(10),
-                Expanded(
-                  child: TextField(
-                    controller: _name,
-                    enabled: !_debt,
-                    autofocus: !_debt,
-                    onSubmitted: (_) => _rename(),
-                    style: const TextStyle(
-                        fontSize: AppFont.title, fontWeight: FontWeight.w800),
-                    decoration: const InputDecoration.collapsed(hintText: '분류 이름'),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: AppColors.textFaint),
-                  tooltip: '닫기',
-                ),
-              ]),
-              const Gap(18),
-              Row(children: [
-                TextButton.icon(
-                  onPressed: _busy ? null : _delete,
-                  style: TextButton.styleFrom(
-                    foregroundColor: _armDelete ? Colors.white : AppColors.rose,
-                    backgroundColor: _armDelete ? AppColors.rose : null,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: Text(_armDelete
-                      ? '항목 ${widget.count}개까지 삭제'
-                      : '분류 삭제'),
-                ),
-                const Spacer(),
-                if (!_debt)
-                  FilledButton(
-                    onPressed: _busy ? null : _rename,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                    ),
-                    child: const Text('저장', style: TextStyle(fontWeight: FontWeight.w800)),
-                  ),
-                const Gap(8),
-              ]),
-            ],
-          ),
+    return _EditorShell(
+      title: '분류',
+      children: [
+        TextField(
+          controller: _name,
+          enabled: !_debt,
+          autofocus: !_debt,
+          onSubmitted: (_) => _rename(),
+          style: _fieldText,
+          decoration: _field(_debt ? '이름 (부채는 고정)' : '이름'),
         ),
-      ),
+        const Gap(22),
+        _Buttons(
+          busy: _busy,
+          color: color,
+          onSave: _debt ? null : _rename,
+          onDelete: _delete,
+          deleteLabel: _armDelete ? '항목 ${widget.count}개까지 삭제' : '분류 삭제',
+          armed: _armDelete,
+        ),
+      ],
     );
   }
 }
