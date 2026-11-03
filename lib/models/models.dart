@@ -685,6 +685,40 @@ class Goal {
       );
 }
 
+/// 자산 한 줄 — 계좌·사업별 «지금 잔액». 분류별로 묶어 대시보드에 보인다(0064).
+class Asset {
+  final String id;
+  final String name;
+  final String category; // 사업|투자|현금·예금|연금|부동산|부채
+  final double amount;
+  final String? memo;
+  final int sortOrder;
+  final DateTime updatedAt;
+
+  Asset({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.amount,
+    this.memo,
+    required this.sortOrder,
+    required this.updatedAt,
+  });
+
+  /// 부채는 순자산에서 «빼는» 쪽.
+  bool get isDebt => category == '부채';
+
+  factory Asset.fromMap(Map<String, dynamic> m) => Asset(
+        id: m['id'],
+        name: m['name'],
+        category: m['category'] ?? '현금·예금',
+        amount: _d(m['amount']),
+        memo: m['memo'],
+        sortOrder: _i(m['sort_order']),
+        updatedAt: DateTime.parse(m['updated_at']),
+      );
+}
+
 class TodoTask {
   final String id;
   final String title;

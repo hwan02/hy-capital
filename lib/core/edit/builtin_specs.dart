@@ -32,6 +32,23 @@ const goalsSpec = BuiltinSpec(
   ],
 );
 
+/// 자산 한 줄 (assets). 분류가 대시보드 «자산» 카드의 묶음이 된다.
+const assetSpec = BuiltinSpec(
+  table: 'assets',
+  title: '자산',
+  accent: AppColors.gold,
+  fields: [
+    FieldSpec(key: 'name', label: '이름 (계좌·사업)', type: FieldType.text, required: true),
+    FieldSpec(key: 'category', label: '분류', type: FieldType.select, required: true,
+        options: kAssetCategories),
+    FieldSpec(key: 'amount', label: '지금 잔액', type: FieldType.money),
+    FieldSpec(key: 'memo', label: '메모', type: FieldType.text),
+  ],
+);
+
+/// 자산 분류 — 이 순서대로 카드에 쌓인다. 부채는 순자산에서 뺀다.
+const kAssetCategories = ['사업', '투자', '현금·예금', '연금', '부동산', '부채'];
+
 const airbnbSpec = BuiltinSpec(
   table: 'airbnb_units',
   title: '에비 호점',

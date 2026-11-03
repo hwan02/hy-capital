@@ -122,6 +122,18 @@ double dividendKrw(Map<String, dynamic> row,
   return d == null ? 0 : d.krw(amt * d.shares, rate);
 }
 
+/// 자산 한눈에 — 0064 실행 전이면 표가 없다. 대시보드를 깨지 않게 빈 목록.
+final assetsProvider = FutureProvider<List<Asset>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return [];
+  try {
+    final rows = await sb.from('assets').select().order('sort_order').order('created_at');
+    return rows.map<Asset>(Asset.fromMap).toList();
+  } catch (_) {
+    return const <Asset>[];
+  }
+});
+
 final goalsProvider = FutureProvider<List<Goal>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb.from('goals').select().order('sort_order');
@@ -648,6 +660,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(referenceAccountsProvider);
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
+  ref.invalidate(assetsProvider);
   ref.invalidate(tasksProvider);
   ref.invalidate(doneTasksProvider);
   ref.invalidate(memosProvider);

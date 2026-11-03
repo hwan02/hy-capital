@@ -52,6 +52,10 @@ class DashboardScreen extends ConsumerWidget {
           data: (m) => _FreedomHero(m: m, onEdit: () => _editProfile(context, ref)),
         ),
         const Gap(14),
+        // 자산 한눈에 — «지금 내 돈이 어디에 얼마»(11/03). 프리덤 스코어가 «흐름»
+        // 이라면 이건 «잔액»이라 바로 아래에 둔다.
+        const _AssetsCard(),
+        const Gap(14),
         // 2단 두 줄 — [목표 | 오늘 해야 할 일], [사업 엔진 | 메모].
         // 칸마다 높이를 정해 두고, 내용이 더 길면 칸 안에서 세로로 스크롤한다
         // (카드가 길어지면 아래 카드들이 밀려 내려갔다). 좁으면 위아래로 쌓는다.
@@ -1265,6 +1269,239 @@ class _Memos extends ConsumerWidget {
               ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+// ── 자산 한눈에 ─────────────────────────────────────────────
+// 계좌·사업별 잔액을 분류로 묶는다. 순자산 = 부채 빼고 다 더한 것 − 부채.
+// 잔액은 손으로 고친다 — 그래서 «언제 고쳤는지»를 같이 보여 준다(30일 넘으면 노랗게).
+
+const _assetColors = <String, Color>{
+  '사업': AppColors.sky,
+  '투자': AppColors.violet,
+  '현금·예금': AppColors.primary,
+  '연금': AppColors.gold,
+  '부동산': Color(0xFF14B8A6),
+  '부채': AppColors.rose,
+};
+
+Map<String, dynamic> _assetToMap(Asset a) => {
+      'name': a.name,
+      'category': a.category,
+      'amount': a.amount,
+      'memo': a.memo,
+    };
+
+class _AssetsCard extends ConsumerWidget {
+  const _AssetsCard();
+
+  Future<void> _menu(BuildContext context, WidgetRef ref, Asset a) async {
+    final pick = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(a.name, style: const TextStyle(fontSize: AppFont.section)),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'edit'),
+            child: const Row(children: [
+              Icon(Icons.edit_rounded, size: 18, color: AppColors.gold),
+              Gap(10),
+              Text('잔액·이름 수정', style: TextStyle(fontSize: AppFont.body)),
+            ]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Row(children: [
+              Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.rose),
+              Gap(10),
+              Text('삭제', style: TextStyle(fontSize: AppFont.body, color: AppColors.rose)),
+            ]),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return;
+    if (pick == 'edit') {
+      await editBuiltinRecord(context, ref, assetSpec, initial: _assetToMap(a), id: a.id);
+    } else if (pick == 'delete') {
+      await deleteBuiltinRecord(context, ref, assetSpec, a.id, name: a.name);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assets = ref.watch(assetsProvider).asData?.value ?? const <Asset>[];
+    final byCat = <String, List<Asset>>{
+      for (final c in kAssetCategories)
+        c: assets.where((a) => a.category == c).toList(),
+    };
+    // 목록에 없는 분류(옛 값)는 맨 뒤에 그대로 보인다.
+    for (final a in assets) {
+      if (!byCat.containsKey(a.category)) byCat[a.category] = [a];
+    }
+    double sum(String c) => (byCat[c] ?? []).fold(0.0, (t, a) => t + a.amount);
+    final plusCats = byCat.keys.where((c) => c != '부채' && sum(c) > 0).toList();
+    final gross = plusCats.fold(0.0, (t, c) => t + sum(c));
+    final debt = sum('부채');
+    final net = gross - debt;
+    final last = assets.isEmpty
+        ? null
+        : assets.map((a) => a.updatedAt).reduce((x, y) => x.isAfter(y) ? x : y);
+
+    final summary = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('순자산',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: AppFont.label)),
+        const Gap(4),
+        Text('${Won.compact(net)}원',
+            style: const TextStyle(fontSize: AppFont.display, fontWeight: FontWeight.w900)),
+        const Gap(4),
+        Text('자산 ${Won.compact(gross)} · 부채 ${Won.compact(debt)}',
+            style: const TextStyle(color: AppColors.textFaint, fontSize: AppFont.caption)),
+        const Gap(14),
+        // 분류별 비중 막대
+        if (gross > 0)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 12,
+              child: Row(children: [
+                for (final c in plusCats)
+                  Expanded(
+                    flex: (sum(c) / gross * 1000).round().clamp(1, 1000),
+                    child: Container(color: _assetColors[c] ?? AppColors.textFaint),
+                  ),
+              ]),
+            ),
+          ),
+        if (gross > 0) const Gap(10),
+        Wrap(spacing: 12, runSpacing: 6, children: [
+          for (final c in plusCats)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                      color: _assetColors[c] ?? AppColors.textFaint,
+                      borderRadius: BorderRadius.circular(3))),
+              const Gap(5),
+              Text('$c ${(sum(c) / gross * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFont.caption,
+                      fontWeight: FontWeight.w700)),
+            ]),
+        ]),
+      ],
+    );
+
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final c in byCat.keys)
+          if (byCat[c]!.isNotEmpty) ...[
+            Row(children: [
+              Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                      color: _assetColors[c] ?? AppColors.textFaint,
+                      borderRadius: BorderRadius.circular(3))),
+              const Gap(7),
+              Text(c,
+                  style: const TextStyle(
+                      fontSize: AppFont.label, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              Text('${c == '부채' ? '−' : ''}${Won.compact(sum(c))}원',
+                  style: TextStyle(
+                      fontSize: AppFont.label,
+                      fontWeight: FontWeight.w800,
+                      color: c == '부채' ? AppColors.rose : AppColors.textPrimary)),
+            ]),
+            const Gap(4),
+            for (final a in byCat[c]!) _AssetRow(a: a, onTap: () => _menu(context, ref, a)),
+            const Gap(10),
+          ],
+      ],
+    );
+
+    return GlassCard(
+      accent: AppColors.gold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionHeader('자산',
+              subtitle: last == null ? '계좌·사업별 잔액' : '마지막 수정 ${Dates.md(last)}',
+              trailing: TextButton.icon(
+                onPressed: () => editBuiltinRecord(context, ref, assetSpec),
+                style: TextButton.styleFrom(foregroundColor: AppColors.gold),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('추가'),
+              )),
+          const Gap(14),
+          if (assets.isEmpty)
+            const EmptyState(
+                icon: Icons.account_balance_wallet_outlined,
+                message: '계좌·사업별 잔액을 추가해 보세요')
+          else
+            LayoutBuilder(builder: (context, cons) {
+              if (cons.maxWidth < 760) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [summary, const Gap(18), list],
+                );
+              }
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(flex: 2, child: summary),
+                const Gap(28),
+                Expanded(flex: 3, child: list),
+              ]);
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssetRow extends StatelessWidget {
+  final Asset a;
+  final VoidCallback onTap;
+  const _AssetRow({required this.a, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final days = DateTime.now().difference(a.updatedAt).inDays;
+    final empty = a.amount == 0;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 5, 0, 5),
+        child: Row(children: [
+          Expanded(
+            child: Text(a.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: AppFont.label)),
+          ),
+          // 30일 넘게 안 고친 잔액 — 지금 숫자가 아닐 수 있다.
+          if (!empty && days > 30) ...[
+            Text('$days일 전',
+                style: const TextStyle(color: AppColors.gold, fontSize: AppFont.micro)),
+            const Gap(8),
+          ],
+          Text(empty ? '입력 필요' : '${Won.compact(a.amount)}원',
+              style: TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w700,
+                  color: empty ? AppColors.textFaint : AppColors.textPrimary)),
+        ]),
       ),
     );
   }
