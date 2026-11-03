@@ -15,6 +15,7 @@ import '../../models/models.dart';
 import '../goals/goals_screen.dart' show goalToMap;
 import '../ipo/ipo_alert.dart';
 import '../plan/plan_roadmap.dart';
+import 'asset_editor.dart';
 
 /// profiles 값을 편집 폼 초기값으로.
 Map<String, dynamic> _profileToMap(Profile p) => {
@@ -1277,59 +1278,10 @@ class _Memos extends ConsumerWidget {
 // ── 자산 한눈에 ─────────────────────────────────────────────
 // 계좌·사업별 잔액을 분류로 묶는다. 순자산 = 부채 빼고 다 더한 것 − 부채.
 // 잔액은 손으로 고친다 — 그래서 «언제 고쳤는지»를 같이 보여 준다(30일 넘으면 노랗게).
-
-const _assetColors = <String, Color>{
-  '사업': AppColors.sky,
-  '투자': AppColors.violet,
-  '현금·예금': AppColors.primary,
-  '연금': AppColors.gold,
-  '부동산': Color(0xFF14B8A6),
-  '부채': AppColors.rose,
-};
-
-Map<String, dynamic> _assetToMap(Asset a) => {
-      'name': a.name,
-      'category': a.category,
-      'amount': a.amount,
-      'memo': a.memo,
-    };
+// 줄을 누르면 편집 창(asset_editor.dart) 하나로 수정·삭제까지 끝난다.
 
 class _AssetsCard extends ConsumerWidget {
   const _AssetsCard();
-
-  Future<void> _menu(BuildContext context, WidgetRef ref, Asset a) async {
-    final pick = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(a.name, style: const TextStyle(fontSize: AppFont.section)),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'edit'),
-            child: const Row(children: [
-              Icon(Icons.edit_rounded, size: 18, color: AppColors.gold),
-              Gap(10),
-              Text('잔액·이름 수정', style: TextStyle(fontSize: AppFont.body)),
-            ]),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'delete'),
-            child: const Row(children: [
-              Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.rose),
-              Gap(10),
-              Text('삭제', style: TextStyle(fontSize: AppFont.body, color: AppColors.rose)),
-            ]),
-          ),
-        ],
-      ),
-    );
-    if (!context.mounted) return;
-    if (pick == 'edit') {
-      await editBuiltinRecord(context, ref, assetSpec, initial: _assetToMap(a), id: a.id);
-    } else if (pick == 'delete') {
-      await deleteBuiltinRecord(context, ref, assetSpec, a.id, name: a.name);
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1373,7 +1325,7 @@ class _AssetsCard extends ConsumerWidget {
                 for (final c in plusCats)
                   Expanded(
                     flex: (sum(c) / gross * 1000).round().clamp(1, 1000),
-                    child: Container(color: _assetColors[c] ?? AppColors.textFaint),
+                    child: Container(color: assetColors[c] ?? AppColors.textFaint),
                   ),
               ]),
             ),
@@ -1386,7 +1338,7 @@ class _AssetsCard extends ConsumerWidget {
                   width: 9,
                   height: 9,
                   decoration: BoxDecoration(
-                      color: _assetColors[c] ?? AppColors.textFaint,
+                      color: assetColors[c] ?? AppColors.textFaint,
                       borderRadius: BorderRadius.circular(3))),
               const Gap(5),
               Text('$c ${(sum(c) / gross * 100).toStringAsFixed(0)}%',
@@ -1409,7 +1361,7 @@ class _AssetsCard extends ConsumerWidget {
                   width: 9,
                   height: 9,
                   decoration: BoxDecoration(
-                      color: _assetColors[c] ?? AppColors.textFaint,
+                      color: assetColors[c] ?? AppColors.textFaint,
                       borderRadius: BorderRadius.circular(3))),
               const Gap(7),
               Text(c,
@@ -1423,7 +1375,7 @@ class _AssetsCard extends ConsumerWidget {
                       color: c == '부채' ? AppColors.rose : AppColors.textPrimary)),
             ]),
             const Gap(4),
-            for (final a in byCat[c]!) _AssetRow(a: a, onTap: () => _menu(context, ref, a)),
+            for (final a in byCat[c]!) _AssetRow(a: a, onTap: () => showAssetEditor(context, asset: a)),
             const Gap(10),
           ],
       ],
@@ -1437,7 +1389,7 @@ class _AssetsCard extends ConsumerWidget {
           SectionHeader('자산',
               subtitle: last == null ? '계좌·사업별 잔액' : '마지막 수정 ${Dates.md(last)}',
               trailing: TextButton.icon(
-                onPressed: () => editBuiltinRecord(context, ref, assetSpec),
+                onPressed: () => showAssetEditor(context),
                 style: TextButton.styleFrom(foregroundColor: AppColors.gold),
                 icon: const Icon(Icons.add_rounded, size: 18),
                 label: const Text('추가'),
