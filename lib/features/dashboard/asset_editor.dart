@@ -227,7 +227,7 @@ class _AssetEditorState extends ConsumerState<_AssetEditor> {
           color: color,
           onSave: _save,
           onDelete: _isNew ? null : _delete,
-          deleteLabel: _armDelete ? '한 번 더 누르면 삭제' : '삭제',
+          deleteLabel: _armDelete ? '정말 삭제' : '삭제',
           armed: _armDelete,
         ),
       ],
