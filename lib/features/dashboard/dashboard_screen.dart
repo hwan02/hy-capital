@@ -1286,14 +1286,8 @@ class _AssetsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final assets = ref.watch(assetsProvider).asData?.value ?? const <Asset>[];
-    final byCat = <String, List<Asset>>{
-      for (final c in kAssetCategories)
-        c: assets.where((a) => a.category == c).toList(),
-    };
-    // 목록에 없는 분류(옛 값)는 맨 뒤에 그대로 보인다.
-    for (final a in assets) {
-      if (!byCat.containsKey(a.category)) byCat[a.category] = [a];
-    }
+    final cats = assetCategoriesOf(assets).where((c) => assets.any((a) => a.category == c));
+    final byCat = {for (final c in cats) c: assets.where((a) => a.category == c).toList()};
     double sum(String c) => (byCat[c] ?? []).fold(0.0, (t, a) => t + a.amount);
     final plusCats = byCat.keys.where((c) => c != '부채' && sum(c) > 0).toList();
     final gross = plusCats.fold(0.0, (t, c) => t + sum(c));
@@ -1303,83 +1297,112 @@ class _AssetsCard extends ConsumerWidget {
         ? null
         : assets.map((a) => a.updatedAt).reduce((x, y) => x.isAfter(y) ? x : y);
 
-    final summary = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('순자산',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: AppFont.label)),
-        const Gap(4),
-        Text('${Won.compact(net)}원',
-            style: const TextStyle(fontSize: AppFont.display, fontWeight: FontWeight.w900)),
-        const Gap(4),
-        Text('자산 ${Won.compact(gross)} · 부채 ${Won.compact(debt)}',
-            style: const TextStyle(color: AppColors.textFaint, fontSize: AppFont.caption)),
-        const Gap(14),
-        // 분류별 비중 막대
-        if (gross > 0)
+    // ── 위: 순자산 + 비중 막대 ──
+    final top = LayoutBuilder(builder: (context, c) {
+      final head = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('순자산',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: AppFont.label)),
+          const Gap(2),
+          Text('${Won.compact(net)}원',
+              style: const TextStyle(
+                  fontSize: AppFont.hero, fontWeight: FontWeight.w900, height: 1.15)),
+          const Gap(4),
+          Text.rich(TextSpan(children: [
+            TextSpan(text: '자산 ${Won.compact(gross)}'),
+            const TextSpan(text: '   '),
+            TextSpan(
+                text: '부채 ${Won.compact(debt)}',
+                style: const TextStyle(color: AppColors.rose)),
+          ]), style: const TextStyle(color: AppColors.textSecondary, fontSize: AppFont.label)),
+        ],
+      );
+      final bar = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: SizedBox(
-              height: 12,
+              height: 18,
               child: Row(children: [
-                for (final c in plusCats)
+                for (final k in plusCats)
                   Expanded(
-                    flex: (sum(c) / gross * 1000).round().clamp(1, 1000),
-                    child: Container(color: assetColors[c] ?? AppColors.textFaint),
+                    flex: (sum(k) / gross * 1000).round().clamp(1, 1000),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 2),
+                      color: assetColor(k),
+                    ),
                   ),
               ]),
             ),
           ),
-        if (gross > 0) const Gap(10),
-        Wrap(spacing: 12, runSpacing: 6, children: [
-          for (final c in plusCats)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                      color: assetColors[c] ?? AppColors.textFaint,
-                      borderRadius: BorderRadius.circular(3))),
-              const Gap(5),
-              Text('$c ${(sum(c) / gross * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: AppFont.caption,
-                      fontWeight: FontWeight.w700)),
-            ]),
-        ]),
-      ],
-    );
+          const Gap(10),
+          Wrap(spacing: 14, runSpacing: 6, children: [
+            for (final k in plusCats)
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                        color: assetColor(k), borderRadius: BorderRadius.circular(3))),
+                const Gap(6),
+                Text(k,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: AppFont.label)),
+                const Gap(4),
+                Text('${(sum(k) / gross * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                        fontSize: AppFont.label, fontWeight: FontWeight.w800)),
+              ]),
+          ]),
+        ],
+      );
+      if (gross <= 0) return head;
+      if (c.maxWidth < 640) {
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [head, const Gap(16), bar]);
+      }
+      return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        SizedBox(width: 260, child: head),
+        const Gap(24),
+        Expanded(child: bar),
+      ]);
+    });
 
-    final list = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final c in byCat.keys)
-          if (byCat[c]!.isNotEmpty) ...[
-            Row(children: [
-              Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                      color: assetColors[c] ?? AppColors.textFaint,
-                      borderRadius: BorderRadius.circular(3))),
-              const Gap(7),
-              Text(c,
-                  style: const TextStyle(
-                      fontSize: AppFont.label, fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text('${c == '부채' ? '−' : ''}${Won.compact(sum(c))}원',
-                  style: TextStyle(
-                      fontSize: AppFont.label,
-                      fontWeight: FontWeight.w800,
-                      color: c == '부채' ? AppColors.rose : AppColors.textPrimary)),
-            ]),
-            const Gap(4),
-            for (final a in byCat[c]!) _AssetRow(a: a, onTap: () => showAssetEditor(context, asset: a)),
-            const Gap(10),
-          ],
-      ],
-    );
+    // ── 아래: 분류별 칸 ──
+    final tiles = [
+      for (final k in byCat.keys)
+        _AssetTile(
+          category: k,
+          items: byCat[k]!,
+          total: sum(k),
+          share: k == '부채' || gross <= 0 ? null : sum(k) / gross,
+        ),
+    ];
+    final grid = LayoutBuilder(builder: (context, c) {
+      final cols = c.maxWidth >= 1100
+          ? 4
+          : c.maxWidth >= 760
+              ? 3
+              : c.maxWidth >= 460
+                  ? 2
+                  : 1;
+      final rows = <Widget>[];
+      for (var i = 0; i < tiles.length; i += cols) {
+        if (i > 0) rows.add(const Gap(12));
+        rows.add(IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            for (var j = i; j < i + cols; j++) ...[
+              if (j > i) const Gap(12),
+              Expanded(child: j < tiles.length ? tiles[j] : const SizedBox()),
+            ],
+          ]),
+        ));
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
+    });
 
     return GlassCard(
       accent: AppColors.gold,
@@ -1387,7 +1410,7 @@ class _AssetsCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SectionHeader('자산',
-              subtitle: last == null ? '계좌·사업별 잔액' : '마지막 수정 ${Dates.md(last)}',
+              subtitle: last == null ? null : '${Dates.md(last)} 수정',
               trailing: TextButton.icon(
                 onPressed: () => showAssetEditor(context),
                 style: TextButton.styleFrom(foregroundColor: AppColors.gold),
@@ -1399,20 +1422,92 @@ class _AssetsCard extends ConsumerWidget {
             const EmptyState(
                 icon: Icons.account_balance_wallet_outlined,
                 message: '계좌·사업별 잔액을 추가해 보세요')
-          else
-            LayoutBuilder(builder: (context, cons) {
-              if (cons.maxWidth < 760) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [summary, const Gap(18), list],
-                );
-              }
-              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(flex: 2, child: summary),
-                const Gap(28),
-                Expanded(flex: 3, child: list),
-              ]);
-            }),
+          else ...[
+            top,
+            const Gap(20),
+            grid,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 분류 한 칸 — 색 띠 · 합계 크게 · 항목 목록 · 「+」.
+class _AssetTile extends StatelessWidget {
+  final String category;
+  final List<Asset> items;
+  final double total;
+  final double? share;
+  const _AssetTile(
+      {required this.category, required this.items, required this.total, this.share});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = assetColor(category);
+    final debt = category == '부채';
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(height: 4, color: color),
+          // 머리 — 누르면 분류 이름 바꾸기·삭제
+          InkWell(
+            onTap: () => showCategoryEditor(context, category, items.length),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Text(category,
+                        style: TextStyle(
+                            color: color,
+                            fontSize: AppFont.label,
+                            fontWeight: FontWeight.w800)),
+                    const Spacer(),
+                    if (share != null)
+                      Text('${(share! * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w700)),
+                  ]),
+                  const Gap(4),
+                  Text('${debt ? '−' : ''}${Won.compact(total)}원',
+                      style: TextStyle(
+                          fontSize: AppFont.title,
+                          fontWeight: FontWeight.w900,
+                          color: debt ? AppColors.rose : AppColors.textPrimary)),
+                ],
+              ),
+            ),
+          ),
+          Container(height: 1, color: color.withValues(alpha: 0.18)),
+          const Gap(4),
+          for (final a in items) _AssetRow(a: a, onTap: () => showAssetEditor(context, asset: a)),
+          const Spacer(),
+          InkWell(
+            onTap: () => showAssetEditor(context, category: category),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+              child: Row(children: [
+                Icon(Icons.add_rounded, size: 15, color: color.withValues(alpha: 0.8)),
+                const Gap(4),
+                Text('추가',
+                    style: TextStyle(
+                        color: color.withValues(alpha: 0.8),
+                        fontSize: AppFont.caption,
+                        fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
         ],
       ),
     );
@@ -1430,9 +1525,8 @@ class _AssetRow extends StatelessWidget {
     final empty = a.amount == 0;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 5, 0, 5),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         child: Row(children: [
           Expanded(
             child: Text(a.name,
@@ -1445,9 +1539,9 @@ class _AssetRow extends StatelessWidget {
           if (!empty && days > 30) ...[
             Text('$days일 전',
                 style: const TextStyle(color: AppColors.gold, fontSize: AppFont.micro)),
-            const Gap(8),
+            const Gap(6),
           ],
-          Text(empty ? '입력 필요' : '${Won.compact(a.amount)}원',
+          Text(empty ? '—' : Won.compact(a.amount),
               style: TextStyle(
                   fontSize: AppFont.label,
                   fontWeight: FontWeight.w700,
