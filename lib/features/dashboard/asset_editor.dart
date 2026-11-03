@@ -371,17 +371,20 @@ class _CatChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         height: _chipH,
-        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: selected ? color : color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(_chipH / 2),
         ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: AppFont.label,
-                fontWeight: FontWeight.w800,
-                color: selected ? Colors.black : color)),
+        // alignment 를 주면 Container 가 가로로 꽉 찬다 — 글자 폭만큼만 가운데.
+        child: Center(
+          widthFactor: 1,
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.black : color)),
+        ),
       ),
     );
   }
