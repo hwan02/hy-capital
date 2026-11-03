@@ -127,8 +127,12 @@ final assetsProvider = FutureProvider<List<Asset>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   if (sb.auth.currentUser == null) return [];
   try {
-    final rows = await sb.from('assets').select().order('sort_order').order('created_at');
-    return rows.map<Asset>(Asset.fromMap).toList();
+    final rows = await sb.from('assets').select();
+    // 정렬은 여기서 — 처음 칸은 한 번에 들어가 created_at 이 같아서 서버 정렬이 섞였다.
+    return rows.map<Asset>(Asset.fromMap).toList()
+      ..sort((a, b) => a.sortOrder != b.sortOrder
+          ? a.sortOrder.compareTo(b.sortOrder)
+          : a.name.compareTo(b.name));
   } catch (_) {
     return const <Asset>[];
   }

@@ -52,10 +52,6 @@ class DashboardScreen extends ConsumerWidget {
           data: (m) => _FreedomHero(m: m, onEdit: () => _editProfile(context, ref)),
         ),
         const Gap(14),
-        // 자산 한눈에 — «지금 내 돈이 어디에 얼마»(11/03). 프리덤 스코어가 «흐름»
-        // 이라면 이건 «잔액»이라 바로 아래에 둔다.
-        const _AssetsCard(),
-        const Gap(14),
         // 2단 두 줄 — [목표 | 오늘 해야 할 일], [사업 엔진 | 메모].
         // 칸마다 높이를 정해 두고, 내용이 더 길면 칸 안에서 세로로 스크롤한다
         // (카드가 길어지면 아래 카드들이 밀려 내려갔다). 좁으면 위아래로 쌓는다.
@@ -80,6 +76,9 @@ class DashboardScreen extends ConsumerWidget {
         const Gap(14),
         // 재무 로드맵은 맨 아래(10/31 요청).
         const PlanRoadmapCompact(),
+        const Gap(14),
+        // 자산 한눈에 — «지금 내 돈이 어디에 얼마». 맨 아래(11/03 요청).
+        const _AssetsCard(),
       ],
     );
   }
