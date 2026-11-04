@@ -73,7 +73,8 @@ const planItemSpec = BuiltinSpec(
 const kPlanHorizons = ['10년', '5년', '3년', '1년', '6개월', '3개월', '1개월', '1주'];
 
 /// 계획 갈래 — «비전»은 맨 위 큰 목표 칸, 나머지는 길라잡이.
-const kPlanTracks = ['비전', '경공매', '사업', '인스타', '재무', '여행'];
+/// 사업 = 공간 사업(에비·고시원·공유오피스·스터디카페…), 교육 = 월천 강의·커뮤니티.
+const kPlanTracks = ['비전', '경공매', '사업', '교육', '인스타', '재무', '여행'];
 
 const airbnbSpec = BuiltinSpec(
   table: 'airbnb_units',

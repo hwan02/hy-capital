@@ -143,7 +143,11 @@ final planItemsProvider = FutureProvider<List<PlanItem>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   if (sb.auth.currentUser == null) return [];
   try {
-    final rows = await sb.from('plan_items').select().order('sort_order');
+    // order() 기본은 내림차순이다 — 1·2·3 순서로.
+    final rows = await sb
+        .from('plan_items')
+        .select()
+        .order('sort_order', ascending: true);
     return rows.map<PlanItem>(PlanItem.fromMap).toList();
   } catch (_) {
     return const <PlanItem>[];

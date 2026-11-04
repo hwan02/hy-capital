@@ -18,6 +18,7 @@ const _trackColors = <String, Color>{
   '비전': AppColors.gold,
   '경공매': Color(0xFF14B8A6),
   '사업': AppColors.sky,
+  '교육': Color(0xFFF97316),
   '인스타': Color(0xFFEC4899),
   '재무': AppColors.primary,
   '여행': AppColors.violet,
