@@ -719,6 +719,43 @@ class Asset {
       );
 }
 
+/// 계획 한 줄 (plan_items) — 10년 비전을 기간(horizon)·갈래(track)별로 쪼갠 할 일.
+class PlanItem {
+  final String id;
+  final String horizon; // 10년|5년|3년|1년|6개월|3개월|1개월|1주
+  final String track; // 비전|경공매|사업|인스타|재무|여행
+  final String title;
+  final String? detail;
+  final DateTime? dueDate;
+  final bool done;
+  final DateTime? doneAt;
+  final int sortOrder;
+
+  PlanItem({
+    required this.id,
+    required this.horizon,
+    required this.track,
+    required this.title,
+    this.detail,
+    this.dueDate,
+    required this.done,
+    this.doneAt,
+    required this.sortOrder,
+  });
+
+  factory PlanItem.fromMap(Map<String, dynamic> m) => PlanItem(
+        id: m['id'],
+        horizon: m['horizon'],
+        track: m['track'],
+        title: m['title'],
+        detail: m['detail'],
+        dueDate: _date(m['due_date']),
+        done: m['done'] == true,
+        doneAt: _date(m['done_at']),
+        sortOrder: _i(m['sort_order']),
+      );
+}
+
 class TodoTask {
   final String id;
   final String title;

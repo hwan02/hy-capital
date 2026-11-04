@@ -53,6 +53,28 @@ const assetSpec = BuiltinSpec(
 /// 자산 분류 — 이 순서대로 카드에 쌓인다. 부채는 순자산에서 뺀다.
 const kAssetCategories = ['사업', '투자', '현금·예금', '연금', '부동산', '부채'];
 
+/// 계획 한 줄 (plan_items). 기간·갈래로 «계획» 화면에 묶인다.
+const planItemSpec = BuiltinSpec(
+  table: 'plan_items',
+  title: '계획',
+  accent: AppColors.gold,
+  fields: [
+    FieldSpec(key: 'title', label: '할 일', type: FieldType.text, required: true),
+    FieldSpec(key: 'horizon', label: '기간', type: FieldType.select, required: true,
+        options: kPlanHorizons),
+    FieldSpec(key: 'track', label: '갈래', type: FieldType.select, required: true,
+        options: kPlanTracks),
+    FieldSpec(key: 'detail', label: '어떻게 · 기준', type: FieldType.longtext),
+    FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
+  ],
+);
+
+/// 계획 기간 — 긴 것부터. 화면의 칩 순서도 이것.
+const kPlanHorizons = ['10년', '5년', '3년', '1년', '6개월', '3개월', '1개월', '1주'];
+
+/// 계획 갈래 — «비전»은 맨 위 큰 목표 칸, 나머지는 길라잡이.
+const kPlanTracks = ['비전', '경공매', '사업', '인스타', '재무', '여행'];
+
 const airbnbSpec = BuiltinSpec(
   table: 'airbnb_units',
   title: '에비 호점',

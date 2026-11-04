@@ -138,6 +138,18 @@ final assetsProvider = FutureProvider<List<Asset>>((ref) async {
   }
 });
 
+/// 계획 — 0065 실행 전이면 표가 없다. 화면을 깨지 않게 빈 목록.
+final planItemsProvider = FutureProvider<List<PlanItem>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return [];
+  try {
+    final rows = await sb.from('plan_items').select().order('sort_order');
+    return rows.map<PlanItem>(PlanItem.fromMap).toList();
+  } catch (_) {
+    return const <PlanItem>[];
+  }
+});
+
 final goalsProvider = FutureProvider<List<Goal>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb.from('goals').select().order('sort_order');
@@ -665,6 +677,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
   ref.invalidate(assetsProvider);
+  ref.invalidate(planItemsProvider);
   ref.invalidate(tasksProvider);
   ref.invalidate(doneTasksProvider);
   ref.invalidate(memosProvider);

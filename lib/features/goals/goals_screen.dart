@@ -10,7 +10,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
-import '../plan/plan_roadmap.dart';
 
 /// 목표 → 수정 창 초기값. 대시보드 목표 카드도 같이 쓴다.
 Map<String, dynamic> goalToMap(Goal g) => {
@@ -34,7 +33,7 @@ class GoalsScreen extends ConsumerWidget {
       icon: Icons.flag_rounded,
       color: AppColors.violet,
       action: AddButton(color: AppColors.violet, onTap: add),
-      // 로드맵이 길어서 맨 위까지 올라가지 않아도 목표를 추가할 수 있게.
+      // 목표가 많아져도 맨 위까지 올라가지 않고 추가할 수 있게.
       fab: FloatingActionButton(
         onPressed: add,
         backgroundColor: AppColors.violet,
@@ -42,7 +41,7 @@ class GoalsScreen extends ConsumerWidget {
         tooltip: '개별 목표 추가',
         child: const Icon(Icons.add_rounded),
       ),
-      // 개별 목표가 먼저, 재무 로드맵은 맨 아래(10/22).
+      // 재무 로드맵은 «계획» 메뉴로 옮겼다(11/05).
       children: [
         SectionHeader(
           '개별 목표',
@@ -149,8 +148,6 @@ class GoalsScreen extends ConsumerWidget {
             );
           },
         ),
-        const Gap(28),
-        const PlanRoadmap(),
       ],
     );
   }
