@@ -5,6 +5,7 @@ import '../data/data_providers.dart';
 import '../theme/app_theme.dart';
 import 'builtin_specs.dart';
 import 'crud.dart';
+import 'form_draft.dart';
 import 'record_form.dart';
 
 /// 내장 모듈 레코드 추가/수정 폼 → 저장 → 새로고침.
@@ -15,12 +16,15 @@ Future<void> editBuiltinRecord(
   Map<String, dynamic>? initial,
   String? id,
 }) async {
+  // 새 글은 표마다 하나, 수정은 레코드마다 하나.
+  final draftKey = spec.draft ? '${spec.table}:${id ?? 'new'}' : null;
   final values = await showRecordForm(
     context,
     title: id == null ? '${spec.title} 추가' : '${spec.title} 수정',
     fields: spec.fields,
     initial: initial ?? const {},
     accent: spec.accent,
+    draftKey: draftKey,
   );
   if (values == null) return;
   // 빈 값(null)은 보내지 않는다 → NOT NULL 컬럼은 DB 기본값(0 등)이 적용된다.
@@ -28,6 +32,8 @@ Future<void> editBuiltinRecord(
     ..removeWhere((k, v) => v == null);
   try {
     await ref.saveRow(spec.table, clean, id: id);
+    // 저장이 «성공한 뒤»에만 임시저장을 지운다.
+    if (draftKey != null) await FormDraft.clear(draftKey);
     invalidateAll(ref);
   } catch (e) {
     if (context.mounted) {

@@ -8,11 +8,15 @@ class BuiltinSpec {
   final String title;
   final Color accent;
   final List<FieldSpec> fields;
+
+  /// 입력 중인 글을 이 기기에 임시저장한다(껐다 켜도 이어서 쓴다).
+  final bool draft;
   const BuiltinSpec({
     required this.table,
     required this.title,
     required this.accent,
     required this.fields,
+    this.draft = false,
   });
 }
 
@@ -201,6 +205,8 @@ const memoSpec = BuiltinSpec(
   table: 'memos',
   title: '메모',
   accent: AppColors.gold,
+  // 쓰다가 앱을 껐다 켜서 날아간 적이 있다(11/04).
+  draft: true,
   fields: [
     // 메모는 길게 쓴다 — 2줄 칸이면 쓰는 동안 한 줄씩 밀려 답답했다.
     FieldSpec(

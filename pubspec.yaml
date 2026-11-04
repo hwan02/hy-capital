@@ -45,6 +45,9 @@ dependencies:
   url_launcher: ^6.3.0
   # 월급 화면 PIN — sha256(salt+pin) 만 저장한다
   crypto: ^3.0.6
+  # 입력 중인 폼 임시저장(브라우저 localStorage) — 이미 supabase_flutter 가
+  # 쓰고 있어 새로 받는 패키지는 없다
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

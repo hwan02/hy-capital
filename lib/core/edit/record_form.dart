@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -6,6 +8,7 @@ import '../format/formatters.dart';
 import '../theme/app_theme.dart';
 import '../widgets/money_field.dart';
 import 'field_spec.dart';
+import 'form_draft.dart';
 import 'plain_controller.dart';
 import '../widgets/save_key.dart';
 
@@ -27,6 +30,7 @@ Future<Map<String, dynamic>?> showRecordForm(
   required List<FieldSpec> fields,
   Map<String, dynamic> initial = const {},
   Color accent = AppColors.primary,
+  String? draftKey,
 }) {
   // 넓은 화면은 가운데 큰 모달(수정하기 쉬움), 좁은 화면은 하단 시트.
   final wide = MediaQuery.sizeOf(context).width >= 700;
@@ -36,6 +40,7 @@ Future<Map<String, dynamic>?> showRecordForm(
     initial: initial,
     accent: accent,
     inDialog: wide,
+    draftKey: draftKey,
   );
   if (wide) {
     return showDialog<Map<String, dynamic>>(
@@ -66,6 +71,44 @@ Future<Map<String, dynamic>?> showRecordForm(
   );
 }
 
+/// 「임시저장된 내용을 불러왔습니다 · 버리기」
+class _DraftBanner extends StatelessWidget {
+  final DateTime savedAt;
+  final Color accent;
+  final VoidCallback onDiscard;
+  const _DraftBanner(
+      {required this.savedAt, required this.accent, required this.onDiscard});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = savedAt.toLocal();
+    final hm =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(children: [
+        Icon(Icons.history_rounded, size: 16, color: accent),
+        const Gap(8),
+        Expanded(
+          child: Text('임시저장된 내용을 불러왔습니다 (${Dates.md(t)} $hm)',
+              style: const TextStyle(
+                  fontSize: AppFont.label, color: AppColors.textSecondary)),
+        ),
+        TextButton(
+          onPressed: onDiscard,
+          style: TextButton.styleFrom(foregroundColor: AppColors.textFaint),
+          child: const Text('버리기'),
+        ),
+      ]),
+    );
+  }
+}
+
 class _RecordForm extends StatefulWidget {
   final String title;
   final List<FieldSpec> fields;
@@ -73,12 +116,17 @@ class _RecordForm extends StatefulWidget {
   final Color accent;
   final bool inDialog;
 
+  /// 있으면 입력 중인 글을 [FormDraft] 에 주기적으로 임시저장하고, 다시 열 때
+  /// 채운다. 지우는 건 호출한 쪽이 DB 저장에 성공한 뒤([FormDraft.clear]).
+  final String? draftKey;
+
   const _RecordForm({
     required this.title,
     required this.fields,
     required this.initial,
     required this.accent,
     this.inDialog = false,
+    this.draftKey,
   });
 
   @override
@@ -89,6 +137,61 @@ class _RecordFormState extends State<_RecordForm> {
   final _formKey = GlobalKey<FormState>();
   late final Map<String, dynamic> _values;
   final Map<String, TextEditingController> _controllers = {};
+
+  // ── 임시저장 ──
+  static const _draftEvery = Duration(seconds: 2);
+  Timer? _draftTimer;
+  late final Map<String, String> _initialText; // 열었을 때 칸마다 글
+  String? _lastDraft; // 마지막으로 적어 둔 내용(같으면 다시 안 쓴다)
+  DateTime? _restoredAt; // 임시저장을 불러왔으면 그 시각
+
+  /// 「저장」으로 닫는 중. 이때는 더 적지 않는다 — 창이 실제로 사라지는(dispose)
+  /// 건 닫힘 애니메이션 뒤라, 그때 적으면 호출한 쪽이 DB 저장 후 지운 것을
+  /// 되살린다. 그러면 저장한 메모가 다음 「추가」에 또 채워진다.
+  bool _submitting = false;
+
+  Map<String, String> _texts() =>
+      {for (final e in _controllers.entries) e.key: e.value.text};
+
+  Future<void> _restoreDraft() async {
+    final d = await FormDraft.load(widget.draftKey!);
+    if (d == null || !mounted) return;
+    // 불러오는 사이 이미 쓰기 시작했으면 덮지 않는다.
+    final untouched = _controllers.entries
+        .every((e) => e.value.text == _initialText[e.key]);
+    final differs = d.fields.entries
+        .any((e) => _controllers.containsKey(e.key) && e.value != _initialText[e.key]);
+    if (!untouched || !differs) return;
+    setState(() {
+      d.fields.forEach((k, v) => _controllers[k]?.text = v);
+      _restoredAt = d.savedAt;
+    });
+  }
+
+  /// 타이머·닫힐 때 부른다. 바뀐 게 없으면 쓰지 않고, 처음과 같아졌으면 지운다.
+  void _saveDraft() {
+    final key = widget.draftKey;
+    if (key == null || _submitting) return;
+    final now = _texts();
+    final snap = now.toString();
+    if (snap == _lastDraft) return;
+    _lastDraft = snap;
+    final same = now.entries.every((e) => e.value == _initialText[e.key]);
+    if (same) {
+      FormDraft.clear(key);
+    } else {
+      FormDraft.save(key, now);
+    }
+  }
+
+  void _discardDraft() {
+    setState(() {
+      _initialText.forEach((k, v) => _controllers[k]?.text = v);
+      _restoredAt = null;
+    });
+    _lastDraft = null;
+    FormDraft.clear(widget.draftKey!);
+  }
 
   @override
   void initState() {
@@ -102,10 +205,20 @@ class _RecordFormState extends State<_RecordForm> {
               ? _moneyInitText(v)
               : (v?.toString() ?? ''));
     }
+    _initialText = _texts();
+    if (widget.draftKey != null) {
+      _lastDraft = _initialText.toString();
+      _restoreDraft();
+      _draftTimer = Timer.periodic(_draftEvery, (_) => _saveDraft());
+    }
   }
 
   @override
   void dispose() {
+    // 창이 닫힐 때(바깥 클릭·취소·저장) 마지막으로 한 번 더 적는다.
+    // 저장이면 호출한 쪽이 DB 저장 성공 후 지운다.
+    _draftTimer?.cancel();
+    _saveDraft();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -114,6 +227,9 @@ class _RecordFormState extends State<_RecordForm> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    // DB 저장이 실패해도 남도록 지금 내용을 적어 두고, 이후로는 적지 않는다.
+    _saveDraft();
+    _submitting = true;
     final out = <String, dynamic>{};
     for (final f in widget.fields) {
       switch (f.type) {
@@ -184,6 +300,13 @@ class _RecordFormState extends State<_RecordForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (_restoredAt != null) ...[
+                        _DraftBanner(
+                            savedAt: _restoredAt!,
+                            accent: widget.accent,
+                            onDiscard: _discardDraft),
+                        const Gap(14),
+                      ],
                       for (final f in widget.fields) ...[
                         _buildField(f),
                         const Gap(18),
