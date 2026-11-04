@@ -29,6 +29,7 @@ import 'auction_detail_screen.dart' show matchZoneForAddress;
 import 'progress.dart'
     show kProgressAccent, kStatusLabel, kStatusColor, kStatusOptions;
 import 'progress_screen.dart';
+import 'sequence_view.dart';
 import '../property/criteria_screen.dart';
 import '../property/inherit.dart';
 import '../property/survey_screen.dart';
@@ -50,9 +51,11 @@ const _amber = Color(0xFFFBBF24);
 const _orange = Color(0xFFF97316);
 
 /// 탭 목록. 순서 = 프로세스 순서.
-///   발굴(모아·신통·임장·뉴스) → 판단(계산기) → 실행(진행) → 참고(나머지)
+///   경매 순서(입찰 전 11단계) → 발굴(모아·신통·임장·뉴스) → 판단(계산기)
+///   → 실행(진행) → 참고(나머지)
 /// id 는 «고정»이다 — 숨김 설정을 id 로 저장하므로 순서를 바꿔도 안 깨진다.
 const kAuctionTabs = <AuctionTab>[
+  AuctionTab(13, '경매 순서', Icons.format_list_numbered_rounded, _teal),
   AuctionTab(9, '모아타운', Icons.map_rounded, _teal),
   AuctionTab(11, '신통기획', Icons.apartment_rounded, AppColors.violet),
   AuctionTab(12, '임장예정', Icons.directions_walk_rounded, AppColors.gold),
@@ -371,9 +374,9 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
   String _filter = 'all'; // all | GO | <status>
   String _zone = 'all'; // all | <zoneId> | __none__ (구역 필터)
   // 0=매물·단지 · 1=진행 · 3=기준 · 4=자료실 · 5=강의 질문 · 6=계산기 · 7=세제
-  // · 8=재개발절차 · 9=모아타운
-  // «구역부터 고르고» 물건을 본다 — 그래서 모아타운이 기본이다.
-  int _tab = 9;
+  // · 8=재개발절차 · 9=모아타운 · 10=뉴스 · 11=신통 · 12=임장예정 · 13=경매 순서
+  // 「경매 순서」가 입구다 — 물건을 고르고 11단계를 순서대로 밟는다.
+  int _tab = 13;
 
   /// 숨긴 탭 id. 기본값은 참고 탭 5개.
   late Set<int> _hidden = _loadHidden();
@@ -477,7 +480,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
               onPressed: () {
                 setState(() {
                   _hidden = {..._kHiddenByDefault};
-                  if (_hidden.contains(_tab)) _tab = 9;
+                  if (_hidden.contains(_tab)) _tab = 13;
                   _saveHidden(_hidden);
                 });
                 setLocal(() {});
@@ -529,6 +532,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         9 => _teal,
         11 => AppColors.violet,
         12 => AppColors.gold,
+        13 => _teal,
         _ => AppColors.violet
       },
       action: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -578,6 +582,8 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
                   onTap: () => setState(() => _tab = t.id)),
         ]),
         const Gap(18),
+        if (_tab == 13)
+          AuctionSequenceView(onGoTab: (id) => setState(() => _tab = id)),
         if (_tab == 10) const NewsView(),
         if (_tab == 9) const MoaTownView(kind: '모아타운'),
         if (_tab == 11) const MoaTownView(kind: '신통기획'),
