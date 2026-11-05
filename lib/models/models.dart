@@ -686,6 +686,58 @@ class Goal {
 }
 
 /// 자산 한 줄 — 계좌·사업별 «지금 잔액». 분류별로 묶어 대시보드에 보인다(0064).
+/// 경공매 달력의 한 칸 — 정비구역 안에 뜬 경매·공매 물건.
+class SaleItem {
+  final String id;
+  final String zone; // 구역
+  final String caseNo; // 2025타경102886 · 2026-10740-004
+  final String source; // 경매 | 공매
+  final String? kind;
+  final double appraisal; // 감정가 (원)
+  final double minPrice; // 최저가 (원)
+  final int fails; // 유찰
+  final DateTime saleDate; // 매각기일
+  final String? address;
+  final String? tag; // 관심 | 임장 | 입찰예정 | 패스
+  final String? memo;
+  final String? url;
+
+  SaleItem({
+    required this.id,
+    required this.zone,
+    required this.caseNo,
+    required this.source,
+    this.kind,
+    required this.appraisal,
+    required this.minPrice,
+    required this.fails,
+    required this.saleDate,
+    this.address,
+    this.tag,
+    this.memo,
+    this.url,
+  });
+
+  /// 최저가 ÷ 감정가.
+  double get ratio => appraisal <= 0 ? 0 : minPrice / appraisal;
+
+  factory SaleItem.fromMap(Map<String, dynamic> m) => SaleItem(
+        id: m['id'],
+        zone: m['zone'] ?? '',
+        caseNo: m['case_no'] ?? '',
+        source: m['source'] ?? '경매',
+        kind: m['kind'],
+        appraisal: _d(m['appraisal']),
+        minPrice: _d(m['min_price']),
+        fails: _i(m['fails']),
+        saleDate: DateTime.parse(m['sale_date']),
+        address: m['address'],
+        tag: m['tag'],
+        memo: m['memo'],
+        url: m['url'],
+      );
+}
+
 class Asset {
   final String id;
   final String name;

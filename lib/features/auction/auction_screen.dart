@@ -35,6 +35,7 @@ import '../property/inherit.dart';
 import '../property/survey_screen.dart';
 import '../../core/edit/plain_controller.dart';
 import '../../core/widgets/save_key.dart';
+import 'sale_calendar_view.dart';
 
 const _teal = Color(0xFF14B8A6);
 
@@ -59,6 +60,7 @@ const kAuctionTabs = <AuctionTab>[
   AuctionTab(9, '모아타운', Icons.map_rounded, _teal),
   AuctionTab(11, '신통기획', Icons.apartment_rounded, AppColors.violet),
   AuctionTab(12, '임장예정', Icons.directions_walk_rounded, AppColors.gold),
+  AuctionTab(14, '경공매 달력', Icons.calendar_month_rounded, AppColors.gold),
   AuctionTab(10, '뉴스', Icons.newspaper_rounded, AppColors.violet),
   AuctionTab(0, '매물·단지', Icons.gavel_rounded, _teal),
   AuctionTab(6, '계산기', Icons.calculate_rounded, AppColors.gold),
@@ -588,6 +590,7 @@ class _AuctionScreenState extends ConsumerState<AuctionScreen> {
         if (_tab == 9) const MoaTownView(kind: '모아타운'),
         if (_tab == 11) const MoaTownView(kind: '신통기획'),
         if (_tab == 12) const VisitPlanView(),
+        if (_tab == 14) const SaleCalendarView(),
         if (_tab == 8) const RedevelopmentFlow(),
         if (_tab == 7) const TaxTimeline(),
         if (_tab == 6) const CalculatorTab(),

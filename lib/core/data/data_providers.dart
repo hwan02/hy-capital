@@ -123,6 +123,14 @@ double dividendKrw(Map<String, dynamic> row,
 }
 
 /// 자산 한눈에 — 0064 실행 전이면 표가 없다. 대시보드를 깨지 않게 빈 목록.
+/// 경공매 달력 — 매각기일 순.
+final saleItemsProvider = FutureProvider<List<SaleItem>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return [];
+  final rows = await sb.from('sale_items').select().order('sale_date');
+  return rows.map<SaleItem>(SaleItem.fromMap).toList();
+});
+
 final assetsProvider = FutureProvider<List<Asset>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   if (sb.auth.currentUser == null) return [];
@@ -681,6 +689,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(dividendProvider);
   ref.invalidate(goalsProvider);
   ref.invalidate(assetsProvider);
+  ref.invalidate(saleItemsProvider);
   ref.invalidate(planItemsProvider);
   ref.invalidate(tasksProvider);
   ref.invalidate(doneTasksProvider);
