@@ -337,7 +337,7 @@ class _TrackHeader extends StatelessWidget {
   }
 }
 
-class _PlanRow extends StatelessWidget {
+class _PlanRow extends StatefulWidget {
   final PlanItem item;
   final Color color;
   final VoidCallback onToggle;
@@ -352,13 +352,31 @@ class _PlanRow extends StatelessWidget {
   });
 
   @override
+  State<_PlanRow> createState() => _PlanRowState();
+}
+
+class _PlanRowState extends State<_PlanRow> {
+  // 누르자마자 바꿔 보여 준다 — 다시 불러오기까지 1~2초 비어 보였다.
+  bool? _pending;
+
+  @override
+  void didUpdateWidget(_PlanRow old) {
+    super.didUpdateWidget(old);
+    if (old.item.done != widget.item.done) _pending = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final done = item.done;
+    final item = widget.item, color = widget.color;
+    final done = _pending ?? item.done;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         IconButton(
-          onPressed: onToggle,
+          onPressed: () {
+            setState(() => _pending = !done);
+            widget.onToggle();
+          },
           tooltip: done ? '완료 취소' : '완료',
           visualDensity: VisualDensity.compact,
           icon: Icon(
@@ -409,7 +427,7 @@ class _PlanRow extends StatelessWidget {
                 ]),
           ),
         ),
-        RecordMenu(onEdit: onEdit, onDelete: onDelete),
+        RecordMenu(onEdit: widget.onEdit, onDelete: widget.onDelete),
       ]),
     );
   }
