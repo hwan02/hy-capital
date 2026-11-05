@@ -26,9 +26,6 @@ const _trackColors = <String, Color>{
 
 Color _trackColor(String t) => _trackColors[t] ?? AppColors.textSecondary;
 
-/// 표 머리에 쓰는 짧은 이름.
-const _metricShort = {'순자산': '순자산', '법인 현금흐름': '법인', '개인 현금흐름': '개인'};
-
 /// 순자산은 «100억», 현금흐름은 «월 1000만».
 String _goalText(String metric, double v) =>
     metric == '순자산' ? Won.compact(v) : '월 ${Won.compact(v)}';
@@ -75,8 +72,7 @@ String? _assetLine(List<Asset>? assets) {
 
 /// «지금» 숫자. null = 아직 불러오는 중.
 ///   순자산 — 자산 카드.
-///   개인 현금흐름 — 지난 3달(이번 달 빼고) 에비·배당·숏폼·토지 평균. 월급 제외.
-///   법인 현금흐름 — 앱에 법인 기록이 아직 없다. 0.
+///   월 현금흐름 — 지난 3달(이번 달 빼고) 에비·배당·숏폼·토지 평균. 월급 제외.
 Map<String, double?> _nowValues(WidgetRef ref) {
   final assets = ref.watch(assetsProvider).asData?.value;
   final byMonth = ref.watch(moduleIncomeByMonthProvider).asData?.value;
@@ -95,8 +91,7 @@ Map<String, double?> _nowValues(WidgetRef ref) {
   }
   return {
     '순자산': assets == null ? null : _netWorth(assets),
-    '법인 현금흐름': 0,
-    '개인 현금흐름': personal,
+    '월 현금흐름': personal,
   };
 }
 
@@ -415,7 +410,7 @@ class _OverviewTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: _line(
               const Text('기간', style: _head),
-              [for (final m in kPlanMetrics) _right(_metricShort[m]!, _head)],
+              [for (final m in kPlanMetrics) _right(m, _head)],
               _right('할 일', _head),
             ),
           ),

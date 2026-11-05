@@ -731,7 +731,7 @@ class PlanItem {
   final DateTime? doneAt;
   final int sortOrder;
 
-  /// 순자산 · 법인 현금흐름 · 개인 현금흐름 — 어느 숫자 목표에 묶였나(0066).
+  /// 순자산 · 월 현금흐름 — 어느 숫자 목표에 묶였나(0066).
   final String? metric;
 
   /// 목표 금액. 있으면 이 줄은 할 일이 아니라 «숫자 목표»다.
