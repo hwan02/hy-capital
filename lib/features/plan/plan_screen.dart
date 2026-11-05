@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/data/data_providers.dart';
 import '../../core/edit/builtin_crud.dart';
@@ -781,6 +782,15 @@ class _TrackHeader extends StatelessWidget {
           style: TextStyle(
               color: c, fontSize: AppFont.section, fontWeight: FontWeight.w800)),
       const Spacer(),
+      // 여행은 가고 싶은 곳을 «여행» 메뉴(지도)에 적는다.
+      if (track == '여행')
+        TextButton.icon(
+          onPressed: () => context.go('/travel'),
+          icon: const Icon(Icons.map_rounded, size: 18),
+          label: const Text('가고 싶은 곳 지도'),
+          style: TextButton.styleFrom(
+              foregroundColor: c, visualDensity: VisualDensity.compact),
+        ),
       IconButton(
         onPressed: onAdd,
         tooltip: '$track 할 일 추가',

@@ -168,6 +168,21 @@ final planItemsProvider = FutureProvider<List<PlanItem>>((ref) async {
   }
 });
 
+/// 여행 버킷리스트 — 0068 실행 전이면 표가 없다. 화면을 깨지 않게 빈 목록.
+final travelPlacesProvider = FutureProvider<List<TravelPlace>>((ref) async {
+  final sb = ref.watch(supabaseProvider);
+  if (sb.auth.currentUser == null) return [];
+  try {
+    final rows = await sb
+        .from('travel_places')
+        .select()
+        .order('created_at', ascending: true);
+    return rows.map<TravelPlace>(TravelPlace.fromMap).toList();
+  } catch (_) {
+    return const <TravelPlace>[];
+  }
+});
+
 final goalsProvider = FutureProvider<List<Goal>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   final rows = await sb.from('goals').select().order('sort_order');
@@ -697,6 +712,7 @@ void invalidateAll(WidgetRef ref) {
   ref.invalidate(assetsProvider);
   ref.invalidate(saleItemsProvider);
   ref.invalidate(planItemsProvider);
+  ref.invalidate(travelPlacesProvider);
   ref.invalidate(tasksProvider);
   ref.invalidate(doneTasksProvider);
   ref.invalidate(memosProvider);

@@ -94,6 +94,20 @@ const kPlanGoalFixed = {'track': '목표', 'title': '숫자 목표'};
 /// 어느 쪽 명의로 할지는 그때그때 유리한 쪽을 고른다(11/05).
 const kPlanMetrics = ['순자산', '월 현금흐름'];
 
+/// 여행 버킷리스트 한 곳. 좌표는 폼에 없다 — 저장할 때 이름으로 찾는다(travel_screen.dart).
+const travelPlaceSpec = BuiltinSpec(
+  table: 'travel_places',
+  title: '가고 싶은 곳',
+  accent: AppColors.violet,
+  fields: [
+    FieldSpec(key: 'name', label: '어디 (도시·장소 — 예: 교토, 파타고니아)', type: FieldType.text,
+        required: true),
+    FieldSpec(key: 'country', label: '나라 (비우면 지도에서 찾은 나라)', type: FieldType.text),
+    FieldSpec(key: 'memo', label: '거기서 하고 싶은 것', type: FieldType.longtext),
+    FieldSpec(key: 'visited_on', label: '다녀온 날 (아직이면 비워 둔다)', type: FieldType.date),
+  ],
+);
+
 /// 계획 기간 — 긴 것부터. 화면의 칩 순서도 이것.
 const kPlanHorizons = ['10년', '5년', '3년', '1년', '6개월', '3개월', '1개월', '1주'];
 

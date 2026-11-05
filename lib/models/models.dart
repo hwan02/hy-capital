@@ -821,6 +821,46 @@ class PlanItem {
       );
 }
 
+/// 여행 버킷리스트 한 곳 (travel_places). 좌표는 이름으로 찾아 넣는다.
+class TravelPlace {
+  final String id;
+  final String name;
+  final String? country;
+  final String? memo;
+  final DateTime? visitedOn; // 비어 있으면 아직 «가고 싶은 곳»
+  final double? lat;
+  final double? lng;
+  final String? geoName; // 지도가 찾은 정식 이름
+  final int sortOrder;
+
+  TravelPlace({
+    required this.id,
+    required this.name,
+    this.country,
+    this.memo,
+    this.visitedOn,
+    this.lat,
+    this.lng,
+    this.geoName,
+    required this.sortOrder,
+  });
+
+  bool get visited => visitedOn != null;
+  bool get onMap => lat != null && lng != null;
+
+  factory TravelPlace.fromMap(Map<String, dynamic> m) => TravelPlace(
+        id: m['id'],
+        name: m['name'],
+        country: m['country'],
+        memo: m['memo'],
+        visitedOn: _date(m['visited_on']),
+        lat: m['lat'] == null ? null : _d(m['lat']),
+        lng: m['lng'] == null ? null : _d(m['lng']),
+        geoName: m['geo_name'],
+        sortOrder: _i(m['sort_order']),
+      );
+}
+
 class TodoTask {
   final String id;
   final String title;

@@ -17,6 +17,8 @@ Future<void> editBuiltinRecord(
   String? id,
   // 폼에 없는 칸 — 저장할 때 같이 보낸다(예: 계획의 숫자 목표는 갈래가 늘 «목표»).
   Map<String, dynamic> fixed = const {},
+  // 저장 직전에 값을 더 채운다(예: 여행지 이름으로 지도 좌표 찾기).
+  Future<Map<String, dynamic>> Function(Map<String, dynamic> values)? prepare,
 }) async {
   // 새 글은 표마다 하나, 수정은 레코드마다 하나.
   final draftKey = spec.draft ? '${spec.table}:${id ?? 'new'}' : null;
@@ -30,10 +32,11 @@ Future<void> editBuiltinRecord(
   );
   if (values == null) return;
   // 빈 값(null)은 보내지 않는다 → NOT NULL 컬럼은 DB 기본값(0 등)이 적용된다.
-  final clean = Map<String, dynamic>.from(values)
+  var clean = Map<String, dynamic>.from(values)
     ..addAll(fixed)
     ..removeWhere((k, v) => v == null);
   try {
+    if (prepare != null) clean = await prepare(clean);
     await ref.saveRow(spec.table, clean, id: id);
     // 저장이 «성공한 뒤»에만 임시저장을 지운다.
     if (draftKey != null) await FormDraft.clear(draftKey);

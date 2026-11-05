@@ -35,5 +35,7 @@ const kModules = <ModuleDef>[
   ModuleDef('/books', '책', Icons.menu_book_rounded, Color(0xFFB4844E)),
   // 10년 비전 → 숫자 목표(순자산·법인/개인 현금흐름) → 1주 할 일. Goals 에서 떼어 냈다(2026-11-05).
   ModuleDef('/plan', '계획', Icons.route_rounded, AppColors.gold),
+  // 비전 «가고 싶은 곳 전부 여행하기»를 적는 곳 — 지도 + 목록(2026-11-05).
+  ModuleDef('/travel', '여행', Icons.flight_takeoff_rounded, AppColors.violet),
   ModuleDef('/goals', 'Goals', Icons.flag_rounded, AppColors.violet),
 ];
