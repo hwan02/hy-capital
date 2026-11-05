@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
+import '../dashboard/asset_editor.dart' show assetCategoriesOf;
 
 /// 갈래별 색 — 칩·점·왼쪽 줄에 같이 쓴다.
 const _trackColors = <String, Color>{
@@ -60,6 +61,16 @@ double _netWorth(List<Asset> assets) {
       (t, e) => e.key == '부채'
           ? t - e.value
           : t + (e.value > 0 ? e.value : 0));
+}
+
+/// 자산 카드 분류별 합 한 줄 — 순자산 목표 밑에 «지금 무엇으로 이뤄져 있나».
+String? _assetLine(List<Asset>? assets) {
+  if (assets == null || assets.isEmpty) return null;
+  return [
+    for (final c in assetCategoriesOf(assets))
+      if (assets.any((a) => a.category == c))
+        '$c ${c == '부채' ? '−' : ''}${Won.compact(assets.where((a) => a.category == c).fold(0.0, (t, a) => t + a.amount))}',
+  ].join(' · ');
 }
 
 /// «지금» 숫자. null = 아직 불러오는 중.
@@ -190,6 +201,8 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   goals: goals.where((g) => g.horizon == _horizon).toList(),
                   items: todos.where((p) => p.horizon == _horizon).toList(),
                   now: now,
+                  assetLine:
+                      _assetLine(ref.watch(assetsProvider).asData?.value),
                   onAdd: (t) => _add(track: t),
                   onAddFor: _addFor,
                   onAddGoal: _addGoal,
@@ -528,6 +541,7 @@ class _HorizonView extends ConsumerWidget {
   final List<PlanItem> goals;
   final List<PlanItem> items;
   final Map<String, double?> now;
+  final String? assetLine;
   final ValueChanged<String> onAdd;
   final ValueChanged<String> onAddFor;
   final ValueChanged<String?> onAddGoal;
@@ -537,6 +551,7 @@ class _HorizonView extends ConsumerWidget {
     required this.goals,
     required this.items,
     required this.now,
+    this.assetLine,
     required this.onAdd,
     required this.onAddFor,
     required this.onAddGoal,
@@ -608,6 +623,7 @@ class _HorizonView extends ConsumerWidget {
               metric: m,
               goal: goals.where((g) => g.metric == m).firstOrNull,
               now: now[m],
+              note: m == '순자산' ? assetLine : null,
               onAdd: () => onAddFor(m),
               onSetGoal: () => onAddGoal(m),
             ),
@@ -643,12 +659,16 @@ class _GoalHeader extends ConsumerWidget {
   final String metric;
   final PlanItem? goal;
   final double? now;
+
+  /// 지금 숫자 밑에 한 줄 더 — 순자산이면 자산 카드 분류별 합.
+  final String? note;
   final VoidCallback onAdd;
   final VoidCallback onSetGoal;
   const _GoalHeader({
     required this.metric,
     required this.goal,
     required this.now,
+    this.note,
     required this.onAdd,
     required this.onSetGoal,
   });
@@ -713,6 +733,25 @@ class _GoalHeader extends ConsumerWidget {
               const Gap(10),
               Expanded(child: ProgressBar(value: pct, color: c, height: 4)),
             ]),
+          )
+        // 목표가 없거나 0이어도 «지금»은 보인다 — 비어 보이면 없는 줄 안다.
+        else if (now != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Text('지금 ${Won.compact(now!)}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: AppFont.caption,
+                    fontWeight: FontWeight.w700)),
+          ),
+        if (note != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 3, right: 8),
+            child: Text(note!,
+                style: const TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: AppFont.caption,
+                    height: 1.5)),
           ),
         if ((g?.detail ?? '').isNotEmpty)
           Padding(
