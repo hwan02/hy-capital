@@ -64,19 +64,24 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
           .eq('id', it.id);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('저장 실패 — $e'), backgroundColor: AppColors.rose));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장 실패 — $e'), backgroundColor: AppColors.rose),
+      );
       return;
     }
     ref.invalidate(saleItemsProvider);
   }
 
   Future<void> _open(SaleItem it) async {
-    final ok = await launchUrl(Uri.parse(hankUrlOf(it)),
-        mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank');
+    final ok = await launchUrl(
+      Uri.parse(hankUrlOf(it)),
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('링크를 열지 못했어요')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('링크를 열지 못했어요')));
     }
   }
 
@@ -90,78 +95,106 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       builder: (dctx) => StatefulBuilder(
         builder: (dctx, setS) => AlertDialog(
           backgroundColor: AppColors.surface,
-          title: Text('${it.zone} · ${it.caseNo}',
-              style: const TextStyle(fontSize: AppFont.section)),
+          title: Text(
+            '${it.zone} · ${it.caseNo}',
+            style: const TextStyle(fontSize: AppFont.section),
+          ),
           content: SizedBox(
             width: 380,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              if ((it.address ?? '').isNotEmpty)
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if ((it.address ?? '').isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      it.address!,
+                      style: const TextStyle(
+                        fontSize: AppFont.caption,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                const Gap(12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(it.address!,
-                      style: const TextStyle(
-                          fontSize: AppFont.caption,
-                          color: AppColors.textSecondary)),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final e in kSaleTags.entries)
+                        ChoiceChip(
+                          label: Text(e.key),
+                          selected: tag == e.key,
+                          selectedColor: e.value.withValues(alpha: 0.25),
+                          labelStyle: TextStyle(
+                            fontSize: AppFont.label,
+                            fontWeight: FontWeight.w700,
+                            color: tag == e.key
+                                ? e.value
+                                : AppColors.textSecondary,
+                          ),
+                          onSelected: (_) =>
+                              setS(() => tag = tag == e.key ? null : e.key),
+                        ),
+                    ],
+                  ),
                 ),
-              const Gap(12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final e in kSaleTags.entries)
-                    ChoiceChip(
-                      label: Text(e.key),
-                      selected: tag == e.key,
-                      selectedColor: e.value.withValues(alpha: 0.25),
-                      labelStyle: TextStyle(
-                          fontSize: AppFont.label,
-                          fontWeight: FontWeight.w700,
-                          color: tag == e.key ? e.value : AppColors.textSecondary),
-                      onSelected: (_) =>
-                          setS(() => tag = tag == e.key ? null : e.key),
-                    ),
-                ]),
-              ),
-              const Gap(14),
-              TextField(
-                controller: memo,
-                minLines: 1,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                    labelText: '메모', prefixIcon: Icon(Icons.notes_rounded, size: 20)),
-              ),
-              const Gap(10),
-              TextField(
-                controller: url,
-                decoration: const InputDecoration(
+                const Gap(14),
+                TextField(
+                  controller: memo,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: '메모',
+                    prefixIcon: Icon(Icons.notes_rounded, size: 20),
+                  ),
+                ),
+                const Gap(10),
+                TextField(
+                  controller: url,
+                  decoration: const InputDecoration(
                     labelText: '행크옥션 링크 (없으면 사건번호로 검색)',
-                    prefixIcon: Icon(Icons.link_rounded, size: 20)),
-              ),
-            ]),
+                    prefixIcon: Icon(Icons.link_rounded, size: 20),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(dctx, 'delete'),
-                child: const Text('삭제',
-                    style: TextStyle(color: AppColors.rose))),
+              onPressed: () => Navigator.pop(dctx, 'delete'),
+              child: const Text('삭제', style: TextStyle(color: AppColors.rose)),
+            ),
             const Spacer(),
             TextButton(
-                onPressed: () => Navigator.pop(dctx),
-                child: const Text('취소')),
+              onPressed: () => Navigator.pop(dctx),
+              child: const Text('취소'),
+            ),
             SaveKey(
-                child: FilledButton(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: _accent,
-                        foregroundColor: const Color(0xFF2A1D00)),
-                    onPressed: () => Navigator.pop(dctx, 'save'),
-                    child: const Text('저장'))),
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _accent,
+                  foregroundColor: const Color(0xFF2A1D00),
+                ),
+                onPressed: () => Navigator.pop(dctx, 'save'),
+                child: const Text('저장'),
+              ),
+            ),
           ],
         ),
       ),
     );
     if (!mounted || r == null) return;
     if (r == 'delete') {
-      if (!await confirmDelete(context, name: '${it.zone} ${it.caseNo}')) return;
-      await ref.read(supabaseProvider).from('sale_items').delete().eq('id', it.id);
+      if (!await confirmDelete(context, name: '${it.zone} ${it.caseNo}')) {
+        return;
+      }
+      await ref
+          .read(supabaseProvider)
+          .from('sale_items')
+          .delete()
+          .eq('id', it.id);
       ref.invalidate(saleItemsProvider);
       return;
     }
@@ -176,10 +209,25 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
 
   static const _fields = [
     FieldSpec(key: 'zone', label: '구역', type: FieldType.text, required: true),
-    FieldSpec(key: 'case_no', label: '사건·관리번호', type: FieldType.text, required: true),
-    FieldSpec(key: 'source', label: '종류', type: FieldType.select, required: true,
-        options: ['경매', '공매']),
-    FieldSpec(key: 'sale_date', label: '매각기일·입찰마감', type: FieldType.date, required: true),
+    FieldSpec(
+      key: 'case_no',
+      label: '사건·관리번호',
+      type: FieldType.text,
+      required: true,
+    ),
+    FieldSpec(
+      key: 'source',
+      label: '종류',
+      type: FieldType.select,
+      required: true,
+      options: ['경매', '공매'],
+    ),
+    FieldSpec(
+      key: 'sale_date',
+      label: '매각기일·입찰마감',
+      type: FieldType.date,
+      required: true,
+    ),
     FieldSpec(key: 'kind', label: '물건종류 (다세대·오피스텔 …)', type: FieldType.text),
     FieldSpec(key: 'appraisal', label: '감정가', type: FieldType.money),
     FieldSpec(key: 'min_price', label: '최저가', type: FieldType.money),
@@ -189,14 +237,16 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   ];
 
   Future<void> _add() async {
-    final v = await showRecordForm(context,
-        title: '경공매 물건 추가',
-        fields: _fields,
-        accent: _accent,
-        initial: {
-          'source': '경매',
-          'sale_date': _month.toIso8601String().substring(0, 10),
-        });
+    final v = await showRecordForm(
+      context,
+      title: '경공매 물건 추가',
+      fields: _fields,
+      accent: _accent,
+      initial: {
+        'source': '경매',
+        'sale_date': _month.toIso8601String().substring(0, 10),
+      },
+    );
     if (v == null || !mounted) return;
     final sb = ref.read(supabaseProvider);
     try {
@@ -209,8 +259,9 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('추가 실패 — $e'), backgroundColor: AppColors.rose));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('추가 실패 — $e'), backgroundColor: AppColors.rose),
+      );
       return;
     }
     ref.invalidate(saleItemsProvider);
@@ -224,55 +275,83 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       error: AsyncStatus.error,
       data: (all) {
         final monthItems = all.where(_inMonth).toList();
-        final shown =
-            monthItems.where((it) => _tagF == null || it.tag == _tagF).toList();
+        final shown = monthItems
+            .where((it) => _tagF == null || it.tag == _tagF)
+            .toList();
         int cnt(String? t) =>
             monthItems.where((it) => t == null || it.tag == t).length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 달 이동 + 건수 + 추가 ──
-            Row(children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left_rounded),
-                onPressed: () => setState(
-                    () => _month = DateTime(_month.year, _month.month - 1)),
-              ),
-              Text('${_month.year}년 ${_month.month}월',
-                  style: const TextStyle(
-                      fontSize: AppFont.title, fontWeight: FontWeight.w800)),
-              IconButton(
-                icon: const Icon(Icons.chevron_right_rounded),
-                onPressed: () => setState(
-                    () => _month = DateTime(_month.year, _month.month + 1)),
-              ),
-              const Gap(6),
-              Text('${monthItems.length}건',
-                  style: const TextStyle(
-                      fontSize: AppFont.section,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w700)),
-              const Spacer(),
-              AddButton(color: _accent, onTap: _add, label: '물건 추가'),
-            ]),
+            // ── 달 이동 + 건수 + 추가 ── 폰 폭에서는 줄을 바꾼다(Wrap).
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 2,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        onPressed: () => setState(
+                          () =>
+                              _month = DateTime(_month.year, _month.month - 1),
+                        ),
+                      ),
+                      Text(
+                        '${_month.year}년 ${_month.month}월',
+                        style: const TextStyle(
+                          fontSize: AppFont.title,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        onPressed: () => setState(
+                          () =>
+                              _month = DateTime(_month.year, _month.month + 1),
+                        ),
+                      ),
+                      Text(
+                        '${monthItems.length}건',
+                        style: const TextStyle(
+                          fontSize: AppFont.section,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AddButton(color: _accent, onTap: _add, label: '물건 추가'),
+              ],
+            ),
             const Gap(10),
             // ── 태그 필터 ──
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              _chip(null, '전체 ${cnt(null)}', _accent),
-              for (final e in kSaleTags.entries)
-                _chip(e.key, '${e.key} ${cnt(e.key)}', e.value),
-            ]),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _chip(null, '전체 ${cnt(null)}', _accent),
+                for (final e in kSaleTags.entries)
+                  _chip(e.key, '${e.key} ${cnt(e.key)}', e.value),
+              ],
+            ),
             const Gap(14),
             if (shown.isEmpty)
               const EmptyState(
-                  icon: Icons.calendar_month_rounded,
-                  message: '이 달엔 물건이 없어요 — 「물건 추가」로 넣거나 다른 달을 보세요')
+                icon: Icons.calendar_month_rounded,
+                message: '이 달엔 물건이 없어요 — 「물건 추가」로 넣거나 다른 달을 보세요',
+              )
             else
-              LayoutBuilder(builder: (context, c) {
-                return c.maxWidth < 720
-                    ? _dayList(shown)
-                    : _monthGrid(shown, c.maxWidth);
-              }),
+              LayoutBuilder(
+                builder: (context, c) {
+                  return c.maxWidth < 720
+                      ? _dayList(shown)
+                      : _monthGrid(shown, c.maxWidth);
+                },
+              ),
           ],
         );
       },
@@ -288,14 +367,20 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: on ? c.withValues(alpha: 0.18) : Colors.transparent,
-          border: Border.all(color: on ? c : AppColors.border, width: on ? 1.4 : 1),
+          border: Border.all(
+            color: on ? c : AppColors.border,
+            width: on ? 1.4 : 1,
+          ),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(label,
-            style: TextStyle(
-                color: on ? c : AppColors.textSecondary,
-                fontSize: AppFont.label,
-                fontWeight: FontWeight.w700)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: on ? c : AppColors.textSecondary,
+            fontSize: AppFont.label,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
@@ -329,47 +414,64 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
     const names = ['월', '화', '수', '목', '금', '토', '일'];
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        for (var i = 0; i < cols; i++)
-          SizedBox(
-            width: w + (i < cols - 1 ? gap : 0),
-            child: Text(names[i],
-                style: TextStyle(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < cols; i++)
+              SizedBox(
+                width: w + (i < cols - 1 ? gap : 0),
+                child: Text(
+                  names[i],
+                  style: TextStyle(
                     fontSize: AppFont.label,
                     fontWeight: FontWeight.w700,
-                    color: i >= 5 ? AppColors.rose : AppColors.textFaint)),
-          ),
-      ]),
-      const Gap(6),
-      for (final week in weeks)
-        if (week.any((d) => d != null))
-          Padding(
-            padding: const EdgeInsets.only(bottom: gap),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < cols; i++) ...[
-                  SizedBox(
-                    width: w,
-                    child: week[i] == null
-                        ? const SizedBox.shrink()
-                        : _dayCell(week[i]!, byDay[week[i]!.day] ?? const [],
-                            isToday: week[i]!.year == today.year &&
-                                week[i]!.month == today.month &&
-                                week[i]!.day == today.day),
+                    color: i >= 5 ? AppColors.rose : AppColors.textFaint,
                   ),
-                  if (i < cols - 1) const SizedBox(width: gap),
-                ],
-              ],
+                ),
+              ),
+          ],
+        ),
+        const Gap(6),
+        for (final week in weeks)
+          if (week.any((d) => d != null))
+            Padding(
+              padding: const EdgeInsets.only(bottom: gap),
+              // 한 주의 칸 높이를 맞추려 stretch — 세로가 무한인 Column 안이라
+              // IntrinsicHeight 로 높이를 먼저 잰다(없으면 h=Infinity 로 터진다).
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < cols; i++) ...[
+                      SizedBox(
+                        width: w,
+                        child: week[i] == null
+                            ? const SizedBox.shrink()
+                            : _dayCell(
+                                week[i]!,
+                                byDay[week[i]!.day] ?? const [],
+                                isToday:
+                                    week[i]!.year == today.year &&
+                                    week[i]!.month == today.month &&
+                                    week[i]!.day == today.day,
+                              ),
+                      ),
+                      if (i < cols - 1) const SizedBox(width: gap),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-    ]);
+      ],
+    );
   }
 
   Widget _dayCell(DateTime d, List<SaleItem> items, {required bool isToday}) {
-    final past = d.isBefore(DateTime(
-        DateTime.now().year, DateTime.now().month, DateTime.now().day));
+    final past = d.isBefore(
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    );
     return Container(
       constraints: const BoxConstraints(minHeight: 96),
       padding: const EdgeInsets.all(8),
@@ -379,31 +481,41 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             : AppColors.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: isToday ? _accent : AppColors.border,
-            width: isToday ? 1.6 : 1),
+          color: isToday ? _accent : AppColors.border,
+          width: isToday ? 1.6 : 1,
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text('${d.day}',
-              style: TextStyle(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '${d.day}',
+                style: TextStyle(
                   fontSize: AppFont.body,
                   fontWeight: FontWeight.w800,
                   color: isToday
                       ? _accent
-                      : (past ? AppColors.textFaint : AppColors.textSecondary))),
-          if (items.isNotEmpty) ...[
-            const Gap(6),
-            Text('${items.length}',
-                style: const TextStyle(
-                    fontSize: AppFont.caption, color: AppColors.textFaint)),
-          ],
-        ]),
-        const Gap(6),
-        for (final it in items) ...[
-          _itemChip(it, dim: past),
-          const Gap(5),
+                      : (past ? AppColors.textFaint : AppColors.textSecondary),
+                ),
+              ),
+              if (items.isNotEmpty) ...[
+                const Gap(6),
+                Text(
+                  '${items.length}',
+                  style: const TextStyle(
+                    fontSize: AppFont.caption,
+                    color: AppColors.textFaint,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const Gap(6),
+          for (final it in items) ...[_itemChip(it, dim: past), const Gap(5)],
         ],
-      ]),
+      ),
     );
   }
 
@@ -416,29 +528,43 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
     final keys = days.keys.toList()..sort();
     const names = ['월', '화', '수', '목', '금', '토', '일'];
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      for (final d in keys) ...[
-        Row(children: [
-          Text('${d.month}.${d.day} (${names[d.weekday - 1]})',
-              style: const TextStyle(
-                  fontSize: AppFont.section, fontWeight: FontWeight.w800)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final d in keys) ...[
+          Row(
+            children: [
+              Text(
+                '${d.month}.${d.day} (${names[d.weekday - 1]})',
+                style: const TextStyle(
+                  fontSize: AppFont.section,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Gap(8),
+              Text(
+                Dates.dday(d),
+                style: const TextStyle(
+                  fontSize: AppFont.label,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Gap(8),
+              Text(
+                '${days[d]!.length}건',
+                style: const TextStyle(
+                  fontSize: AppFont.label,
+                  color: AppColors.textFaint,
+                ),
+              ),
+            ],
+          ),
           const Gap(8),
-          Text(Dates.dday(d),
-              style: const TextStyle(
-                  fontSize: AppFont.label, color: AppColors.textSecondary)),
-          const Gap(8),
-          Text('${days[d]!.length}건',
-              style: const TextStyle(
-                  fontSize: AppFont.label, color: AppColors.textFaint)),
-        ]),
-        const Gap(8),
-        for (final it in days[d]!) ...[
-          _itemChip(it),
-          const Gap(6),
+          for (final it in days[d]!) ...[_itemChip(it), const Gap(6)],
+          const Gap(10),
         ],
-        const Gap(10),
       ],
-    ]);
+    );
   }
 
   /// 물건 한 칸. 본체 = 행크옥션 열기 · 오른쪽 태그 = 태그 바꾸기.
@@ -454,38 +580,49 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
           decoration: BoxDecoration(
-            color: (tagColor ?? AppColors.surfaceAlt)
-                .withValues(alpha: tagColor == null ? 1 : 0.10),
+            color: (tagColor ?? AppColors.surfaceAlt).withValues(
+              alpha: tagColor == null ? 1 : 0.10,
+            ),
             borderRadius: BorderRadius.circular(8),
             border: Border(left: BorderSide(color: c, width: 3)),
           ),
           child: Opacity(
             opacity: dim || isPass ? 0.55 : 1,
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 1줄: 사건번호 · 경/공 · 구역
                       Text.rich(
-                        TextSpan(children: [
-                          TextSpan(
+                        TextSpan(
+                          children: [
+                            TextSpan(
                               text: it.caseNo,
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary)),
-                          TextSpan(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            TextSpan(
                               text: '  ${it.source == '공매' ? '공' : '경'}',
                               style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: it.source == '공매'
-                                      ? AppColors.violet
-                                      : AppColors.sky)),
-                          TextSpan(
+                                fontWeight: FontWeight.w800,
+                                color: it.source == '공매'
+                                    ? AppColors.violet
+                                    : AppColors.sky,
+                              ),
+                            ),
+                            TextSpan(
                               text: '  ${it.zone}',
                               style: const TextStyle(
-                                  color: AppColors.textSecondary)),
-                        ]),
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
                         style: const TextStyle(fontSize: AppFont.caption),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -493,56 +630,74 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                       const Gap(2),
                       // 2줄: 감정/최저(억) · 유찰 — 종이 달력의 「2.44/1.95」
                       Text.rich(
-                        TextSpan(children: [
-                          TextSpan(
-                              text: '${_eok(it.appraisal)}/${_eok(it.minPrice)}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary)),
-                          if (it.fails > 0)
+                        TextSpan(
+                          children: [
                             TextSpan(
+                              text:
+                                  '${_eok(it.appraisal)}/${_eok(it.minPrice)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (it.fails > 0)
+                              TextSpan(
                                 text: '  유찰${it.fails}',
                                 style: TextStyle(
-                                    color: it.fails >= 3
-                                        ? AppColors.rose
-                                        : AppColors.textFaint)),
-                          if ((it.kind ?? '').isNotEmpty)
-                            TextSpan(
+                                  color: it.fails >= 3
+                                      ? AppColors.rose
+                                      : AppColors.textFaint,
+                                ),
+                              ),
+                            if ((it.kind ?? '').isNotEmpty)
+                              TextSpan(
                                 text: '  ${it.kind}',
-                                style: const TextStyle(color: AppColors.textFaint)),
-                        ]),
+                                style: const TextStyle(
+                                  color: AppColors.textFaint,
+                                ),
+                              ),
+                          ],
+                        ),
                         style: const TextStyle(fontSize: AppFont.caption),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if ((it.memo ?? '').isNotEmpty) ...[
                         const Gap(2),
-                        Text(it.memo!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: AppFont.micro,
-                                color: AppColors.textSecondary)),
+                        Text(
+                          it.memo!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: AppFont.micro,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
-                    ]),
-              ),
-              const Gap(4),
-              // 태그 — 누르면 바꾸기. 없으면 「+」.
-              Tooltip(
-                message: '태그 · 메모 · 링크',
-                child: InkWell(
-                  onTap: () => _editTag(it),
-                  borderRadius: BorderRadius.circular(12),
-                  child: it.tag == null
-                      ? const Padding(
-                          padding: EdgeInsets.all(2),
-                          child: Icon(Icons.label_outline_rounded,
-                              size: 16, color: AppColors.textFaint),
-                        )
-                      : Pill(it.tag!, color: c),
+                    ],
+                  ),
                 ),
-              ),
-            ]),
+                const Gap(4),
+                // 태그 — 누르면 바꾸기. 없으면 「+」.
+                Tooltip(
+                  message: '태그 · 메모 · 링크',
+                  child: InkWell(
+                    onTap: () => _editTag(it),
+                    borderRadius: BorderRadius.circular(12),
+                    child: it.tag == null
+                        ? const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.label_outline_rounded,
+                              size: 16,
+                              color: AppColors.textFaint,
+                            ),
+                          )
+                        : Pill(it.tag!, color: c),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
