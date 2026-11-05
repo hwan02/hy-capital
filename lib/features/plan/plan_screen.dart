@@ -109,10 +109,12 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
 }
 
 Future<void> _toggle(WidgetRef ref, PlanItem p) async {
-  await ref
-      .read(supabaseProvider)
-      .from('plan_items')
-      .update({'done': !p.done}).eq('id', p.id);
+  // 완료일은 여기서 — DB current_date 는 UTC 라 한국 아침엔 하루 전으로 찍혔다.
+  final today = DateTime.now().toIso8601String().substring(0, 10);
+  await ref.read(supabaseProvider).from('plan_items').update({
+    'done': !p.done,
+    'done_at': p.done ? null : today,
+  }).eq('id', p.id);
   ref.invalidate(planItemsProvider);
 }
 
