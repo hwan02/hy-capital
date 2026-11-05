@@ -4,7 +4,6 @@
 // 칸(물건)을 누르면 행크옥션으로 가고, 오른쪽 작은 태그를 누르면
 // 관심·임장·입찰예정·패스를 단다. 위 칩으로 태그별로 추린다.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -31,14 +30,33 @@ const kSaleTags = <String, Color>{
   '패스': AppColors.textFaint,
 };
 
-/// 행크옥션 첫 화면. 사건번호로 바로 가는 주소 형식을 아직 모른다 —
-/// (`/search?keyword=…` 는 not found 였다, 2026-11-05) 알게 되면 여기서 만든다.
-const kHankHome = 'https://www.hankauction.com/';
+/// 행크옥션(hauction.co.kr — hankauction.com 이 아니다) 사건번호 검색 주소.
+/// 사이트 검색창에 넣었을 때 실제로 가는 주소를 그대로 쓴다(2026-11-05 확인).
+///   경매 2025타경9749     → /search/auction?unique_year=2025&unique_number=9749
+///   공매 2026-10740-004   → /search/public-auction?unique_id=2026-10740-004
+/// 경매는 법원을 안 가려서 같은 번호가 다른 법원에 있으면 두어 건이 같이 뜬다.
+String hankSearchUrl(String caseNo, {String source = '경매'}) {
+  const status = '&status=%EC%A0%84%EC%B2%B4%EB%B3%B4%EA%B8%B0'; // 전체보기
+  final c = caseNo.trim();
+  final m = RegExp(r'^(\d{4})\s*타경\s*(\d+)').firstMatch(c);
+  if (m != null) {
+    return 'https://www.hauction.co.kr/search/auction'
+        '?unique_year=${m.group(1)}&unique_number=${m.group(2)}$status';
+  }
+  if (source == '공매' || RegExp(r'^\d{4}-\d+-\d+$').hasMatch(c)) {
+    return 'https://www.hauction.co.kr/search/public-auction'
+        '?unique_id=${Uri.encodeComponent(c)}$status';
+  }
+  return 'https://www.hauction.co.kr/search/auction'
+      '?unique_year=&unique_number=${Uri.encodeComponent(c)}$status';
+}
 
-/// 물건에 적어 둔 행크옥션 링크. 없으면 null — 그때는 사건번호를 복사해 주고 첫 화면을 연다.
-String? hankUrlOf(SaleItem it) {
+/// 물건의 행크옥션 주소 — 적어 둔 링크가 있으면 그것, 없으면 사건번호 검색.
+String hankUrlOf(SaleItem it) {
   final u = it.url?.trim();
-  return (u == null || u.isEmpty) ? null : u;
+  return (u == null || u.isEmpty)
+      ? hankSearchUrl(it.caseNo, source: it.source)
+      : u;
 }
 
 /// 감정가·최저가를 종이 달력처럼 «억» 두 자리로. 348000000 → 3.48
@@ -75,19 +93,10 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     ref.invalidate(saleItemsProvider);
   }
 
-  /// 행크옥션 열기. 링크가 없으면 사건번호를 클립보드에 넣고 첫 화면을 연다.
+  /// 행크옥션 열기 — 적어 둔 링크 또는 사건번호 검색 결과.
   Future<void> _open(SaleItem it) async {
-    final url = hankUrlOf(it);
-    if (url == null) {
-      await Clipboard.setData(ClipboardData(text: it.caseNo));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${it.caseNo}」 복사됨 — 행크옥션 검색창에 붙여넣으세요')),
-        );
-      }
-    }
     final ok = await launchUrl(
-      Uri.parse(url ?? kHankHome),
+      Uri.parse(hankUrlOf(it)),
       mode: LaunchMode.externalApplication,
       webOnlyWindowName: '_blank',
     );
@@ -149,9 +158,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   child: OutlinedButton.icon(
                     onPressed: () => _open(it),
                     icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                    label: Text(
-                      hankUrlOf(it) == null ? '행크옥션 열기 (사건번호 복사)' : '행크옥션 열기',
-                    ),
+                    label: const Text('행크옥션 열기'),
                   ),
                 ),
                 const Gap(12),
@@ -193,7 +200,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 TextField(
                   controller: url,
                   decoration: const InputDecoration(
-                    labelText: '행크옥션 링크 (없으면 사건번호 복사 후 첫 화면)',
+                    labelText: '행크옥션 링크 (비우면 사건번호로 검색)',
                     prefixIcon: Icon(Icons.link_rounded, size: 20),
                   ),
                 ),

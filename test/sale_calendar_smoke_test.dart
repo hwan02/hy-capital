@@ -76,4 +76,28 @@ void main() {
     expect(find.text('저장'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
+
+  test('행크옥션 검색 주소 — 경매는 연도·번호로, 공매는 관리번호 그대로', () {
+    expect(
+      hankSearchUrl('2025타경9749'),
+      'https://www.hauction.co.kr/search/auction?unique_year=2025&unique_number=9749&status=%EC%A0%84%EC%B2%B4%EB%B3%B4%EA%B8%B0',
+    );
+    expect(
+      hankSearchUrl('2026-10740-004', source: '공매'),
+      'https://www.hauction.co.kr/search/public-auction?unique_id=2026-10740-004&status=%EC%A0%84%EC%B2%B4%EB%B3%B4%EA%B8%B0',
+    );
+    // 적어 둔 링크가 있으면 그걸 쓴다.
+    final it = SaleItem(
+      id: 'x',
+      zone: 'z',
+      caseNo: '2025타경1',
+      source: '경매',
+      appraisal: 0,
+      minPrice: 0,
+      fails: 0,
+      saleDate: DateTime(2026, 11, 3),
+      url: 'https://www.hauction.co.kr/search/auction/1420766',
+    );
+    expect(hankUrlOf(it), 'https://www.hauction.co.kr/search/auction/1420766');
+  });
 }
