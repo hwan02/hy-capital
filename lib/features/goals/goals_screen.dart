@@ -41,7 +41,7 @@ class GoalsScreen extends ConsumerWidget {
         tooltip: '개별 목표 추가',
         child: const Icon(Icons.add_rounded),
       ),
-      // 재무 로드맵은 «계획» 메뉴로 옮겼다(11/05).
+      // 재무 로드맵은 뺐다 — «계획» 메뉴의 숫자 목표 표가 대신한다(11/05).
       children: [
         SectionHeader(
           '개별 목표',

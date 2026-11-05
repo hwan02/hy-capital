@@ -33,7 +33,7 @@ const kModules = <ModuleDef>[
   ModuleDef('/ipo', '공모주', Icons.confirmation_number_rounded, Color(0xFF6366F1),
       hidden: true),
   ModuleDef('/books', '책', Icons.menu_book_rounded, Color(0xFFB4844E)),
-  // 10년 비전 → 1주 할 일 + 재무 로드맵. Goals 에서 떼어 냈다(2026-11-05).
+  // 10년 비전 → 숫자 목표(순자산·법인/개인 현금흐름) → 1주 할 일. Goals 에서 떼어 냈다(2026-11-05).
   ModuleDef('/plan', '계획', Icons.route_rounded, AppColors.gold),
   ModuleDef('/goals', 'Goals', Icons.flag_rounded, AppColors.violet),
 ];

@@ -64,10 +64,34 @@ const planItemSpec = BuiltinSpec(
         options: kPlanHorizons),
     FieldSpec(key: 'track', label: '갈래', type: FieldType.select, required: true,
         options: kPlanTracks),
+    FieldSpec(key: 'metric', label: '어느 숫자 목표를 위한 일', type: FieldType.select,
+        options: ['', ...kPlanMetrics], optionLabels: {'': '없음'}),
     FieldSpec(key: 'detail', label: '어떻게 · 기준', type: FieldType.longtext),
     FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
   ],
 );
+
+/// 계획의 «숫자 목표» 한 줄 — 같은 plan_items 표, target 이 있는 줄.
+/// 갈래·이름은 폼에 없다 — 저장할 때 kPlanGoalFixed 로 채운다.
+const planGoalSpec = BuiltinSpec(
+  table: 'plan_items',
+  title: '숫자 목표',
+  accent: AppColors.primary,
+  fields: [
+    FieldSpec(key: 'horizon', label: '기간', type: FieldType.select, required: true,
+        options: kPlanHorizons),
+    FieldSpec(key: 'metric', label: '무엇', type: FieldType.select, required: true,
+        options: kPlanMetrics),
+    FieldSpec(key: 'target', label: '목표 (현금흐름은 한 달에)', type: FieldType.money,
+        required: true),
+    FieldSpec(key: 'detail', label: '어떻게 만드나', type: FieldType.longtext),
+    FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
+  ],
+);
+const kPlanGoalFixed = {'track': '목표', 'title': '숫자 목표'};
+
+/// 숫자 목표 — 순자산과 한 달 현금흐름 둘(법인 · 개인). 개인은 사업자 포함, 월급 제외.
+const kPlanMetrics = ['순자산', '법인 현금흐름', '개인 현금흐름'];
 
 /// 계획 기간 — 긴 것부터. 화면의 칩 순서도 이것.
 const kPlanHorizons = ['10년', '5년', '3년', '1년', '6개월', '3개월', '1개월', '1주'];

@@ -723,13 +723,19 @@ class Asset {
 class PlanItem {
   final String id;
   final String horizon; // 10년|5년|3년|1년|6개월|3개월|1개월|1주
-  final String track; // 비전|경공매|사업|인스타|재무|여행
+  final String track; // 비전|경공매|사업|교육|인스타|재무|여행 · 숫자 목표는 «목표»
   final String title;
   final String? detail;
   final DateTime? dueDate;
   final bool done;
   final DateTime? doneAt;
   final int sortOrder;
+
+  /// 순자산 · 법인 현금흐름 · 개인 현금흐름 — 어느 숫자 목표에 묶였나(0066).
+  final String? metric;
+
+  /// 목표 금액. 있으면 이 줄은 할 일이 아니라 «숫자 목표»다.
+  final double? target;
 
   PlanItem({
     required this.id,
@@ -741,7 +747,11 @@ class PlanItem {
     required this.done,
     this.doneAt,
     required this.sortOrder,
+    this.metric,
+    this.target,
   });
+
+  bool get isGoal => target != null && metric != null;
 
   factory PlanItem.fromMap(Map<String, dynamic> m) => PlanItem(
         id: m['id'],
@@ -753,6 +763,9 @@ class PlanItem {
         done: m['done'] == true,
         doneAt: _date(m['done_at']),
         sortOrder: _i(m['sort_order']),
+        // 폼에서 «없음»을 고르면 빈 글자로 저장된다.
+        metric: (m['metric'] as String?)?.isEmpty == true ? null : m['metric'],
+        target: m['target'] == null ? null : _d(m['target']),
       );
 }
 

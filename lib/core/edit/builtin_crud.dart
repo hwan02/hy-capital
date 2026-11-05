@@ -15,6 +15,8 @@ Future<void> editBuiltinRecord(
   BuiltinSpec spec, {
   Map<String, dynamic>? initial,
   String? id,
+  // 폼에 없는 칸 — 저장할 때 같이 보낸다(예: 계획의 숫자 목표는 갈래가 늘 «목표»).
+  Map<String, dynamic> fixed = const {},
 }) async {
   // 새 글은 표마다 하나, 수정은 레코드마다 하나.
   final draftKey = spec.draft ? '${spec.table}:${id ?? 'new'}' : null;
@@ -29,6 +31,7 @@ Future<void> editBuiltinRecord(
   if (values == null) return;
   // 빈 값(null)은 보내지 않는다 → NOT NULL 컬럼은 DB 기본값(0 등)이 적용된다.
   final clean = Map<String, dynamic>.from(values)
+    ..addAll(fixed)
     ..removeWhere((k, v) => v == null);
   try {
     await ref.saveRow(spec.table, clean, id: id);
