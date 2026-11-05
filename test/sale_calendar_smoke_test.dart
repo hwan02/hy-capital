@@ -61,4 +61,18 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('태그 아이콘을 누르면 태그 창이 뜬다', (t) async {
+    final now = DateTime.now();
+    await pump(t, [it('a', DateTime(now.year, now.month, 3))], 1200);
+    await t.tap(find.byIcon(Icons.label_outline_rounded));
+    await t.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    for (final tag in ['관심', '임장', '입찰예정', '패스']) {
+      expect(find.widgetWithText(ChoiceChip, tag), findsOneWidget);
+    }
+    expect(find.text('삭제'), findsOneWidget);
+    expect(find.text('저장'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
 }

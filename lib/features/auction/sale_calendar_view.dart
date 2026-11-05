@@ -161,12 +161,12 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               ],
             ),
           ),
+          // Spacer(Expanded)는 actions(OverflowBar) 안에서 못 쓴다 — 회색 깨진 창.
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dctx, 'delete'),
               child: const Text('삭제', style: TextStyle(color: AppColors.rose)),
             ),
-            const Spacer(),
             TextButton(
               onPressed: () => Navigator.pop(dctx),
               child: const Text('취소'),
