@@ -193,7 +193,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 TextField(
                   controller: url,
                   decoration: const InputDecoration(
-                    labelText: '행크옥션 링크 (없으면 사건번호로 검색)',
+                    labelText: '행크옥션 링크 (없으면 사건번호 복사 후 첫 화면)',
                     prefixIcon: Icon(Icons.link_rounded, size: 20),
                   ),
                 ),

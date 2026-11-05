@@ -127,7 +127,13 @@ double dividendKrw(Map<String, dynamic> row,
 final saleItemsProvider = FutureProvider<List<SaleItem>>((ref) async {
   final sb = ref.watch(supabaseProvider);
   if (sb.auth.currentUser == null) return [];
-  final rows = await sb.from('sale_items').select().order('sale_date');
+  // 같은 날 안에서는 구역·사건번호 순 — 태그를 바꿀 때마다 자리가 바뀌지 않게.
+  final rows = await sb
+      .from('sale_items')
+      .select()
+      .order('sale_date')
+      .order('zone')
+      .order('case_no');
   return rows.map<SaleItem>(SaleItem.fromMap).toList();
 });
 
