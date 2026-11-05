@@ -4,6 +4,7 @@
 // 칸(물건)을 누르면 행크옥션으로 가고, 오른쪽 작은 태그를 누르면
 // 관심·임장·입찰예정·패스를 단다. 위 칩으로 태그별로 추린다.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,12 +31,14 @@ const kSaleTags = <String, Color>{
   '패스': AppColors.textFaint,
 };
 
-/// 물건의 행크옥션 주소. 링크를 적어 둔 물건은 그걸 쓰고, 없으면 사건번호로 검색.
-/// ※ 검색 주소 형식은 확인 전 — 틀리면 여기 한 곳만 고친다.
-String hankUrlOf(SaleItem it) {
+/// 행크옥션 첫 화면. 사건번호로 바로 가는 주소 형식을 아직 모른다 —
+/// (`/search?keyword=…` 는 not found 였다, 2026-11-05) 알게 되면 여기서 만든다.
+const kHankHome = 'https://www.hankauction.com/';
+
+/// 물건에 적어 둔 행크옥션 링크. 없으면 null — 그때는 사건번호를 복사해 주고 첫 화면을 연다.
+String? hankUrlOf(SaleItem it) {
   final u = it.url?.trim();
-  if (u != null && u.isNotEmpty) return u;
-  return 'https://www.hankauction.com/search?keyword=${Uri.encodeComponent(it.caseNo)}';
+  return (u == null || u.isEmpty) ? null : u;
 }
 
 /// 감정가·최저가를 종이 달력처럼 «억» 두 자리로. 348000000 → 3.48
@@ -72,9 +75,19 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     ref.invalidate(saleItemsProvider);
   }
 
+  /// 행크옥션 열기. 링크가 없으면 사건번호를 클립보드에 넣고 첫 화면을 연다.
   Future<void> _open(SaleItem it) async {
+    final url = hankUrlOf(it);
+    if (url == null) {
+      await Clipboard.setData(ClipboardData(text: it.caseNo));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('「${it.caseNo}」 복사됨 — 행크옥션 검색창에 붙여넣으세요')),
+        );
+      }
+    }
     final ok = await launchUrl(
-      Uri.parse(hankUrlOf(it)),
+      Uri.parse(url ?? kHankHome),
       mode: LaunchMode.externalApplication,
       webOnlyWindowName: '_blank',
     );
@@ -85,7 +98,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
   }
 
-  /// 태그·메모·링크 한 창에서. 삭제도 여기서.
+  /// 물건 상세 — 정보·태그·메모·링크 한 창에서. 행크옥션 열기와 삭제도 여기서.
   Future<void> _editTag(SaleItem it) async {
     var tag = it.tag;
     final memo = PlainController(text: it.memo ?? '');
@@ -115,6 +128,32 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                       ),
                     ),
                   ),
+                const Gap(6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${Dates.ymd(it.saleDate)} ${Dates.dday(it.saleDate)} · '
+                    '감정 ${Won.compact(it.appraisal)} / 최저 ${Won.compact(it.minPrice)}'
+                    '${it.fails > 0 ? ' · 유찰 ${it.fails}' : ''}'
+                    '${(it.kind ?? '').isNotEmpty ? ' · ${it.kind}' : ''} · ${it.source}',
+                    style: const TextStyle(
+                      fontSize: AppFont.label,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Gap(10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _open(it),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: Text(
+                      hankUrlOf(it) == null ? '행크옥션 열기 (사건번호 복사)' : '행크옥션 열기',
+                    ),
+                  ),
+                ),
                 const Gap(12),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -567,7 +606,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     );
   }
 
-  /// 물건 한 칸. 본체 = 행크옥션 열기 · 오른쪽 태그 = 태그 바꾸기.
+  /// 물건 한 칸. 누르면 상세·태그·메모 창(거기서 행크옥션·삭제).
   Widget _itemChip(SaleItem it, {bool dim = false}) {
     final tagColor = kSaleTags[it.tag];
     final c = tagColor ?? AppColors.border;
@@ -575,7 +614,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _open(it),
+        onTap: () => _editTag(it),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
@@ -678,24 +717,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   ),
                 ),
                 const Gap(4),
-                // 태그 — 누르면 바꾸기. 없으면 「+」.
-                Tooltip(
-                  message: '태그 · 메모 · 링크',
-                  child: InkWell(
-                    onTap: () => _editTag(it),
-                    borderRadius: BorderRadius.circular(12),
-                    child: it.tag == null
-                        ? const Padding(
-                            padding: EdgeInsets.all(2),
-                            child: Icon(
-                              Icons.label_outline_rounded,
-                              size: 16,
-                              color: AppColors.textFaint,
-                            ),
-                          )
-                        : Pill(it.tag!, color: c),
-                  ),
-                ),
+                // 태그 표시 — 바꾸는 건 칸을 눌러 뜨는 창에서.
+                if (it.tag != null) Pill(it.tag!, color: c),
               ],
             ),
           ),
