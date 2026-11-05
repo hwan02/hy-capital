@@ -831,6 +831,7 @@ class TravelPlace {
   final double? lat;
   final double? lng;
   final String? geoName; // 지도가 찾은 정식 이름
+  final bool pinned; // 지도를 눌러 찍은 곳 — 이름으로 좌표를 다시 찾지 않는다
   final int sortOrder;
 
   TravelPlace({
@@ -842,6 +843,7 @@ class TravelPlace {
     this.lat,
     this.lng,
     this.geoName,
+    this.pinned = false,
     required this.sortOrder,
   });
 
@@ -857,6 +859,7 @@ class TravelPlace {
         lat: m['lat'] == null ? null : _d(m['lat']),
         lng: m['lng'] == null ? null : _d(m['lng']),
         geoName: m['geo_name'],
+        pinned: m['pinned'] == true,
         sortOrder: _i(m['sort_order']),
       );
 }

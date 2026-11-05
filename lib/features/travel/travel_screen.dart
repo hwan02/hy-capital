@@ -56,13 +56,43 @@ Future<({double lat, double lng, String name, String? country})?> _geocode(
   }
 }
 
+/// 지도에서 누른 곳의 이름 — 도시·지역·나라 순으로. 남극·바다는 이름이 안 나온다.
+Future<({String? label, String? name, String? country})?> _reverse(
+    LatLng p) async {
+  final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+    'lat': '${p.latitude}',
+    'lon': '${p.longitude}',
+    'format': 'jsonv2',
+    'zoom': '10',
+    'accept-language': 'ko',
+  });
+  try {
+    final res = await http.get(uri);
+    if (res.statusCode != 200) return null;
+    final m = jsonDecode(res.body) as Map<String, dynamic>;
+    if (m['error'] != null) return null;
+    final a = (m['address'] as Map?) ?? const {};
+    return (
+      label: (a['city'] ?? a['town'] ?? a['village'] ?? a['county'] ??
+          a['state'] ?? a['province'] ?? a['country'] ?? m['name']) as String?,
+      name: m['display_name'] as String?,
+      country: a['country'] as String?,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 /// 저장 직전 — 이름·나라가 바뀌었거나 아직 지도에 없으면 좌표를 다시 찾는다.
+/// 지도를 눌러 찍은 곳(pinned)은 다시 찾지 않는다 — 남극 같은 곳이 엉뚱하게 옮겨진다.
 /// 못 찾으면 좌표를 비운다(예전 핀이 엉뚱한 곳에 남지 않게).
 Future<Map<String, dynamic>> _locate(
     Map<String, dynamic> v, TravelPlace? old) async {
   final name = v['name'] as String;
   final country = v['country'] as String?;
-  if (old != null && old.onMap && old.name == name && old.country == country) {
+  if (old != null &&
+      old.onMap &&
+      (old.pinned || (old.name == name && old.country == country))) {
     return v;
   }
   final hit = await _geocode([name, ?country].join(', '));
@@ -88,6 +118,30 @@ class _TravelScreenState extends ConsumerState<TravelScreen> {
   final _map = MapController();
   final _mapKey = GlobalKey();
   String? _selected;
+
+  /// 지도를 누른 곳 — 임시 핀을 꽂고 «여기 추가»를 띄운다(바로 저장하지 않는다:
+  /// 지도를 끌다가 잘못 눌러도 안 생기게).
+  LatLng? _picked;
+
+  Future<void> _addAt(LatLng pt) async {
+    final hit = await _reverse(pt);
+    if (!mounted) return;
+    setState(() => _picked = null);
+    // 남극은 도시도 나라도 없다 — 이름이 안 나오면 위도로 짐작한다.
+    final south = pt.latitude < -60;
+    await editBuiltinRecord(context, ref, travelPlaceSpec,
+        initial: {
+          'name': hit?.label ?? (south ? '남극' : '지도에서 고른 곳'),
+          'country': hit?.country ?? (south ? '남극' : null),
+        },
+        fixed: {
+          'lat': pt.latitude,
+          'lng': pt.longitude,
+          'pinned': true,
+          'geo_name': hit?.name ??
+              '${pt.latitude.toStringAsFixed(2)}, ${pt.longitude.toStringAsFixed(2)}',
+        });
+  }
 
   void _add() => editBuiltinRecord(context, ref, travelPlaceSpec,
       prepare: (v) => _locate(v, null));
@@ -170,7 +224,13 @@ class _TravelScreenState extends ConsumerState<TravelScreen> {
                     places: places,
                     controller: _map,
                     selected: _selected,
+                    picked: _picked,
                     onSelect: (id) => setState(() => _selected = id),
+                    onPick: (pt) => setState(() {
+                      _selected = null;
+                      _picked = pt;
+                    }),
+                    onAddPicked: () => _addAt(_picked!),
                   ),
                 ),
                 const Gap(24),
@@ -265,12 +325,18 @@ class _PlacesMap extends StatelessWidget {
   final List<TravelPlace> places;
   final MapController controller;
   final String? selected;
+  final LatLng? picked;
   final ValueChanged<String?> onSelect;
+  final ValueChanged<LatLng?> onPick;
+  final VoidCallback onAddPicked;
   const _PlacesMap({
     required this.places,
     required this.controller,
     required this.selected,
+    required this.picked,
     required this.onSelect,
+    required this.onPick,
+    required this.onAddPicked,
   });
 
   List<LatLng> get _points =>
@@ -333,7 +399,8 @@ class _PlacesMap extends StatelessWidget {
                   flags: InteractiveFlag.all &
                       ~InteractiveFlag.rotate &
                       ~InteractiveFlag.scrollWheelZoom),
-              onTap: (_, _) => onSelect(null),
+              // 빈 곳을 누르면 임시 핀 — 핀을 고른 상태면 고르기만 푼다.
+              onTap: (_, pt) => selected != null ? onSelect(null) : onPick(pt),
             ),
             children: [
               TileLayer(
@@ -354,6 +421,15 @@ class _PlacesMap extends StatelessWidget {
                       onTap: () => onSelect(p.id),
                     ),
                   ),
+                if (picked != null)
+                  Marker(
+                    point: picked!,
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.topCenter,
+                    child: const Icon(Icons.add_location_alt_rounded,
+                        color: AppColors.textPrimary, size: 36),
+                  ),
               ]),
               const SimpleAttributionWidget(
                 source: Text('OpenStreetMap contributors'),
@@ -361,6 +437,25 @@ class _PlacesMap extends StatelessWidget {
               ),
             ],
           ),
+          if (picked != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 34,
+              child: Center(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  FilledButton.icon(
+                    onPressed: onAddPicked,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.violet),
+                    icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+                    label: const Text('여기 추가'),
+                  ),
+                  const Gap(8),
+                  btn(Icons.close_rounded, '취소', () => onPick(null)),
+                ]),
+              ),
+            ),
           Positioned(
             top: 10,
             right: 10,

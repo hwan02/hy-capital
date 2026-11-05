@@ -2,6 +2,7 @@
 --
 -- 계획의 비전 «가고 싶은 곳 전부 여행하기»(버킷리스트 100곳)를 실제로 적는 곳.
 -- 좌표는 앱이 이름(+나라)으로 OpenStreetMap 에서 찾아 넣는다 — 손으로 적지 않는다.
+-- 남극처럼 이름으로 못 찾는 곳은 지도를 눌러 찍는다(pinned) — 이름을 바꿔도 좌표는 그대로.
 -- geo_name 은 지도가 찾은 정식 이름. 엉뚱한 곳을 찾았는지 목록에서 보이게 한다.
 -- 다녀오면 visited_on 에 날짜 — 비어 있으면 아직 «가고 싶은 곳».
 -- 내용은 앱에서 채운다(공개 저장소라 여기 넣지 않는다).
@@ -18,6 +19,7 @@ create table if not exists public.travel_places (
   lat         double precision,
   lng         double precision,
   geo_name    text,
+  pinned      boolean not null default false,
 
   sort_order  int not null default 0,
   created_at  timestamptz not null default now(),
