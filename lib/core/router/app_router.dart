@@ -15,6 +15,7 @@ import '../../features/shorts/shorts_screen.dart';
 import '../../features/land/land_screen.dart';
 import '../../features/auction/auction_screen.dart';
 import '../../features/auction/auction_detail_screen.dart';
+import '../../features/auction/sale_calendar_screen.dart';
 import '../../features/knowledge/knowledge_screen.dart';
 import '../../features/ipo/ipo_screen.dart';
 import '../../features/property/visit_screen.dart';
@@ -69,6 +70,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/shorts', pageBuilder: (_, __) => _noTransition(const ShortsScreen())),
           GoRoute(path: '/land', pageBuilder: (_, __) => _noTransition(const LandScreen())),
           GoRoute(path: '/auction', pageBuilder: (_, __) => _noTransition(const AuctionScreen())),
+          GoRoute(path: '/sales', pageBuilder: (_, __) => _noTransition(const SaleCalendarScreen())),
           GoRoute(
             path: '/auction/:id',
             pageBuilder: (_, state) => _noTransition(
