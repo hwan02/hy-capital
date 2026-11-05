@@ -13,7 +13,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
-import '../plan/plan_roadmap.dart';
 import '../../core/edit/plain_controller.dart';
 
 /// 자금 흐름 — 날짜별 유입/지출 거래 장부 (에어비앤비 상세와 동일 구조).
@@ -303,9 +302,6 @@ class _MoneyFlowState extends ConsumerState<MoneyFlowScreen> {
                     ),
                   );
                 }),
-                const Gap(16),
-                // 나가는 돈 — 현재 단계 기본세팅(계획) vs 이번 달 실제
-                const PhasePlanVsActual(),
                 const Gap(16),
                 // 월별 순흐름 막대 (전체일 때 · 클릭 가능)
                 if (months.length > 1 && _month == null) ...[
