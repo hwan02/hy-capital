@@ -466,17 +466,6 @@ class _OverviewTable extends StatelessWidget {
               const SizedBox(),
             ),
           ),
-          const Gap(10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-                '법인·개인 = 한 달 현금흐름. 개인은 사업자(에비) 포함, 월급 제외 · '
-                '지금 개인 = 지난 3달 평균 · 법인은 아직 기록이 없어 0',
-                style: TextStyle(
-                    color: AppColors.textFaint,
-                    fontSize: AppFont.caption,
-                    height: 1.5)),
-          ),
         ],
       ),
     );

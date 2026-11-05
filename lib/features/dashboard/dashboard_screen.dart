@@ -14,7 +14,6 @@ import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../goals/goals_screen.dart' show goalToMap;
 import '../ipo/ipo_alert.dart';
-import '../plan/plan_roadmap.dart';
 import 'asset_editor.dart';
 
 /// profiles 값을 편집 폼 초기값으로.
@@ -74,9 +73,6 @@ class DashboardScreen extends ConsumerWidget {
         ),
         const Gap(14),
         const _CapitalProgress(),
-        const Gap(14),
-        // 재무 로드맵은 맨 아래(10/31 요청).
-        const PlanRoadmapCompact(),
         const Gap(14),
         // 자산 한눈에 — «지금 내 돈이 어디에 얼마». 맨 아래(11/03 요청).
         const _AssetsCard(),
