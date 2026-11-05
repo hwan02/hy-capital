@@ -258,7 +258,8 @@ class _Stats extends StatelessWidget {
   }
 }
 
-/// 지도 — 어두운 바탕(CARTO). 가고 싶은 곳은 보라 핀, 다녀온 곳은 금색 핀.
+/// 지도 — OpenStreetMap 을 어둡게 뒤집어 쓴다(CARTO 어두운 지도는 이제 키가 필요했다).
+/// 가고 싶은 곳은 보라 핀, 다녀온 곳은 금색 핀.
 /// 마우스 휠은 지도 대신 화면을 내리게 두고, 확대는 버튼·두 손가락·더블탭으로.
 class _PlacesMap extends StatelessWidget {
   final List<TravelPlace> places;
@@ -336,10 +337,9 @@ class _PlacesMap extends StatelessWidget {
             ),
             children: [
               TileLayer(
-                urlTemplate:
-                    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-                subdomains: const ['a', 'b', 'c', 'd'],
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'app.hycapital',
+                tileBuilder: darkModeTileBuilder,
               ),
               MarkerLayer(markers: [
                 for (final p in places.where((p) => p.onMap))
@@ -356,7 +356,7 @@ class _PlacesMap extends StatelessWidget {
                   ),
               ]),
               const SimpleAttributionWidget(
-                source: Text('© OpenStreetMap · © CARTO'),
+                source: Text('OpenStreetMap contributors'),
                 backgroundColor: Color(0x99000000),
               ),
             ],
