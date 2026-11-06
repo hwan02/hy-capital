@@ -52,6 +52,16 @@ String hankSearchUrl(String caseNo, {String source = '경매'}) {
       '?unique_year=&unique_number=${Uri.encodeComponent(c)}$status';
 }
 
+/// 행크옥션 앱 검색창에 붙여넣을 사건번호.
+///   경매 2025타경9749   → «9749» — 앱은 연도를 따로 고르는 칸이라 번호만 넣는다.
+///   공매 2026-10740-004 → 그대로 전부.
+({String text, String? year}) hankCopyOf(String caseNo) {
+  final c = caseNo.trim();
+  final m = RegExp(r'^(\d{4})\s*타경\s*(\d+)').firstMatch(c);
+  if (m != null) return (text: m.group(2)!, year: m.group(1));
+  return (text: c, year: null);
+}
+
 /// 물건의 행크옥션 주소 — 적어 둔 링크가 있으면 그것, 없으면 사건번호 검색.
 String hankUrlOf(SaleItem it) {
   final u = it.url?.trim();
@@ -119,11 +129,15 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
 
   /// 사건번호 복사 — 행크옥션 앱은 바깥 링크를 안 받는다(com.hank.hankauction 에
   /// intent:// 로 지정해도 웹으로 떨어졌다, 2026-11-06 폴드에서 확인). 앱에서 붙여넣기.
+  /// 경매는 연도를 빼고 번호만(앱이 연도를 따로 고른다), 공매는 전부.
   Future<void> _copyCase(SaleItem it) async {
-    await Clipboard.setData(ClipboardData(text: it.caseNo));
+    final c = hankCopyOf(it.caseNo);
+    await Clipboard.setData(ClipboardData(text: c.text));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('«${it.caseNo}» 복사됨 — 행크옥션 앱 검색창에 붙여넣기')));
+        content: Text(c.year == null
+            ? '«${c.text}» 복사됨 — 행크옥션 앱 검색창에 붙여넣기'
+            : '«${c.text}» 복사됨 — 행크옥션 앱에서 연도 ${c.year} 고르고 붙여넣기')));
   }
 
   /// 물건 상세 — 정보·태그·메모·링크 한 창에서. 행크옥션 열기와 삭제도 여기서.
