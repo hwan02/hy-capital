@@ -3,7 +3,9 @@
 // 종이 달력에 「2025-51160 신통 OO마을 2.44/1.95」로 적던 것을 그대로 옮겼다.
 // 칸(물건)을 누르면 행크옥션으로 가고, 오른쪽 작은 태그를 누르면
 // 관심·임장·입찰예정·패스를 단다. 위 칩으로 태그별로 추린다.
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -59,6 +61,16 @@ String hankUrlOf(SaleItem it) {
       : u;
 }
 
+/// 갤럭시(안드로이드)에서는 행크옥션 앱(com.hank.hankauction)으로 연다.
+/// hauction.co.kr 은 앱 링크 설정(assetlinks.json)이 없어 https 주소로는 브라우저에서만
+/// 열렸다(2026-11-06 확인). intent:// 로 앱을 지정하고, 앱이 그 주소를 못 받으면 웹으로.
+String hankAndroidIntent(String url) {
+  final u = Uri.parse(url);
+  return 'intent://${u.host}${u.path}${u.hasQuery ? '?${u.query}' : ''}'
+      '#Intent;scheme=https;package=com.hank.hankauction;'
+      'S.browser_fallback_url=${Uri.encodeComponent(url)};end';
+}
+
 /// 감정가·최저가를 종이 달력처럼 «억» 두 자리로. 348000000 → 3.48
 String _eok(double v) => (v / 100000000).toStringAsFixed(2);
 
@@ -95,10 +107,21 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
 
   /// 행크옥션 열기 — 적어 둔 링크 또는 사건번호 검색 결과.
   Future<void> _open(SaleItem it) async {
+    final url = hankUrlOf(it);
+    final android = kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    if (android) {
+      // 앱이 그 물건 대신 첫 화면으로 열려도 바로 검색하게 사건번호를 복사해 둔다.
+      await Clipboard.setData(ClipboardData(text: it.caseNo));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('«${it.caseNo}» 복사됨 — 앱 검색창에 붙여넣기')));
+      }
+    }
     final ok = await launchUrl(
-      Uri.parse(hankUrlOf(it)),
+      Uri.parse(android ? hankAndroidIntent(url) : url),
       mode: LaunchMode.externalApplication,
-      webOnlyWindowName: '_blank',
+      // intent:// 는 새 탭에선 안 넘어간다 — 지금 탭에서 연다(뒤로 가면 돌아온다).
+      webOnlyWindowName: android ? '_self' : '_blank',
     );
     if (!ok && mounted) {
       ScaffoldMessenger.of(
