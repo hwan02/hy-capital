@@ -60,6 +60,15 @@ String hankUrlOf(SaleItem it) {
       : u;
 }
 
+/// 상세 창 버튼 — 모두 같은 높이(44)·같은 모서리.
+final _sheetBtn = OutlinedButton.styleFrom(
+  minimumSize: const Size.fromHeight(44),
+  foregroundColor: AppColors.textPrimary,
+  side: const BorderSide(color: AppColors.border),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  textStyle: const TextStyle(fontSize: AppFont.label, fontWeight: FontWeight.w700),
+);
+
 /// 감정가·최저가를 종이 달력처럼 «억» 두 자리로. 348000000 → 3.48
 String _eok(double v) => (v / 100000000).toStringAsFixed(2);
 
@@ -127,6 +136,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       builder: (dctx) => StatefulBuilder(
         builder: (dctx, setS) => AlertDialog(
           backgroundColor: AppColors.surface,
+          // 폰에서 좌우 여백이 커서 창이 좁았다 — 16 만 남긴다.
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           title: Text(
             '${it.zone} · ${it.caseNo}',
             style: const TextStyle(fontSize: AppFont.section),
@@ -163,9 +174,11 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   ),
                 ),
                 const Gap(10),
+                // 버튼·태그는 한 줄씩, 칸마다 같은 높이·같은 폭(크기가 제각각이었다).
                 Row(children: [
                   Expanded(
-                    child: FilledButton.icon(
+                    child: OutlinedButton.icon(
+                      style: _sheetBtn,
                       onPressed: () => _copyCase(it),
                       icon: const Icon(Icons.copy_rounded, size: 16),
                       label: const Text('사건번호 복사'),
@@ -174,37 +187,46 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   const Gap(8),
                   Expanded(
                     child: OutlinedButton.icon(
+                      style: _sheetBtn,
                       onPressed: () => _open(it),
                       icon: const Icon(Icons.open_in_new_rounded, size: 16),
                       label: const Text('웹으로 열기'),
                     ),
                   ),
                 ]),
-                const Gap(12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final e in kSaleTags.entries)
-                        ChoiceChip(
-                          label: Text(e.key),
-                          selected: tag == e.key,
-                          selectedColor: e.value.withValues(alpha: 0.25),
-                          labelStyle: TextStyle(
-                            fontSize: AppFont.label,
-                            fontWeight: FontWeight.w700,
+                const Gap(14),
+                Row(children: [
+                  for (final e in kSaleTags.entries) ...[
+                    if (e.key != kSaleTags.keys.first) const Gap(6),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () =>
+                            setS(() => tag = tag == e.key ? null : e.key),
+                        child: Container(
+                          height: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
                             color: tag == e.key
-                                ? e.value
-                                : AppColors.textSecondary,
+                                ? e.value.withValues(alpha: 0.22)
+                                : AppColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: tag == e.key ? e.value : AppColors.border),
                           ),
-                          onSelected: (_) =>
-                              setS(() => tag = tag == e.key ? null : e.key),
+                          child: Text(e.key,
+                              style: TextStyle(
+                                fontSize: AppFont.label,
+                                fontWeight: FontWeight.w800,
+                                color: tag == e.key
+                                    ? e.value
+                                    : AppColors.textSecondary,
+                              )),
                         ),
-                    ],
-                  ),
-                ),
+                      ),
+                    ),
+                  ],
+                ]),
                 const Gap(14),
                 TextField(
                   controller: memo,
@@ -219,7 +241,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 TextField(
                   controller: url,
                   decoration: const InputDecoration(
-                    labelText: '행크옥션 링크 (비우면 사건번호로 검색)',
+                    labelText: '행크옥션 링크',
+                    hintText: '비우면 사건번호로 검색',
                     prefixIcon: Icon(Icons.link_rounded, size: 20),
                   ),
                 ),
@@ -227,25 +250,45 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             ),
           ),
           // Spacer(Expanded)는 actions(OverflowBar) 안에서 못 쓴다 — 회색 깨진 창.
+          // 아래 세 버튼도 같은 높이 한 줄로 — 삭제 · 취소 · 저장.
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dctx, 'delete'),
-              child: const Text('삭제', style: TextStyle(color: AppColors.rose)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dctx),
-              child: const Text('취소'),
-            ),
-            SaveKey(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _accent,
-                  foregroundColor: const Color(0xFF2A1D00),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: _sheetBtn.copyWith(
+                    foregroundColor:
+                        const WidgetStatePropertyAll(AppColors.rose),
+                  ),
+                  onPressed: () => Navigator.pop(dctx, 'delete'),
+                  child: const Text('삭제'),
                 ),
-                onPressed: () => Navigator.pop(dctx, 'save'),
-                child: const Text('저장'),
               ),
-            ),
+              const Gap(8),
+              Expanded(
+                child: OutlinedButton(
+                  style: _sheetBtn,
+                  onPressed: () => Navigator.pop(dctx),
+                  child: const Text('취소'),
+                ),
+              ),
+              const Gap(8),
+              Expanded(
+                child: SaveKey(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      backgroundColor: _accent,
+                      foregroundColor: const Color(0xFF2A1D00),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(dctx, 'save'),
+                    child: const Text('저장'),
+                  ),
+                ),
+              ),
+            ]),
           ],
         ),
       ),
