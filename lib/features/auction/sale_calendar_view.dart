@@ -106,10 +106,11 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   }
 
   /// 행크옥션 열기 — 적어 둔 링크 또는 사건번호 검색 결과.
-  Future<void> _open(SaleItem it) async {
+  /// [app] 이면 행크옥션 앱으로(intent://). 폴드를 펼치면 크롬이 PC 인 척해서
+  /// (데스크톱 사이트) 안드로이드인지 알아서 고르지 못했다 — 버튼을 따로 둔다.
+  Future<void> _open(SaleItem it, {bool app = false}) async {
     final url = hankUrlOf(it);
-    final android = kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-    if (android) {
+    if (app) {
       // 앱이 그 물건 대신 첫 화면으로 열려도 바로 검색하게 사건번호를 복사해 둔다.
       await Clipboard.setData(ClipboardData(text: it.caseNo));
       if (mounted) {
@@ -118,10 +119,10 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       }
     }
     final ok = await launchUrl(
-      Uri.parse(android ? hankAndroidIntent(url) : url),
+      Uri.parse(app ? hankAndroidIntent(url) : url),
       mode: LaunchMode.externalApplication,
       // intent:// 는 새 탭에선 안 넘어간다 — 지금 탭에서 연다(뒤로 가면 돌아온다).
-      webOnlyWindowName: android ? '_self' : '_blank',
+      webOnlyWindowName: app ? '_self' : '_blank',
     );
     if (!ok && mounted) {
       ScaffoldMessenger.of(
@@ -176,14 +177,28 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   ),
                 ),
                 const Gap(10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _open(it),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                    label: const Text('행크옥션 열기'),
+                // 앱 버튼은 안드로이드(펼친 폴드는 리눅스 PC 로 보인다)에서만.
+                Row(children: [
+                  if (kIsWeb &&
+                      (defaultTargetPlatform == TargetPlatform.android ||
+                          defaultTargetPlatform == TargetPlatform.linux)) ...[
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _open(it, app: true),
+                        icon: const Icon(Icons.phone_android_rounded, size: 16),
+                        label: const Text('행크옥션 앱'),
+                      ),
+                    ),
+                    const Gap(8),
+                  ],
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _open(it),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('웹으로 열기'),
+                    ),
                   ),
-                ),
+                ]),
                 const Gap(12),
                 Align(
                   alignment: Alignment.centerLeft,
