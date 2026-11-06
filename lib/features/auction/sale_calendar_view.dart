@@ -3,7 +3,6 @@
 // 종이 달력에 「2025-51160 신통 OO마을 2.44/1.95」로 적던 것을 그대로 옮겼다.
 // 칸(물건)을 누르면 행크옥션으로 가고, 오른쪽 작은 태그를 누르면
 // 관심·임장·입찰예정·패스를 단다. 위 칩으로 태그별로 추린다.
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,16 +60,6 @@ String hankUrlOf(SaleItem it) {
       : u;
 }
 
-/// 갤럭시(안드로이드)에서는 행크옥션 앱(com.hank.hankauction)으로 연다.
-/// hauction.co.kr 은 앱 링크 설정(assetlinks.json)이 없어 https 주소로는 브라우저에서만
-/// 열렸다(2026-11-06 확인). intent:// 로 앱을 지정하고, 앱이 그 주소를 못 받으면 웹으로.
-String hankAndroidIntent(String url) {
-  final u = Uri.parse(url);
-  return 'intent://${u.host}${u.path}${u.hasQuery ? '?${u.query}' : ''}'
-      '#Intent;scheme=https;package=com.hank.hankauction;'
-      'S.browser_fallback_url=${Uri.encodeComponent(url)};end';
-}
-
 /// 감정가·최저가를 종이 달력처럼 «억» 두 자리로. 348000000 → 3.48
 String _eok(double v) => (v / 100000000).toStringAsFixed(2);
 
@@ -105,30 +94,27 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     ref.invalidate(saleItemsProvider);
   }
 
-  /// 행크옥션 열기 — 적어 둔 링크 또는 사건번호 검색 결과.
-  /// [app] 이면 행크옥션 앱으로(intent://). 폴드를 펼치면 크롬이 PC 인 척해서
-  /// (데스크톱 사이트) 안드로이드인지 알아서 고르지 못했다 — 버튼을 따로 둔다.
-  Future<void> _open(SaleItem it, {bool app = false}) async {
-    final url = hankUrlOf(it);
-    if (app) {
-      // 앱이 그 물건 대신 첫 화면으로 열려도 바로 검색하게 사건번호를 복사해 둔다.
-      await Clipboard.setData(ClipboardData(text: it.caseNo));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('«${it.caseNo}» 복사됨 — 앱 검색창에 붙여넣기')));
-      }
-    }
+  /// 행크옥션 열기 — 적어 둔 링크 또는 사건번호 검색 결과(웹).
+  Future<void> _open(SaleItem it) async {
     final ok = await launchUrl(
-      Uri.parse(app ? hankAndroidIntent(url) : url),
+      Uri.parse(hankUrlOf(it)),
       mode: LaunchMode.externalApplication,
-      // intent:// 는 새 탭에선 안 넘어간다 — 지금 탭에서 연다(뒤로 가면 돌아온다).
-      webOnlyWindowName: app ? '_self' : '_blank',
+      webOnlyWindowName: '_blank',
     );
     if (!ok && mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('링크를 열지 못했어요')));
     }
+  }
+
+  /// 사건번호 복사 — 행크옥션 앱은 바깥 링크를 안 받는다(com.hank.hankauction 에
+  /// intent:// 로 지정해도 웹으로 떨어졌다, 2026-11-06 폴드에서 확인). 앱에서 붙여넣기.
+  Future<void> _copyCase(SaleItem it) async {
+    await Clipboard.setData(ClipboardData(text: it.caseNo));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('«${it.caseNo}» 복사됨 — 행크옥션 앱 검색창에 붙여넣기')));
   }
 
   /// 물건 상세 — 정보·태그·메모·링크 한 창에서. 행크옥션 열기와 삭제도 여기서.
@@ -177,20 +163,15 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   ),
                 ),
                 const Gap(10),
-                // 앱 버튼은 안드로이드(펼친 폴드는 리눅스 PC 로 보인다)에서만.
                 Row(children: [
-                  if (kIsWeb &&
-                      (defaultTargetPlatform == TargetPlatform.android ||
-                          defaultTargetPlatform == TargetPlatform.linux)) ...[
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _open(it, app: true),
-                        icon: const Icon(Icons.phone_android_rounded, size: 16),
-                        label: const Text('행크옥션 앱'),
-                      ),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _copyCase(it),
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('사건번호 복사'),
                     ),
-                    const Gap(8),
-                  ],
+                  ),
+                  const Gap(8),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _open(it),
