@@ -278,6 +278,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(44),
+                      textStyle: const TextStyle(
+                          fontSize: AppFont.label, fontWeight: FontWeight.w800),
                       backgroundColor: _accent,
                       foregroundColor: const Color(0xFF2A1D00),
                       shape: RoundedRectangleBorder(
