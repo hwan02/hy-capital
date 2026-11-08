@@ -100,8 +100,9 @@ void main() {
     expect(s.avgBidders, 4);
     expect(s.errorN, 2);
     expect(s.avgError! > 0, isTrue); // 평균적으로 낮게 봤다
-    expect(s.byZone.map((z) => z.zone), containsAll(['화곡', '신림5']));
-    expect(s.topReasons.first.key, '경쟁 과열');
+    expect(s.byZone.map((z) => z.key), containsAll(['화곡', '신림5']));
+    expect(s.byReason.first.key, '경쟁 과열');
+    expect(s.byReason.first.n, 2);
     expect(s.verdicts['틀렸다'], 1);
   });
 
@@ -125,14 +126,24 @@ void main() {
             reviewOn: DateTime(2026, 11, 1)), // 다시 볼 날 됨
         item('c', sale: DateTime(2027, 1, 5), tag: '임장'), // 매각 전
       ], w);
-      expect(find.textContaining('할 일 2'), findsOneWidget);
-      await t.tap(find.textContaining('오답노트 · 할 일'));
+      expect(find.text('오답노트 2'), findsOneWidget);
+      await t.tap(find.text('오답노트 2'));
       await t.pumpAndSettle();
       expect(find.textContaining('다시 볼 날 됨 1'), findsOneWidget);
       expect(find.textContaining('결과 넣기 1'), findsOneWidget);
       expect(find.textContaining('매각 전 1'), findsOneWidget);
-      expect(find.text('평균 낙찰가율'), findsOneWidget);
       expect(find.textContaining('예상보다 +5.2%'), findsOneWidget);
+      // 매각 전 물건 — 같은 구역 기록으로 본 낙찰가율(77.4%)
+      expect(find.textContaining('기록으로 보면 감정가의 77.4%'), findsWidgets);
+      expect(t.takeException(), isNull);
+
+      await t.tap(find.text('분석'));
+      await t.pumpAndSettle();
+      expect(find.text('평균 낙찰가율'), findsOneWidget);
+      expect(find.text('유찰 횟수별'), findsOneWidget);
+      expect(find.text('유찰 3회+'), findsOneWidget);
+      expect(find.text('5명+'), findsOneWidget);
+      expect(find.textContaining('낙찰 기록 1'), findsOneWidget);
       expect(t.takeException(), isNull);
     });
   }
@@ -167,8 +178,14 @@ void main() {
       await t.pumpAndSettle();
       expect(find.textContaining('낙찰가율 77.4%'), findsOneWidget);
       expect(find.textContaining('내 예상보다 +5.2%'), findsOneWidget);
-
-      await t.tap(find.text('경쟁 과열'));
+      // 자동 분석 — 유찰 3회 → 최저가 64% → 응찰 6명 몰림
+      expect(find.text('자동 분석'), findsOneWidget);
+      expect(find.textContaining('유찰 3회로 최저가가 감정가의 64.0%'), findsOneWidget);
+      expect(find.textContaining('응찰 6명 — 몰렸다'), findsOneWidget);
+      // 추천 이유 + 글 한 번에 넣기
+      final fill = find.textContaining('넣기');
+      await t.ensureVisible(fill);
+      await t.tap(fill);
       await t.pumpAndSettle();
       await t.ensureVisible(find.text('저장'));
       await t.tap(find.text('저장'));
@@ -177,7 +194,8 @@ void main() {
       expect(patch!['result'], '낙찰');
       expect(patch!['sold_price'], 263100000);
       expect(patch!['bidders'], 6);
-      expect(patch!['reasons'], ['경쟁 과열']);
+      expect(patch!['reasons'], containsAll(['경쟁 과열', '유찰 누적']));
+      expect(patch!['why'], contains('응찰 6명'));
       // 다시 볼 날을 안 골랐으면 매각일 +90일
       expect(patch!['review_on'], '2026-11-04');
       expect(t.takeException(), isNull);
@@ -199,6 +217,8 @@ void main() {
     ));
     await t.tap(find.text('열기'));
     await t.pumpAndSettle();
+    await t.tap(find.text('유찰'));
+    await t.pumpAndSettle();
     await t.enterText(find.widgetWithText(TextField, '왜 이 가격에 낙찰됐나'), '2위와 118만 차이');
     await t.pump(const Duration(seconds: 3));
     await t.tap(find.text('닫기'));
@@ -210,5 +230,41 @@ void main() {
     expect(find.textContaining('임시저장된 내용을 불러왔습니다'), findsOneWidget);
     await t.tap(find.text('닫기'));
     await t.pumpAndSettle();
+  });
+
+  testWidgets('매각 전엔 ① 내 예상만 — 결과 칸은 «지금 열기»로', (t) async {
+    await t.binding.setSurfaceSize(const Size(390, 1400));
+    final it = item('a', sale: DateTime.now().add(const Duration(days: 5)), tag: '관심');
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (ctx) => TextButton(
+            onPressed: () => showSaleReviewSheet(ctx, it, history: [
+              item('h', result: '낙찰', sold: 263100000), // 같은 구역 77.4%
+            ]),
+            child: const Text('열기'),
+          ),
+        ),
+      ),
+    ));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    expect(find.text('내 예상 낙찰가'), findsOneWidget);
+    expect(find.textContaining('기록으로 보면 감정가의 77.4%'), findsOneWidget);
+    expect(find.text('낙찰'), findsNothing);
+    await t.tap(find.text('지금 열기'));
+    await t.pumpAndSettle();
+    expect(find.text('낙찰'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.tap(find.text('닫기'));
+    await t.pumpAndSettle();
+  });
+
+  test('자동 분석 — 단독·박빙·감정가 초과', () {
+    final it = item('x');
+    final a = autoAnalysis(it: it, sold: 350000000, bidders: 1, second: 0);
+    expect(a.tags, containsAll(['관심 적음', '구역 기대감']));
+    final b = autoAnalysis(it: it, sold: 263100000, bidders: 3, second: 262000000);
+    expect(b.lines.any((l) => l.contains('박빙')), isTrue);
   });
 }

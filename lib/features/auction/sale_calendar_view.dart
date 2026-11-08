@@ -93,7 +93,7 @@ class SaleCalendarView extends ConsumerStatefulWidget {
 class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   String? _tagF; // null = 전체
-  bool _notes = false; // 달력 | 오답노트
+  int _mode = 0; // 0 달력 · 1 오답노트 · 2 분석
 
   bool _inMonth(SaleItem it) =>
       it.saleDate.year == _month.year && it.saleDate.month == _month.month;
@@ -432,17 +432,27 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             .where((it) => reviewStageOf(it, today)?.needsAction ?? false)
             .length;
         final toggle = Row(children: [
-          _modeBtn('달력', Icons.calendar_month_rounded, !_notes,
-              () => setState(() => _notes = false)),
+          _modeBtn('달력', Icons.calendar_month_rounded, _mode == 0,
+              () => setState(() => _mode = 0)),
           const Gap(6),
-          _modeBtn(todo > 0 ? '오답노트 · 할 일 $todo' : '오답노트',
-              Icons.edit_note_rounded, _notes,
-              () => setState(() => _notes = true)),
+          _modeBtn(todo > 0 ? '오답노트 $todo' : '오답노트',
+              Icons.edit_note_rounded, _mode == 1,
+              () => setState(() => _mode = 1)),
+          const Gap(6),
+          _modeBtn('분석', Icons.insights_rounded, _mode == 2,
+              () => setState(() => _mode = 2)),
         ]);
-        if (_notes) {
+        if (_mode != 0) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [toggle, const Gap(14), SaleReviewView(items: all)],
+            children: [
+              toggle,
+              const Gap(14),
+              if (_mode == 1)
+                SaleReviewView(items: all)
+              else
+                SaleAnalysisView(items: all),
+            ],
           );
         }
         return Column(
