@@ -38,6 +38,7 @@ Map<String, dynamic> _toMap(PlanItem p) => {
       'metric': p.metric,
       'detail': p.detail,
       'due_date': p.dueDate?.toIso8601String().substring(0, 10),
+      'note': p.note,
     };
 
 Map<String, dynamic> _goalMap(PlanItem g) => {
@@ -172,7 +173,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   const Gap(24),
                 ],
                 const SectionHeader('한눈에 보기',
-                    subtitle: '기간마다 숫자 목표와 할 일 · 줄을 누르면 그 기간이 열린다'),
+                    subtitle: '줄을 누르면 그 기간 계획이 열려요'),
                 const Gap(12),
                 _OverviewTable(
                   goals: goals,
@@ -183,7 +184,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                 ),
                 const Gap(28),
                 const SectionHeader('기간별 계획',
-                    subtitle: '숫자 목표 → 그걸 위한 할 일 · 동그라미를 누르면 완료'),
+                    subtitle: '동그라미는 완료, 할 일을 누르면 적을 수 있어요'),
                 const Gap(12),
                 _HorizonChips(
                   items: todos,
@@ -224,6 +225,11 @@ Future<void> _toggle(WidgetRef ref, PlanItem p) async {
 
 void _edit(BuildContext c, WidgetRef ref, PlanItem p) =>
     editBuiltinRecord(c, ref, planItemSpec, initial: _toMap(p), id: p.id);
+
+/// 할 일을 누르면 «적기» — 제목이 질문, 칸 하나.
+void _note(BuildContext c, WidgetRef ref, PlanItem p) => editBuiltinRecord(
+    c, ref, planNoteSpec(p.title),
+    initial: {'note': p.note}, id: p.id);
 
 void _delete(BuildContext c, WidgetRef ref, PlanItem p) =>
     deleteBuiltinRecord(c, ref, planItemSpec, p.id, name: p.title);
@@ -579,6 +585,7 @@ class _HorizonView extends ConsumerWidget {
           tag: tagged ? p.track : null,
           onToggle: () => _toggle(ref, p),
           onEdit: () => _edit(context, ref, p),
+          onNote: () => _note(context, ref, p),
           onDelete: () => _delete(context, ref, p),
         );
     return GlassCard(
@@ -809,6 +816,7 @@ class _PlanRow extends StatefulWidget {
   final String? tag;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onNote;
   final VoidCallback onDelete;
   const _PlanRow({
     required this.item,
@@ -816,6 +824,7 @@ class _PlanRow extends StatefulWidget {
     this.tag,
     required this.onToggle,
     required this.onEdit,
+    required this.onNote,
     required this.onDelete,
   });
 
@@ -860,8 +869,12 @@ class _PlanRowState extends State<_PlanRow> {
         ),
         const Gap(4),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 9),
+          // 글자를 누르면 «적기» — 적으라는 할 일에 답을 단다.
+          child: InkWell(
+            onTap: widget.onNote,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+            padding: const EdgeInsets.only(top: 9, bottom: 4),
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -882,6 +895,33 @@ class _PlanRowState extends State<_PlanRow> {
                             fontSize: AppFont.label,
                             height: 1.5)),
                   ],
+                  // 내가 적은 것 — 있으면 보이고, 없으면 «적기» 한 줄.
+                  const Gap(6),
+                  if ((item.note ?? '').trim().isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border(left: BorderSide(color: color, width: 3)),
+                      ),
+                      child: Text(item.note!.trim(),
+                          style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: AppFont.label,
+                              height: 1.5)),
+                    )
+                  else if (!done)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.edit_rounded, size: 13, color: color.withValues(alpha: 0.8)),
+                      const Gap(4),
+                      Text('적기',
+                          style: TextStyle(
+                              color: color.withValues(alpha: 0.9),
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w700)),
+                    ]),
                   if (tag != null || meta.isNotEmpty) ...[
                     const Gap(4),
                     Text.rich(
@@ -902,6 +942,7 @@ class _PlanRowState extends State<_PlanRow> {
                             fontWeight: FontWeight.w600)),
                   ],
                 ]),
+          ),
           ),
         ),
         RecordMenu(onEdit: widget.onEdit, onDelete: widget.onDelete),

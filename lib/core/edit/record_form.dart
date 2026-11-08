@@ -280,10 +280,12 @@ class _RecordFormState extends State<_RecordForm> {
               padding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
               child: Row(
                 children: [
-                  Text(widget.title,
-                      style: const TextStyle(
-                          fontSize: AppFont.title, fontWeight: FontWeight.w800)),
-                  const Spacer(),
+                  // 긴 제목(계획 할 일을 제목으로 쓸 때)은 줄을 바꾼다 — Spacer 면 넘쳤다.
+                  Expanded(
+                    child: Text(widget.title,
+                        style: const TextStyle(
+                            fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
                     onPressed: () => Navigator.pop(context),

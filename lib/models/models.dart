@@ -849,6 +849,9 @@ class PlanItem {
   /// 목표 금액. 있으면 이 줄은 할 일이 아니라 «숫자 목표»다.
   final double? target;
 
+  /// 내가 적은 것 — 「3줄 적기」 같은 할 일의 답·메모(0070).
+  final String? note;
+
   PlanItem({
     required this.id,
     required this.horizon,
@@ -861,6 +864,7 @@ class PlanItem {
     required this.sortOrder,
     this.metric,
     this.target,
+    this.note,
   });
 
   bool get isGoal => target != null && metric != null;
@@ -878,6 +882,7 @@ class PlanItem {
         // 폼에서 «없음»을 고르면 빈 글자로 저장된다.
         metric: (m['metric'] as String?)?.isEmpty == true ? null : m['metric'],
         target: m['target'] == null ? null : _d(m['target']),
+        note: m['note'],
       );
 }
 

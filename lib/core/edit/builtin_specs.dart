@@ -68,8 +68,20 @@ const planItemSpec = BuiltinSpec(
         options: ['', ...kPlanMetrics], optionLabels: {'': '없음'}),
     FieldSpec(key: 'detail', label: '어떻게 · 기준', type: FieldType.longtext),
     FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
+    FieldSpec(key: 'note', label: '내가 적은 것', type: FieldType.longtext, minLines: 4),
   ],
 );
+
+/// 계획 할 일에 «적기» — 제목이 곧 질문이라 칸 하나만. 쓰는 동안 임시저장.
+BuiltinSpec planNoteSpec(String title) => BuiltinSpec(
+      table: 'plan_items',
+      title: title,
+      accent: AppColors.gold,
+      draft: true,
+      fields: const [
+        FieldSpec(key: 'note', label: '내가 적은 것', type: FieldType.longtext, minLines: 8),
+      ],
+    );
 
 /// 계획의 «숫자 목표» 한 줄 — 같은 plan_items 표, target 이 있는 줄.
 /// 갈래·이름은 폼에 없다 — 저장할 때 kPlanGoalFixed 로 채운다.
