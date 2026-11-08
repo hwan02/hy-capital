@@ -68,11 +68,14 @@ void main() {
     await t.tap(find.textContaining('2025타경102886', findRichText: true).first);
     await t.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
+    final dialog = find.byType(AlertDialog);
     for (final tag in ['관심', '임장', '입찰예정', '패스']) {
-      expect(find.widgetWithText(ChoiceChip, tag), findsOneWidget);
+      expect(find.descendant(of: dialog, matching: find.text(tag)), findsOneWidget);
     }
     expect(find.text('삭제'), findsOneWidget);
-    expect(find.textContaining('행크옥션 열기'), findsOneWidget);
+    expect(find.text('사건번호 복사'), findsOneWidget);
+    expect(find.text('웹으로 열기'), findsOneWidget);
+    expect(find.textContaining('오답노트 쓰기'), findsOneWidget);
     expect(find.text('저장'), findsOneWidget);
     expect(t.takeException(), isNull);
   });

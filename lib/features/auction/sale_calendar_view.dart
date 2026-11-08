@@ -20,6 +20,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/save_key.dart';
 import '../../models/models.dart';
+import 'sale_review.dart';
 
 const _accent = AppColors.gold;
 
@@ -92,6 +93,7 @@ class SaleCalendarView extends ConsumerStatefulWidget {
 class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   String? _tagF; // null = 전체
+  bool _notes = false; // 달력 | 오답노트
 
   bool _inMonth(SaleItem it) =>
       it.saleDate.year == _month.year && it.saleDate.month == _month.month;
@@ -208,6 +210,22 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                     ),
                   ),
                 ]),
+                const Gap(8),
+                // 오답노트 — 예상·결과·왜·다시 보기. 지금 고친 태그·메모도 같이 저장하고 연다.
+                OutlinedButton.icon(
+                  style: _sheetBtn.copyWith(
+                    foregroundColor: const WidgetStatePropertyAll(_accent),
+                    side: const WidgetStatePropertyAll(BorderSide(color: _accent)),
+                  ),
+                  onPressed: () => Navigator.pop(dctx, 'note'),
+                  icon: const Icon(Icons.edit_note_rounded, size: 18),
+                  label: Text(it.isSold
+                      ? '오답노트 · 낙찰 ${Won.compact(it.soldPrice!)}'
+                          '${it.soldRate != null ? ' (${(it.soldRate! * 100).toStringAsFixed(1)}%)' : ''}'
+                      : it.hasNote
+                          ? '오답노트 보기'
+                          : '오답노트 쓰기 — 예상 낙찰가부터'),
+                ),
                 const Gap(14),
                 Row(children: [
                   for (final e in kSaleTags.entries) ...[
@@ -324,11 +342,16 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
     final m = memo.text.trim();
     final u = url.text.trim();
-    await _patch(it, {
+    final patch = {
       'tag': tag,
       'memo': m.isEmpty ? null : m,
       'url': u.isEmpty ? null : u,
-    });
+    };
+    final changed = tag != it.tag ||
+        patch['memo'] != it.memo ||
+        patch['url'] != it.url;
+    if (changed) await _patch(it, patch);
+    if (r == 'note' && mounted) await openSaleReview(context, ref, it);
   }
 
   static const _fields = [
@@ -404,9 +427,29 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             .toList();
         int cnt(String? t) =>
             monthItems.where((it) => t == null || it.tag == t).length;
+        final today = DateTime.now();
+        final todo = all
+            .where((it) => reviewStageOf(it, today)?.needsAction ?? false)
+            .length;
+        final toggle = Row(children: [
+          _modeBtn('달력', Icons.calendar_month_rounded, !_notes,
+              () => setState(() => _notes = false)),
+          const Gap(6),
+          _modeBtn(todo > 0 ? '오답노트 · 할 일 $todo' : '오답노트',
+              Icons.edit_note_rounded, _notes,
+              () => setState(() => _notes = true)),
+        ]);
+        if (_notes) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [toggle, const Gap(14), SaleReviewView(items: all)],
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            toggle,
+            const Gap(12),
             // ── 달 이동 + 건수 + 추가 ── 폰 폭에서는 줄을 바꾼다(Wrap).
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -479,6 +522,40 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
           ],
         );
       },
+    );
+  }
+
+  /// 「달력 | 오답노트」 — 같은 폭 두 칸.
+  Widget _modeBtn(String label, IconData icon, bool on, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? _accent.withValues(alpha: 0.18) : AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: on ? _accent : AppColors.border),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 16, color: on ? _accent : AppColors.textSecondary),
+            const Gap(6),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: AppFont.label,
+                  fontWeight: FontWeight.w800,
+                  color: on ? _accent : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -764,6 +841,23 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                                 color: AppColors.textPrimary,
                               ),
                             ),
+                            // 오답노트 결과 — 낙찰가율, 또는 유찰·변경.
+                            if (it.soldRate != null)
+                              TextSpan(
+                                text:
+                                    '  → ${(it.soldRate! * 100).toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: _accent,
+                                ),
+                              )
+                            else if (it.result != null && !it.isSold)
+                              TextSpan(
+                                text: '  ${it.result}됨',
+                                style: const TextStyle(
+                                  color: AppColors.textFaint,
+                                ),
+                              ),
                             if (it.fails > 0)
                               TextSpan(
                                 text: '  유찰${it.fails}',

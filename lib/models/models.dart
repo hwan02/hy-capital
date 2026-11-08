@@ -702,6 +702,20 @@ class SaleItem {
   final String? memo;
   final String? url;
 
+  // ── 오답노트 (0069) ── 내 예상 → 결과 → 왜 → 나중에 다시 보기.
+  final double? guessPrice; // 내 예상 낙찰가
+  final double? myBid; // 내 입찰가
+  final String? result; // 낙찰 | 유찰 | 변경·취하
+  final double? soldPrice; // 낙찰가
+  final int? bidders; // 응찰자 수
+  final double? secondPrice; // 2위 입찰가
+  final List<String> reasons; // 왜 이 가격 — 요인 태그
+  final String? why;
+  final String? lesson;
+  final DateTime? reviewOn; // 다시 볼 날
+  final String? reviewNote;
+  final String? verdict; // 맞았다 | 반반 | 틀렸다
+
   SaleItem({
     required this.id,
     required this.zone,
@@ -716,10 +730,43 @@ class SaleItem {
     this.tag,
     this.memo,
     this.url,
+    this.guessPrice,
+    this.myBid,
+    this.result,
+    this.soldPrice,
+    this.bidders,
+    this.secondPrice,
+    this.reasons = const [],
+    this.why,
+    this.lesson,
+    this.reviewOn,
+    this.reviewNote,
+    this.verdict,
   });
 
   /// 최저가 ÷ 감정가.
   double get ratio => appraisal <= 0 ? 0 : minPrice / appraisal;
+
+  bool get isSold => result == '낙찰' && (soldPrice ?? 0) > 0;
+
+  /// 낙찰가 ÷ 감정가 (낙찰가율). 낙찰 전이면 null.
+  double? get soldRate =>
+      !isSold || appraisal <= 0 ? null : soldPrice! / appraisal;
+
+  /// 내 예상이 얼마나 빗나갔나 — (낙찰가 − 예상) ÷ 예상. +면 «예상보다 비쌌다».
+  double? get guessError => !isSold || (guessPrice ?? 0) <= 0
+      ? null
+      : (soldPrice! - guessPrice!) / guessPrice!;
+
+  /// 오답노트에 뭐라도 적었나.
+  bool get hasNote =>
+      (guessPrice ?? 0) > 0 ||
+      (myBid ?? 0) > 0 ||
+      result != null ||
+      reasons.isNotEmpty ||
+      (why ?? '').isNotEmpty ||
+      (lesson ?? '').isNotEmpty ||
+      reviewOn != null;
 
   factory SaleItem.fromMap(Map<String, dynamic> m) => SaleItem(
         id: m['id'],
@@ -735,6 +782,19 @@ class SaleItem {
         tag: m['tag'],
         memo: m['memo'],
         url: m['url'],
+        guessPrice: m['guess_price'] == null ? null : _d(m['guess_price']),
+        myBid: m['my_bid'] == null ? null : _d(m['my_bid']),
+        result: m['result'],
+        soldPrice: m['sold_price'] == null ? null : _d(m['sold_price']),
+        bidders: m['bidders'] == null ? null : _i(m['bidders']),
+        secondPrice: m['second_price'] == null ? null : _d(m['second_price']),
+        reasons: (m['reasons'] as List?)?.map((e) => e.toString()).toList() ??
+            const [],
+        why: m['why'],
+        lesson: m['lesson'],
+        reviewOn: _date(m['review_on']),
+        reviewNote: m['review_note'],
+        verdict: m['verdict'],
       );
 }
 
