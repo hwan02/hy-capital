@@ -53,9 +53,11 @@ void main() {
     test('태그도 노트도 없으면 오답노트에 안 들어온다', () {
       expect(reviewStageOf(item('a'), _today), isNull);
     });
-    test('매각 전 패스는 빼고, 지난 패스는 «결과 넣기»', () {
+    test('패스는 노트를 쓴 것만 — 120건이 «결과 넣기»에 쌓이지 않게', () {
       expect(reviewStageOf(item('a', sale: DateTime(2026, 12, 1), tag: '패스'), _today), isNull);
-      expect(reviewStageOf(item('a', tag: '패스'), _today), ReviewStage.awaitingResult);
+      expect(reviewStageOf(item('a', tag: '패스'), _today), isNull);
+      expect(reviewStageOf(item('a', tag: '패스', guess: 230000000), _today),
+          ReviewStage.awaitingResult);
     });
     test('매각 전 관심 → 매각 전, 매각일 당일도 매각 전', () {
       expect(reviewStageOf(item('a', sale: DateTime(2026, 12, 1), tag: '관심'), _today),

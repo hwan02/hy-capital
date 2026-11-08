@@ -70,17 +70,15 @@ enum ReviewStage {
       this == reviewDue || this == awaitingResult || this == needsAnalysis;
 }
 
-/// 오답노트에 들어오는 물건 — 태그를 달았거나(관심·임장·입찰예정·패스) 뭐라도 적은 것.
-/// 162건을 다 띄우면 묻힌다. 패스한 물건도 «얼마에 팔렸나»가 오답노트라 넣는다.
+/// 오답노트에 들어오는 물건 — 관심·임장·입찰예정 태그를 달았거나 뭐라도 적은 것.
+/// 200건을 다 띄우면 묻힌다. «패스»는 120건이 넘어 다 넣으면 «결과 넣기»가 끝없이
+/// 쌓인다 — 패스했는데 궁금한 물건은 달력에서 열어 「오답노트」를 쓰면 들어온다.
 ReviewStage? reviewStageOf(SaleItem it, DateTime today) {
-  if (!it.hasNote && it.tag == null) return null;
+  if (!it.hasNote && (it.tag == null || it.tag == '패스')) return null;
   final day = DateTime(today.year, today.month, today.day);
   final sale = DateTime(it.saleDate.year, it.saleDate.month, it.saleDate.day);
   if (it.result == null) {
-    if (sale.isBefore(day)) return ReviewStage.awaitingResult;
-    // 매각 전 «패스»는 맞춰 볼 게 없다 — 예상을 적었을 때만.
-    if (it.tag == '패스' && !it.hasNote) return null;
-    return ReviewStage.upcoming;
+    return sale.isBefore(day) ? ReviewStage.awaitingResult : ReviewStage.upcoming;
   }
   final analysed = it.reasons.isNotEmpty || (it.why ?? '').trim().isNotEmpty;
   if (!analysed) return ReviewStage.needsAnalysis;
