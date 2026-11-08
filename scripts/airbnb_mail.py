@@ -225,6 +225,8 @@ def main():
     today = datetime.datetime.now(KST).date()
     cancelled = {p['code'] for _, p in parsed if p['kind'] == 'cancel' and p['code']}
     added = removed = skipped = unread = waiting = 0
+    # 로그에 남길 체크인 날짜 — 금액·이름은 안 찍는다(공개 로그). «왜 안 들어갔나»를 날짜로 본다.
+    wait_days, early_days = [], []
     for _, p in parsed:
         if p['kind'] == 'cancel' and p['code']:
             rows = sb(f"/rest/v1/airbnb_transactions?select=id"
@@ -239,12 +241,16 @@ def main():
         if not (p['code'] and p['checkin'] and p['nights'] and p['payout']):
             unread += 1              # 확정 메일인데 칸을 다 못 읽었다 — 형식이 바뀌었나
             continue
-        if p['code'] in cancelled or p['checkin'] < START:
+        if p['code'] in cancelled:
+            continue
+        if p['checkin'] < START:
+            early_days.append(p['checkin'])
             continue
         # 체크인 날 넣는다 — 손으로 넣던 방식 그대로. 미리 넣으면 아직 안 온
         # 달의 매출이 «누적»에 섞이고, 취소되면 숫자가 출렁인다.
         if p['checkin'] > today:
             waiting += 1
+            wait_days.append(p['checkin'])
             continue
         unit = default
         if p['listing']:
@@ -274,6 +280,9 @@ def main():
     pre = '[dry] ' if dry else ''
     print(f'{pre}에비 메일 {len(mails)}통 — 예약 추가 {added} · 이미 있음 {skipped}'
           f' · 체크인 전 {waiting} · 취소 반영 {removed} · 못 읽음 {unread}')
+    md = lambda ds: ', '.join(f'{d.month}/{d.day}' for d in sorted(set(ds))) or '없음'
+    print(f'  체크인 기다리는 날: {md(wait_days)}')
+    print(f'  {START.month}/{START.day} 전 체크인(손으로 넣던 것, 건너뜀) 최근: {md(sorted(early_days)[-5:])}')
 
 
 if __name__ == '__main__':
