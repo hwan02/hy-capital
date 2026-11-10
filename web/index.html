@@ -32,6 +32,25 @@
   <title>hy_capital</title>
   <link rel="manifest" href="manifest.json">
   <!--
+    첫 로딩 줄이기(2026-11-11).
+    · preload — 앱 본체(main.dart.js)를 부트스트랩이 끝나길 기다리지 않고 바로 받는다.
+    · preconnect — 그리기 엔진(gstatic)·글꼴·데이터 서버에 미리 연결해 둔다.
+  -->
+  <link rel="preload" href="main.dart.js" as="script">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- 앱이 뜨기 전 흰 화면 대신 — 앱 배경색 + 도는 표시. 첫 화면이 그려지면 지운다. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #0B0F1A; }
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      color: #9AA6C0; font: 600 13px system-ui, sans-serif; letter-spacing: .08em; }
+    #boot i { width: 28px; height: 28px; border-radius: 50%;
+      border: 3px solid #25304A; border-top-color: #F5C24B;
+      animation: boot-spin .8s linear infinite; }
+    @keyframes boot-spin { to { transform: rotate(360deg); } }
+  </style>
+  <!--
     한글 «조합 중» 파란 밑줄 없애기.
 
     Flutter 웹은 키 입력을 받으려고 입력칸 위에 진짜 <textarea>/<input>
@@ -51,6 +70,13 @@
   </style>
 </head>
 <body>
+  <div id="boot"><i></i>HY CAPITAL</div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var b = document.getElementById('boot');
+      if (b) b.remove();
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

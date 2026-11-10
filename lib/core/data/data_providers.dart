@@ -360,11 +360,15 @@ final monthlyCashflowProvider =
   final rateF = ref.watch(usdKrwProvider.future);
   final dividendsF = ref.watch(dividendProvider.future);
   final snapsF = ref.watch(snapshotsProvider.future);
-  final amF = sb.from('airbnb_monthly').select('month,net_profit');
+  // then 을 붙여야 지금 나간다(쿼리는 await 할 때 보내진다).
+  final amF = sb.from('airbnb_monthly').select('month,net_profit').then((v) => v)
+    ..ignore();
   final entF = sb
       .from('monthly_entries')
       .select()
-      .inFilter('category', ['dividend', 'shorts']);
+      .inFilter('category', ['dividend', 'shorts'])
+      .then((v) => v)
+    ..ignore();
 
   final rate = await rateF;
   final dividends = await dividendsF;
@@ -504,8 +508,17 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
   final sb = ref.read(supabaseProvider);
   final now = DateTime.now();
   final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
-  final amF = sb.from('airbnb_monthly').select('net_profit').eq('month', m0);
-  final entF = sb.from('monthly_entries').select().eq('month', m0);
+  // PostgREST 쿼리는 await(then) 해야 나간다 — 만들기만 하면 앞의 조회가
+  // 끝난 뒤 하나씩 차례로 나가서 대시보드가 0.3~0.4초 늦었다. 여기서 바로 보낸다.
+  // (ignore: 늦게 await 해도 «안 잡힌 오류»로 찍히지 않게 — 오류는 await 에서 그대로 받는다)
+  final amF = sb
+      .from('airbnb_monthly')
+      .select('net_profit')
+      .eq('month', m0)
+      .then((v) => v)
+    ..ignore();
+  final entF = sb.from('monthly_entries').select().eq('month', m0).then((v) => v)
+    ..ignore();
 
   final snaps = await snapsF;
   final profile = await profileF;
@@ -566,11 +579,15 @@ final moduleIncomeByMonthProvider =
   // 필요한 것만 병렬 조회 (대시보드 지표 체인에 의존하지 않음).
   final rateF = ref.watch(usdKrwProvider.future);
   final dividendsF = ref.watch(dividendProvider.future);
-  final amF = sb.from('airbnb_monthly').select('month,net_profit');
+  // then 을 붙여야 지금 나간다(쿼리는 await 할 때 보내진다).
+  final amF = sb.from('airbnb_monthly').select('month,net_profit').then((v) => v)
+    ..ignore();
   final entF = sb
       .from('monthly_entries')
       .select()
-      .inFilter('category', ['shorts', 'dividend', 'land']);
+      .inFilter('category', ['shorts', 'dividend', 'land'])
+      .then((v) => v)
+    ..ignore();
 
   final rate = await rateF;
   final dividends = await dividendsF;

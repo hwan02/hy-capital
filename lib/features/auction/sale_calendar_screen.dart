@@ -16,7 +16,8 @@ class SaleCalendarScreen extends StatelessWidget {
       subtitle: '정비구역 안 경매·공매 — 매각기일에 꽂아 본다',
       icon: Icons.calendar_month_rounded,
       color: AppColors.gold,
-      children: [SaleCalendarView()],
+      // 한 달 200건 — 보이는 줄만 그리게 sliver 로 넣는다.
+      slivers: [SaleCalendarView()],
     );
   }
 }

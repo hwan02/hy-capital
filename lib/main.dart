@@ -31,17 +31,10 @@ Future<void> main() async {
         email: Env.autoEmail,
         password: Env.autoPassword,
       );
-      // signInWithPassword 가 끝나도 supabase_flutter 는 REST 클라이언트의
-      // Authorization 헤더를 내부 리스너(마이크로태스크)로 갱신한다. 그 전에
-      // runApp 하면 첫 조회가 익명으로 나가 RLS 에 막혀 빈 화면이 뜬다.
-      // Duration.zero 한 틱으로는 부족해서, 헤더에 토큰이 실제로 반영될 때까지
-      // 짧게 기다린다(최대 2초). 그래도 안 되면 아래 _AuthRefresh 가 받아준다.
-      final token = auth.currentSession?.accessToken;
-      for (var i = 0; i < 40 && token != null; i++) {
-        final h = Supabase.instance.client.rest.headers['Authorization'];
-        if (h != null && h.contains(token)) break;
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
+      // 여기서 더 기다리지 않는다. 예전엔 REST 헤더에 토큰이 들어올 때까지
+      // 최대 2초를 돌았는데, 지금 supabase 는 요청마다 currentSession 에서
+      // 토큰을 꺼내 쓴다(AuthHttpClient) — 헤더는 끝내 안 바뀌어서 새 기기의
+      // 첫 화면이 매번 2초씩 늦었다(2026-11-11 측정).
     } catch (_) {
       // 세션 확보 실패해도 앱은 실행 (연결/시드 전 상태).
     }

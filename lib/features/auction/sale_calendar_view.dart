@@ -417,9 +417,11 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(saleItemsProvider);
+    // 이 화면은 sliver 다(ModulePage.slivers) — 한 달 200건을 한꺼번에 그리면
+    // 폰에서 들어올 때마다 1초씩 멈췄다. 보이는 줄만 만든다(2026-11-11).
     return async.when(
-      loading: AsyncStatus.loading,
-      error: AsyncStatus.error,
+      loading: () => SliverToBoxAdapter(child: AsyncStatus.loading()),
+      error: (e, st) => SliverToBoxAdapter(child: AsyncStatus.error(e, st)),
       data: (all) {
         final monthItems = all.where(_inMonth).toList();
         final shown = monthItems
@@ -443,19 +445,21 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               () => setState(() => _mode = 2)),
         ]);
         if (_mode != 0) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              toggle,
-              const Gap(14),
-              if (_mode == 1)
-                SaleReviewView(items: all)
-              else
-                SaleAnalysisView(items: all),
-            ],
+          return SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                toggle,
+                const Gap(14),
+                if (_mode == 1)
+                  SaleReviewView(items: all)
+                else
+                  SaleAnalysisView(items: all),
+              ],
+            ),
           );
         }
-        return Column(
+        final top = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             toggle,
@@ -520,17 +524,18 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               const EmptyState(
                 icon: Icons.calendar_month_rounded,
                 message: '이 달엔 물건이 없어요 — 「물건 추가」로 넣거나 다른 달을 보세요',
-              )
-            else
-              LayoutBuilder(
-                builder: (context, c) {
-                  return c.maxWidth < 720
-                      ? _dayList(shown)
-                      : _monthGrid(shown, c.maxWidth);
-                },
               ),
           ],
         );
+        return SliverMainAxisGroup(slivers: [
+          SliverToBoxAdapter(child: top),
+          if (shown.isNotEmpty)
+            SliverLayoutBuilder(
+              builder: (context, c) => c.crossAxisExtent < 720
+                  ? _dayList(shown)
+                  : _monthGrid(shown, c.crossAxisExtent),
+            ),
+        ]);
       },
     );
   }
@@ -625,8 +630,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
     const names = ['월', '화', '수', '목', '금', '토', '일'];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // 주(週)마다 한 줄 — 화면에 걸친 주만 만든다.
+    return SliverList.list(
       children: [
         Row(
           children: [
@@ -644,7 +649,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               ),
           ],
         ),
-        const Gap(6),
+        const SizedBox(height: 6),
         for (final week in weeks)
           if (week.any((d) => d != null))
             Padding(
@@ -731,6 +736,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   }
 
   // ── 좁은 화면(폰): 날짜별 목록 ──
+  // 날짜 머리와 물건을 한 줄씩 펴서, 화면에 보이는 줄만 만든다.
   Widget _dayList(List<SaleItem> items) {
     final days = <DateTime, List<SaleItem>>{};
     for (final it in items) {
@@ -739,11 +745,23 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     }
     final keys = days.keys.toList()..sort();
     const names = ['월', '화', '수', '목', '금', '토', '일'];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final d in keys) ...[
-          Row(
+    final rows = <Object>[
+      for (final d in keys) ...[d, ...days[d]!],
+    ];
+    return SliverList.builder(
+      itemCount: rows.length,
+      itemBuilder: (context, i) {
+        final r = rows[i];
+        if (r is SaleItem) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _itemChip(r),
+          );
+        }
+        final d = r as DateTime;
+        return Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 10, bottom: 8),
+          child: Row(
             children: [
               Text(
                 '${d.month}.${d.day} (${names[d.weekday - 1]})',
@@ -770,11 +788,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               ),
             ],
           ),
-          const Gap(8),
-          for (final it in days[d]!) ...[_itemChip(it), const Gap(6)],
-          const Gap(10),
-        ],
-      ],
+        );
+      },
     );
   }
 

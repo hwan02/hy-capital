@@ -12,6 +12,10 @@ class ModulePage extends ConsumerWidget {
   final IconData icon;
   final Color color;
   final List<Widget> children;
+
+  /// [children] 대신 — 긴 목록 화면용. 화면에 보이는 줄만 만들어서
+  /// 수백 건짜리 목록도 들어갈 때·고칠 때 멈추지 않는다(경공매 달력).
+  final List<Widget>? slivers;
   final Widget? action;
 
   /// 화면 우하단에 고정되는 버튼. 페이지가 길어도 스크롤 없이 누를 수 있다.
@@ -24,7 +28,8 @@ class ModulePage extends ConsumerWidget {
     this.subtitle,
     required this.icon,
     required this.color,
-    required this.children,
+    this.children = const [],
+    this.slivers,
     this.action,
     this.fab,
     this.maxWidth = 1100,
@@ -32,78 +37,93 @@ class ModulePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final header = Row(
+      children: [
+        Container(
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const Gap(14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: AppFont.display,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const Gap(3),
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: AppFont.label,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: '새로고침',
+          onPressed: () => invalidateAll(ref),
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.refresh_rounded,
+              size: 18, color: AppColors.textFaint),
+        ),
+        if (action != null) action!,
+      ],
+    );
+
     // 텍스트 드래그 선택·복사 허용 (웹 기본은 선택 불가).
     final page = SelectionArea(
-        child: LayoutBuilder(builder: (context, c) {
-          // 좁은 화면(모바일)은 여백을 줄여 거의 꽉 차게, 넓은 화면은 90% 폭.
-          final narrow = c.maxWidth < 700;
-          final w = narrow ? c.maxWidth : (c.maxWidth * 0.9).clamp(0.0, maxWidth);
-          final pad = narrow ? 14.0 : 24.0;
-          return ListView(
-        padding: EdgeInsets.fromLTRB(pad, pad, pad, 60),
-        children: [
-          Center(
-            child: SizedBox(
-              width: w,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        height: 44,
-                        width: 44,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(icon, color: color, size: 24),
-                      ),
-                      const Gap(14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontSize: AppFont.display,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            if (subtitle != null) ...[
-                              const Gap(3),
-                              Text(
-                                subtitle!,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: AppFont.label,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '새로고침',
-                        onPressed: () => invalidateAll(ref),
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.refresh_rounded,
-                            size: 18, color: AppColors.textFaint),
-                      ),
-                      if (action != null) action!,
-                    ],
-                  ),
-                  const Gap(24),
-                  ...children,
-                ],
+      child: LayoutBuilder(builder: (context, c) {
+        // 좁은 화면(모바일)은 여백을 줄여 거의 꽉 차게, 넓은 화면은 90% 폭.
+        final narrow = c.maxWidth < 700;
+        final w = narrow ? c.maxWidth : (c.maxWidth * 0.9).clamp(0.0, maxWidth);
+        final pad = narrow ? 14.0 : 24.0;
+        if (slivers != null) {
+          // 긴 목록 화면 — 보이는 줄만 만든다. 폭·여백은 아래 ListView 와 같게.
+          final inner = w.clamp(0.0, c.maxWidth - pad * 2);
+          final side = (c.maxWidth - inner) / 2;
+          return CustomScrollView(slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(side, pad, side, 24),
+              sliver: SliverToBoxAdapter(child: header),
+            ),
+            for (final s in slivers!)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: side),
+                sliver: s,
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 60)),
+          ]);
+        }
+        return ListView(
+          padding: EdgeInsets.fromLTRB(pad, pad, pad, 60),
+          children: [
+            Center(
+              child: SizedBox(
+                width: w,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [header, const Gap(24), ...children],
+                ),
               ),
             ),
-          ),
-        ],
-          );
-        }),
+          ],
+        );
+      }),
     );
 
     // 당겨서 새로고침은 «터치 화면»에서만. 데스크톱에서는 휠로 목록 맨 위를
