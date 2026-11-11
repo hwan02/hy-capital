@@ -68,9 +68,13 @@ const planItemSpec = BuiltinSpec(
         options: ['', ...kPlanMetrics], optionLabels: {'': '없음'}),
     FieldSpec(key: 'detail', label: '어떻게 · 기준', type: FieldType.longtext),
     FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
+    FieldSpec(key: 'period_start', label: kPlanPeriodLabel, type: FieldType.date),
     FieldSpec(key: 'note', label: '내가 적은 것', type: FieldType.longtext, minLines: 4),
   ],
 );
+
+/// 할 일·숫자 목표가 «몇 주차·몇 개월차» 칸에 들어가는지 — 그 칸 안의 아무 날.
+const kPlanPeriodLabel = '어느 주·달의 계획인지 (그 안의 아무 날)';
 
 /// 계획 할 일에 «적기» — 제목이 곧 질문이라 칸 하나만. 쓰는 동안 임시저장.
 BuiltinSpec planNoteSpec(String title) => BuiltinSpec(
@@ -98,6 +102,7 @@ const planGoalSpec = BuiltinSpec(
         required: true),
     FieldSpec(key: 'detail', label: '어떻게 만드나', type: FieldType.longtext),
     FieldSpec(key: 'due_date', label: '기한', type: FieldType.date),
+    FieldSpec(key: 'period_start', label: kPlanPeriodLabel, type: FieldType.date),
   ],
 );
 const kPlanGoalFixed = {'track': '목표', 'title': '숫자 목표'};

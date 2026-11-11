@@ -852,6 +852,10 @@ class PlanItem {
   /// 내가 적은 것 — 「3줄 적기」 같은 할 일의 답·메모(0070).
   final String? note;
 
+  /// 어느 칸(몇 주차·몇 개월차)의 계획인가 — 그 칸 안의 아무 날(0071).
+  final DateTime? periodStart;
+  final DateTime? createdAt;
+
   PlanItem({
     required this.id,
     required this.horizon,
@@ -865,9 +869,15 @@ class PlanItem {
     this.metric,
     this.target,
     this.note,
+    this.periodStart,
+    this.createdAt,
   });
 
   bool get isGoal => target != null && metric != null;
+
+  /// 칸을 정하는 날 — 0071 전에 적은 건 «적은 날»(기한은 칸 밖일 수 있다:
+  /// 1개월 계획의 기한이 다음 달 5일인 식).
+  DateTime? get periodDay => periodStart ?? createdAt ?? dueDate;
 
   factory PlanItem.fromMap(Map<String, dynamic> m) => PlanItem(
         id: m['id'],
@@ -883,6 +893,10 @@ class PlanItem {
         metric: (m['metric'] as String?)?.isEmpty == true ? null : m['metric'],
         target: m['target'] == null ? null : _d(m['target']),
         note: m['note'],
+        periodStart: _date(m['period_start']),
+        createdAt: m['created_at'] == null
+            ? null
+            : DateTime.parse(m['created_at'] as String).toLocal(),
       );
 }
 

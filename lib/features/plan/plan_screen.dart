@@ -13,6 +13,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/module_page.dart';
 import '../../models/models.dart';
 import '../dashboard/asset_editor.dart' show assetCategoriesOf;
+import 'plan_period.dart';
 
 /// 갈래별 색 — 칩·점·왼쪽 줄에 같이 쓴다.
 const _trackColors = <String, Color>{
@@ -38,6 +39,7 @@ Map<String, dynamic> _toMap(PlanItem p) => {
       'metric': p.metric,
       'detail': p.detail,
       'due_date': p.dueDate?.toIso8601String().substring(0, 10),
+      'period_start': p.periodStart?.toIso8601String().substring(0, 10),
       'note': p.note,
     };
 
@@ -47,7 +49,16 @@ Map<String, dynamic> _goalMap(PlanItem g) => {
       'target': g.target,
       'detail': g.detail,
       'due_date': g.dueDate?.toIso8601String().substring(0, 10),
+      'period_start': g.periodStart?.toIso8601String().substring(0, 10),
     };
+
+String _ymd(DateTime d) => d.toIso8601String().substring(0, 10);
+
+/// 칸을 세기 시작하는 날 — 가장 먼저 적은 계획. 없으면 오늘.
+DateTime _planStart(List<PlanItem> all) =>
+    all.map((p) => p.createdAt).whereType<DateTime>().fold<DateTime?>(
+        null, (a, b) => a == null || b.isBefore(a) ? b : a) ??
+    DateTime.now();
 
 /// 자산 카드(대시보드 _AssetsCard)와 같은 셈 — 부채 빼고 더한 것 − 부채.
 double _netWorth(List<Asset> assets) {
@@ -99,6 +110,7 @@ Map<String, double?> _nowValues(WidgetRef ref) {
 
 /// 계획 — 맨 위 10년 비전(+ 숫자 목표 서브), 한눈에 보기 표,
 /// 그 아래 기간(10년~1주)을 골라 숫자 목표별·갈래별 할 일.
+/// 기간마다 칸이 이어진다 — 1주 계획은 1주차·2주차 …, 1개월 계획은 매달(plan_period.dart).
 class PlanScreen extends ConsumerStatefulWidget {
   const PlanScreen({super.key});
 
@@ -111,20 +123,73 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
   String _horizon = '1주';
   final _viewKey = GlobalKey();
 
+  /// 기간마다 보고 있는 칸 — 없으면 지금 칸(이번 주·이번 달).
+  final _period = <String, int>{};
+  PlanPeriods _periods = PlanPeriods(DateTime.now());
+  List<PlanItem> _goalsAll = const [];
+
+  int _idx(String h) => _period[h] ?? _periods.current(h);
+
+  /// 새로 적는 건 지금 보는 칸에 — 기한은 그 칸의 마지막 날.
+  Map<String, dynamic> get _here => {
+        'horizon': _horizon,
+        'period_start': _ymd(_periods.startOf(_horizon, _idx(_horizon))),
+        'due_date': _ymd(_periods.endOf(_horizon, _idx(_horizon))),
+      };
+
   void _add({String? track}) => editBuiltinRecord(context, ref, planItemSpec,
-      initial: {'horizon': _horizon, 'track': track ?? '경공매'});
+      initial: {..._here, 'track': track ?? '경공매'});
 
   void _addFor(String metric) => editBuiltinRecord(context, ref, planItemSpec,
-      initial: {'horizon': _horizon, 'track': '재무', 'metric': metric});
+      initial: {..._here, 'track': '재무', 'metric': metric});
 
-  void _addGoal([String? metric]) => editBuiltinRecord(
-      context, ref, planGoalSpec,
-      initial: {'horizon': _horizon, 'metric': ?metric},
-      fixed: kPlanGoalFixed);
+  // 목표 금액은 앞 칸에 정해 둔 것을 미리 채운다 — 매주 처음부터 치지 않게.
+  void _addGoal([String? metric]) {
+    final before = metric == null
+        ? null
+        : _carried(_goalsAll, _periods, _horizon, metric, _idx(_horizon));
+    editBuiltinRecord(context, ref, planGoalSpec,
+        initial: {..._here, 'metric': ?metric, 'target': ?before?.target},
+        fixed: kPlanGoalFixed);
+  }
+
+  /// 앞 칸에서 안 끝난 할 일과 숫자 목표를 이 칸으로 가져온다.
+  Future<void> _copyIn(List<PlanItem> src) async {
+    final sb = ref.read(supabaseProvider);
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null || src.isEmpty) return;
+    final i = _idx(_horizon);
+    try {
+      await sb.from('plan_items').insert([
+        for (final p in src)
+          {
+            'user_id': uid,
+            'horizon': p.horizon,
+            'track': p.track,
+            'title': p.title,
+            'detail': p.detail,
+            'metric': p.metric,
+            'target': p.target,
+            'sort_order': p.sortOrder,
+            'period_start': _ymd(_periods.startOf(_horizon, i)),
+            'due_date': _ymd(_periods.endOf(_horizon, i)),
+          },
+      ]);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('가져오기 실패: $e'), backgroundColor: AppColors.rose));
+      return;
+    }
+    invalidateAll(ref);
+  }
 
   // 표에서 고르면 아래 기간 카드까지 내려 준다 — 폰에선 표 밑이 안 보인다.
   void _jump(String h) {
-    setState(() => _horizon = h);
+    setState(() {
+      _horizon = h;
+      _period.remove(h); // 표는 «지금» 칸 기준이다
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final c = _viewKey.currentContext;
       if (c != null) {
@@ -159,10 +224,27 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   icon: Icons.route_rounded, message: '아직 계획이 없습니다');
             }
             final now = _nowValues(ref);
+            final periods = _periods = PlanPeriods(_planStart(all));
             final visions = all.where((p) => p.track == '비전').toList();
-            final goals = all.where((p) => p.isGoal).toList();
+            final goals = _goalsAll = all.where((p) => p.isGoal).toList();
             final todos =
                 all.where((p) => p.track != '비전' && !p.isGoal).toList();
+            final today = DateTime.now();
+            List<PlanItem> at(List<PlanItem> src, String h, int i) => [
+                  for (final p in src)
+                    if (p.horizon == h &&
+                        periods.indexOf(h, p.periodDay ?? today) == i)
+                      p,
+                ];
+            final h = _horizon, i = _idx(h);
+            final hereTodos = at(todos, h, i), hereGoals = at(goals, h, i);
+            // 빈 칸이면 앞 칸에서 가져오기 — 안 끝난 할 일 + 숫자 목표.
+            final carry = i == 0 || hereTodos.isNotEmpty || hereGoals.isNotEmpty
+                ? const <PlanItem>[]
+                : [
+                    ...at(goals, h, i - 1),
+                    ...at(todos, h, i - 1).where((p) => !p.done),
+                  ];
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -176,8 +258,9 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                     subtitle: '줄을 누르면 그 기간 계획이 열려요'),
                 const Gap(12),
                 _OverviewTable(
-                  goals: goals,
-                  todos: todos,
+                  goalOf: (h, m) =>
+                      _carried(goals, periods, h, m, periods.current(h)),
+                  todosOf: (h) => at(todos, h, periods.current(h)),
                   now: now,
                   selected: _horizon,
                   onSelect: _jump,
@@ -187,16 +270,31 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                     subtitle: '동그라미는 완료, 할 일을 누르면 적을 수 있어요'),
                 const Gap(12),
                 _HorizonChips(
-                  items: todos,
+                  itemsOf: (h) => at(todos, h, _idx(h)),
                   selected: _horizon,
                   onSelect: (h) => setState(() => _horizon = h),
                 ),
                 const Gap(14),
                 _HorizonView(
                   key: _viewKey,
-                  horizon: _horizon,
-                  goals: goals.where((g) => g.horizon == _horizon).toList(),
-                  items: todos.where((p) => p.horizon == _horizon).toList(),
+                  horizon: h,
+                  goals: hereGoals,
+                  items: hereTodos,
+                  bar: _PeriodBar(
+                    name: periods.name(h, i),
+                    range: periods.range(h, i),
+                    nowWord: PlanPeriods.nowWord(h),
+                    isNow: i == periods.current(h),
+                    onPrev: i > 0
+                        ? () => setState(() => _period[h] = i - 1)
+                        : null,
+                    onNext: i < periods.count(h) - 1
+                        ? () => setState(() => _period[h] = i + 1)
+                        : null,
+                    onNow: () => setState(() => _period.remove(h)),
+                  ),
+                  carry: carry,
+                  onCarry: () => _copyIn(carry),
                   now: now,
                   assetLine:
                       _assetLine(ref.watch(assetsProvider).asData?.value),
@@ -221,6 +319,23 @@ Future<void> _toggle(WidgetRef ref, PlanItem p) async {
     'done_at': p.done ? null : today,
   }).eq('id', p.id);
   ref.invalidate(planItemsProvider);
+}
+
+/// 숫자 목표는 칸마다 새로 안 정해도 이어진다 — [i] 칸까지 가장 최근에 정한 것.
+PlanItem? _carried(
+    List<PlanItem> goals, PlanPeriods periods, String h, String m, int i) {
+  PlanItem? best;
+  var bestIdx = -1;
+  final today = DateTime.now();
+  for (final g in goals) {
+    if (g.horizon != h || g.metric != m) continue;
+    final gi = periods.indexOf(h, g.periodDay ?? today);
+    if (gi <= i && gi > bestIdx) {
+      best = g;
+      bestIdx = gi;
+    }
+  }
+  return best;
 }
 
 void _edit(BuildContext c, WidgetRef ref, PlanItem p) =>
@@ -355,15 +470,16 @@ class _VisionSub extends StatelessWidget {
 
 /// 한눈에 보기 — 줄은 기간(10년 → 1주, 맨 아래 «지금»), 칸은 숫자 목표 셋과 할 일.
 /// 가로 스크롤 없이 폰 폭에 들어가게 칸을 나눈다.
+/// 숫자는 지금 칸(이번 주·이번 달 …) 기준 — 이번 칸에 목표를 안 정했으면 앞 칸 것.
 class _OverviewTable extends StatelessWidget {
-  final List<PlanItem> goals;
-  final List<PlanItem> todos;
+  final PlanItem? Function(String horizon, String metric) goalOf;
+  final List<PlanItem> Function(String horizon) todosOf;
   final Map<String, double?> now;
   final String selected;
   final ValueChanged<String> onSelect;
   const _OverviewTable({
-    required this.goals,
-    required this.todos,
+    required this.goalOf,
+    required this.todosOf,
     required this.now,
     required this.selected,
     required this.onSelect,
@@ -406,8 +522,6 @@ class _OverviewTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    PlanItem? goalOf(String h, String m) =>
-        goals.where((g) => g.horizon == h && g.metric == m).firstOrNull;
     return GlassCard(
       padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
       child: Column(
@@ -424,7 +538,7 @@ class _OverviewTable extends StatelessWidget {
           const Gap(6),
           for (final h in kPlanHorizons)
             Builder(builder: (_) {
-              final mine = todos.where((p) => p.horizon == h);
+              final mine = todosOf(h);
               final done = mine.where((p) => p.done).length;
               final on = h == selected;
               return InkWell(
@@ -489,18 +603,19 @@ class _OverviewTable extends StatelessWidget {
 
 /// 기간 고르기 — 가로 스크롤 대신 Wrap. 칩마다 «완료/전체».
 class _HorizonChips extends StatelessWidget {
-  final List<PlanItem> items;
+  /// 그 기간에서 지금 보고 있는 칸의 할 일.
+  final List<PlanItem> Function(String horizon) itemsOf;
   final String selected;
   final ValueChanged<String> onSelect;
   const _HorizonChips(
-      {required this.items, required this.selected, required this.onSelect});
+      {required this.itemsOf, required this.selected, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
     return Wrap(spacing: 8, runSpacing: 8, children: [
       for (final h in kPlanHorizons)
         Builder(builder: (_) {
-          final mine = items.where((p) => p.horizon == h);
+          final mine = itemsOf(h);
           final done = mine.where((p) => p.done).length;
           final on = h == selected;
           return InkWell(
@@ -542,6 +657,13 @@ class _HorizonView extends ConsumerWidget {
   final String horizon;
   final List<PlanItem> goals;
   final List<PlanItem> items;
+
+  /// 몇 주차·몇 개월차 — 앞뒤로 넘긴다.
+  final Widget bar;
+
+  /// 빈 칸일 때 앞 칸에서 가져올 것(안 끝난 할 일 + 숫자 목표).
+  final List<PlanItem> carry;
+  final VoidCallback onCarry;
   final Map<String, double?> now;
   final String? assetLine;
   final ValueChanged<String> onAdd;
@@ -552,6 +674,9 @@ class _HorizonView extends ConsumerWidget {
     required this.horizon,
     required this.goals,
     required this.items,
+    required this.bar,
+    required this.carry,
+    required this.onCarry,
     required this.now,
     this.assetLine,
     required this.onAdd,
@@ -562,10 +687,6 @@ class _HorizonView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final done = items.where((p) => p.done).length;
-    final due = [...goals, ...items]
-        .map((p) => p.dueDate)
-        .whereType<DateTime>()
-        .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
     final linked = items.where((p) => p.metric != null).toList();
     final loose = items.where((p) => p.metric == null).toList();
     final metrics = [
@@ -592,34 +713,41 @@ class _HorizonView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            Text('$horizon 계획',
-                style: const TextStyle(
-                    fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+          bar,
+          if (items.isNotEmpty) ...[
             const Gap(10),
-            if (due != null)
+            Row(children: [
               Expanded(
-                child: Text('${Dates.ymd(due)}까지 · ${Dates.dday(due)}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: AppFont.label)),
-              )
-            else
-              const Spacer(),
-            if (items.isNotEmpty)
+                child: ProgressBar(
+                    value: done / items.length,
+                    color: AppColors.gold,
+                    height: 6),
+              ),
+              const Gap(10),
               Text('$done / ${items.length}',
                   style: const TextStyle(
                       color: AppColors.gold, fontWeight: FontWeight.w800)),
-          ]),
-          if (items.isNotEmpty) ...[
-            const Gap(10),
-            ProgressBar(
-                value: done / items.length, color: AppColors.gold, height: 6),
+            ]),
           ],
-          if (items.isEmpty && goals.isEmpty)
+          if (items.isEmpty && goals.isEmpty) ...[
             const EmptyState(
-                icon: Icons.event_note_rounded, message: '이 기간에 적힌 할 일이 없습니다'),
+                icon: Icons.event_note_rounded,
+                message: '이 칸에 적힌 계획이 없습니다'),
+            if (carry.isNotEmpty)
+              Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: onCarry,
+                  icon: const Icon(Icons.redo_rounded, size: 18),
+                  label: Text(
+                      '앞 칸에서 가져오기 — ${[
+                        if (carry.any((p) => !p.isGoal))
+                          '안 끝난 일 ${carry.where((p) => !p.isGoal).length}개',
+                        if (carry.any((p) => p.isGoal))
+                          '목표 ${carry.where((p) => p.isGoal).length}개',
+                      ].join(' · ')}'),
+                ),
+              ),
+          ],
           for (final m in metrics) ...[
             const Gap(20),
             _GoalHeader(
@@ -654,6 +782,68 @@ class _HorizonView extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// 칸 넘기기 — «‹ 2주차 · 11/9 ~ 11/15 ›». 지금 칸이 아니면 «이번 주로».
+class _PeriodBar extends StatelessWidget {
+  final String name;
+  final String range;
+  final String nowWord;
+  final bool isNow;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+  final VoidCallback onNow;
+  const _PeriodBar({
+    required this.name,
+    required this.range,
+    required this.nowWord,
+    required this.isNow,
+    required this.onPrev,
+    required this.onNext,
+    required this.onNow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      IconButton(
+        onPressed: onPrev,
+        tooltip: '앞 칸',
+        icon: const Icon(Icons.chevron_left_rounded),
+      ),
+      Expanded(
+        child: Column(children: [
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              Text(name,
+                  style: const TextStyle(
+                      fontSize: AppFont.title, fontWeight: FontWeight.w800)),
+              if (isNow)
+                Pill(nowWord, color: AppColors.gold)
+              else
+                InkWell(
+                  onTap: onNow,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Pill('$nowWord로', color: AppColors.textSecondary),
+                ),
+            ],
+          ),
+          const Gap(2),
+          Text(range,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: AppFont.label)),
+        ]),
+      ),
+      IconButton(
+        onPressed: onNext,
+        tooltip: '다음 칸',
+        icon: const Icon(Icons.chevron_right_rounded),
+      ),
+    ]);
   }
 }
 

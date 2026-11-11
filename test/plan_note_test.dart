@@ -45,4 +45,52 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
+
+  testWidgets('1주 계획은 주마다 따로 — 다음 주는 비어 있고, 앞 칸에서 가져올 수 있다', (t) async {
+    await t.binding.setSurfaceSize(const Size(1280, 2400));
+    final today = DateTime.now();
+    final nextWeek = today.add(const Duration(days: 7));
+    PlanItem w(String id, String title, DateTime day, {bool done = false}) => PlanItem(
+          id: id,
+          horizon: '1주',
+          track: '재무',
+          title: title,
+          done: done,
+          sortOrder: 0,
+          periodStart: day,
+          createdAt: today,
+        );
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        planItemsProvider.overrideWith((ref) async => [
+              w('a', '이번 주 할 일', today),
+              w('b', '이번 주 끝낸 일', today, done: true),
+              w('c', '다음 주 할 일', nextWeek),
+            ]),
+        assetsProvider.overrideWith((ref) async => <Asset>[]),
+        moduleIncomeByMonthProvider.overrideWith((ref) async => <String, Map<String, double>>{}),
+      ],
+      child: const MaterialApp(home: Scaffold(body: PlanScreen())),
+    ));
+    await t.pumpAndSettle();
+    expect(find.text('이번 주 할 일'), findsOneWidget);
+    expect(find.text('다음 주 할 일'), findsNothing);
+    expect(find.text('이번 주'), findsOneWidget); // 지금 칸 표시
+
+    await t.tap(find.byTooltip('다음 칸'));
+    await t.pumpAndSettle();
+    expect(find.text('다음 주 할 일'), findsOneWidget);
+    expect(find.text('이번 주 할 일'), findsNothing);
+    expect(find.text('이번 주로'), findsOneWidget);
+
+    await t.tap(find.byTooltip('다음 칸'));
+    await t.pumpAndSettle();
+    expect(find.text('이 칸에 적힌 계획이 없습니다'), findsOneWidget);
+    expect(find.textContaining('앞 칸에서 가져오기 — 안 끝난 일 1개'), findsOneWidget);
+
+    await t.tap(find.text('이번 주로'));
+    await t.pumpAndSettle();
+    expect(find.text('이번 주 할 일'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
 }
