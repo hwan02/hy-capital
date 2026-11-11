@@ -40,12 +40,45 @@ void main() {
     expect(find.textContaining('물건이 없어요'), findsOneWidget);
   });
 
+  // 들어오면 «보는 중»(관심·임장·입찰예정)만 — 「전체」를 눌러야 나머지가 보인다.
+  Future<void> showAll(WidgetTester t) async {
+    await t.tap(find.textContaining('전체 '));
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('들어오면 보는 중만 · 전체/미표시로 바꿔 본다', (t) async {
+    final now = DateTime.now();
+    final d = DateTime(now.year, now.month, 3);
+    await pump(t, [
+      it('a', d, tag: '관심'),
+      it('b', d, tag: '임장'),
+      it('c', d, tag: '입찰예정'),
+      it('d', d, tag: '패스'),
+      it('e', d),
+    ], 1200);
+    final cases = find.textContaining('2025타경102886', findRichText: true);
+    expect(find.text('보는 중 3'), findsOneWidget);
+    expect(cases, findsNWidgets(3));
+    await showAll(t);
+    expect(cases, findsNWidgets(5));
+    await t.tap(find.text('미표시 1'));
+    await t.pumpAndSettle();
+    expect(cases, findsOneWidget);
+  });
+
+  testWidgets('보는 중이 없는 달 — 전체에서 표시하라고 알려 준다', (t) async {
+    final now = DateTime.now();
+    await pump(t, [it('a', DateTime(now.year, now.month, 3))], 1200);
+    expect(find.textContaining('보는 중인 물건이 없어요'), findsOneWidget);
+  });
+
   testWidgets('물건 있는 달 · 격자', (t) async {
     final now = DateTime.now();
     await pump(t, [
       it('a', DateTime(now.year, now.month, 3), tag: '관심'),
       it('b', DateTime(now.year, now.month, 3)),
     ], 1200);
+    await showAll(t);
     expect(
       find.textContaining('2025타경102886', findRichText: true),
       findsNWidgets(2),
@@ -56,6 +89,7 @@ void main() {
   testWidgets('좁은 화면 · 목록', (t) async {
     final now = DateTime.now();
     await pump(t, [it('a', DateTime(now.year, now.month, 3))], 400);
+    await showAll(t);
     expect(
       find.textContaining('2025타경102886', findRichText: true),
       findsOneWidget,
@@ -65,6 +99,7 @@ void main() {
   testWidgets('칸을 누르면 상세·태그 창이 뜬다', (t) async {
     final now = DateTime.now();
     await pump(t, [it('a', DateTime(now.year, now.month, 3))], 1200);
+    await showAll(t);
     await t.tap(find.textContaining('2025타경102886', findRichText: true).first);
     await t.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);

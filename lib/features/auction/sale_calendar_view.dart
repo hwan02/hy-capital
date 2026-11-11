@@ -71,6 +71,20 @@ String hankUrlOf(SaleItem it) {
       : u;
 }
 
+/// 필터 칸 — 태그 이름이 아닌 두 가지.
+///   보는 중: 관심·임장·입찰예정을 한 번에(달력의 첫 화면).
+///   미표시: 아직 아무 표시도 안 한 물건.
+const _fWatch = '보는 중';
+const _fNone = '미표시';
+const _watchTags = {'관심', '임장', '입찰예정'};
+
+bool _matchTag(SaleItem it, String? f) => switch (f) {
+      null => true,
+      _fWatch => _watchTags.contains(it.tag),
+      _fNone => it.tag == null,
+      _ => it.tag == f,
+    };
+
 /// 상세 창 버튼 — 모두 같은 높이(44)·같은 모서리.
 final _sheetBtn = OutlinedButton.styleFrom(
   minimumSize: const Size.fromHeight(44),
@@ -92,7 +106,8 @@ class SaleCalendarView extends ConsumerStatefulWidget {
 
 class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
-  String? _tagF; // null = 전체
+  // 들어오면 «보는 중»(관심·임장·입찰예정)부터 — 내가 표시해 둔 것만 한 번에.
+  String? _tagF = _fWatch; // null = 전체
   int _mode = 0; // 0 달력 · 1 오답노트 · 2 분석
 
   bool _inMonth(SaleItem it) =>
@@ -425,10 +440,10 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       data: (all) {
         final monthItems = all.where(_inMonth).toList();
         final shown = monthItems
-            .where((it) => _tagF == null || it.tag == _tagF)
+            .where((it) => _matchTag(it, _tagF))
             .toList();
         int cnt(String? t) =>
-            monthItems.where((it) => t == null || it.tag == t).length;
+            monthItems.where((it) => _matchTag(it, t)).length;
         final today = DateTime.now();
         final todo = all
             .where((it) => reviewStageOf(it, today)?.needsAction ?? false)
@@ -514,16 +529,22 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               spacing: 6,
               runSpacing: 6,
               children: [
+                _chip(_fWatch, '$_fWatch ${cnt(_fWatch)}', _accent),
                 _chip(null, '전체 ${cnt(null)}', _accent),
                 for (final e in kSaleTags.entries)
                   _chip(e.key, '${e.key} ${cnt(e.key)}', e.value),
+                _chip(_fNone, '$_fNone ${cnt(_fNone)}', AppColors.textSecondary),
               ],
             ),
             const Gap(14),
             if (shown.isEmpty)
-              const EmptyState(
+              EmptyState(
                 icon: Icons.calendar_month_rounded,
-                message: '이 달엔 물건이 없어요 — 「물건 추가」로 넣거나 다른 달을 보세요',
+                message: monthItems.isEmpty
+                    ? '이 달엔 물건이 없어요 — 「물건 추가」로 넣거나 다른 달을 보세요'
+                    : _tagF == _fWatch
+                        ? '이 달엔 보는 중인 물건이 없어요 — 「전체」에서 물건을 눌러 관심·임장·입찰예정으로 표시하세요'
+                        : '이 달엔 「$_tagF」 물건이 없어요',
               ),
           ],
         );
