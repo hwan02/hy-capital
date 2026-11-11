@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/env.dart';
 import 'core/data/data_providers.dart';
+import 'core/data/swr_client.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/save_key.dart';
@@ -18,6 +19,8 @@ Future<void> main() async {
   await Supabase.initialize(
     url: Env.supabaseUrl,
     publishableKey: Env.supabaseAnonKey,
+    // 읽기는 지난번에 받은 것을 먼저 보여 주고 뒤에서 새로 받는다(swr_client.dart).
+    httpClient: SwrClient(),
   );
 
   // 로그인 화면 없이 자동으로 세션 확보 (단일 사용자, 고정 계정).
@@ -63,6 +66,11 @@ class _HyCapitalAppState extends ConsumerState<HyCapitalApp> {
     // 앱 시작 시 이미 세션이 있으면 그 사용자로 표시해 둔다 —
     // 곧바로 도착하는 signedIn 이벤트로 한 번 더 읽지 않게.
     _loadedFor = Supabase.instance.client.auth.currentSession?.user.id;
+    // 저장해 둔 것을 먼저 보여 준 뒤 서버 내용이 달랐다 — 다시 읽힌다
+    // (이때는 방금 받은 것을 쓰므로 조회가 또 나가지 않는다).
+    SwrClient.onChanged = () {
+      if (mounted) invalidateAll(ref);
+    };
     // 로그인이 앱 시작 뒤에 완료되면(느린 네트워크 등) 첫 조회가 익명으로 나가
     // 빈 화면이 남는다. 세션이 «처음» 잡히는 순간에만 다시 읽는다.
     //

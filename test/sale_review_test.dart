@@ -111,7 +111,7 @@ void main() {
     await t.pumpWidget(ProviderScope(
       overrides: [saleItemsProvider.overrideWith((ref) async => items)],
       child: const MaterialApp(
-        home: Scaffold(body: SingleChildScrollView(child: SaleCalendarView())),
+        home: Scaffold(body: CustomScrollView(slivers: [SaleCalendarView()])),
       ),
     ));
     await t.pumpAndSettle();

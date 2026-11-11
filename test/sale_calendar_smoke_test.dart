@@ -27,7 +27,7 @@ void main() {
         overrides: [saleItemsProvider.overrideWith((ref) async => items)],
         child: const MaterialApp(
           home: Scaffold(
-            body: SingleChildScrollView(child: SaleCalendarView()),
+            body: CustomScrollView(slivers: [SaleCalendarView()]),
           ),
         ),
       ),
