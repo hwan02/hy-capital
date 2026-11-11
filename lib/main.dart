@@ -20,10 +20,10 @@ Future<void> main() async {
   // 캐시로 데이터가 글꼴보다 먼저 그려지게 되자, 글꼴이 늦게 오면 글자 폭이 바뀌는데
   // IntrinsicHeight 가 옛 높이를 그대로 써서 경공매 달력 칸이 잘렸다
   // (Flutter 가 글꼴 변경 때 문단의 intrinsic 캐시를 안 지운다). 네모 글자도 안 보인다.
-  // 글꼴이 4초 넘게 안 오면 그냥 띄운다.
+  // 글꼴이 2.5초 넘게 안 오면(처음 여는 기기·느린 망) 그냥 띄운다.
   GoogleFonts.notoSansKrTextTheme();
   final fonts = GoogleFonts.pendingFonts()
-      .timeout(const Duration(seconds: 4), onTimeout: () => const [])
+      .timeout(const Duration(milliseconds: 2500), onTimeout: () => const [])
       .catchError((_) => const <void>[]);
   await initializeDateFormatting('ko_KR', null);
   await Supabase.initialize(
