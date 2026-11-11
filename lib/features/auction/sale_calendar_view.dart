@@ -110,6 +110,25 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   String? _tagF = _fWatch; // null = 전체
   int _mode = 0; // 0 달력 · 1 오답노트 · 2 분석
 
+  // 글꼴이 늦게 오면(이모지 등) 글자 폭이 바뀐다. Flutter 가 그때 IntrinsicHeight 용
+  // 높이 캐시를 안 지워서 주(週) 칸이 잘렸다 — 글꼴이 바뀌면 주 줄을 새로 만든다.
+  int _fontEpoch = 0;
+  void _onFonts() {
+    if (mounted) setState(() => _fontEpoch++);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    PaintingBinding.instance.systemFonts.addListener(_onFonts);
+  }
+
+  @override
+  void dispose() {
+    PaintingBinding.instance.systemFonts.removeListener(_onFonts);
+    super.dispose();
+  }
+
   bool _inMonth(SaleItem it) =>
       it.saleDate.year == _month.year && it.saleDate.month == _month.month;
 
@@ -678,6 +697,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
               // 한 주의 칸 높이를 맞추려 stretch — 세로가 무한인 Column 안이라
               // IntrinsicHeight 로 높이를 먼저 잰다(없으면 h=Infinity 로 터진다).
               child: IntrinsicHeight(
+                key: ValueKey(_fontEpoch),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
