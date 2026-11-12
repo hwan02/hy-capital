@@ -138,4 +138,22 @@ void main() {
     );
     expect(hankUrlOf(it), 'https://www.hauction.co.kr/search/auction/1420766');
   });
+
+  test('공매는 3일 입찰 — 월·화·수에 다 꽂히고 날마다 한 줄', () {
+    final g = SaleItem(
+      id: 'g',
+      zone: '(가)독산4',
+      caseNo: '2026-02835-001',
+      source: '공매',
+      appraisal: 217000000,
+      minPrice: 173600000,
+      fails: 0,
+      saleDate: DateTime(2026, 12, 23),
+    );
+    expect(saleDaysOf(g), [DateTime(2026, 12, 21), DateTime(2026, 12, 22), DateTime(2026, 12, 23)]);
+    expect(gongmaeDayNote(g, DateTime(2026, 12, 21)), '입찰 시작 14시 · 12/23 마감');
+    expect(gongmaeDayNote(g, DateTime(2026, 12, 22)), '입찰 2일째 · 12/23 마감');
+    expect(gongmaeDayNote(g, DateTime(2026, 12, 23)), '입찰 마감 17시');
+    expect(saleDaysOf(it('a', DateTime(2026, 12, 23))), [DateTime(2026, 12, 23)]); // 경매는 하루
+  });
 }

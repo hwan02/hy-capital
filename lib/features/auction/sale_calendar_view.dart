@@ -71,6 +71,29 @@ String hankUrlOf(SaleItem it) {
       : u;
 }
 
+/// 달력에 꽂는 날. 경매는 매각기일 하루, 공매는 3일 입찰이라 사흘.
+/// sale_date 는 공매의 입찰 «마감»일(온비드는 월 14시 ~ 수 17시)이다 — 앞 이틀을 더한다.
+List<DateTime> saleDaysOf(SaleItem it) {
+  final d = DateTime(it.saleDate.year, it.saleDate.month, it.saleDate.day);
+  if (it.source != '공매') return [d];
+  return [for (var i = 2; i >= 0; i--) DateTime(d.year, d.month, d.day - i)];
+}
+
+/// 공매 칸에 붙는 한 줄 — «입찰 시작 · 12/23 마감» · «입찰 2일째» · «오늘 마감 17시».
+String? gongmaeDayNote(SaleItem it, DateTime day) {
+  if (it.source != '공매') return null;
+  final days = saleDaysOf(it);
+  final i = days.indexWhere((d) =>
+      d.year == day.year && d.month == day.month && d.day == day.day);
+  if (i < 0) return null;
+  final end = days.last;
+  return switch (i) {
+    0 => '입찰 시작 14시 · ${end.month}/${end.day} 마감',
+    1 => '입찰 2일째 · ${end.month}/${end.day} 마감',
+    _ => '입찰 마감 17시',
+  };
+}
+
 /// 필터 칸 — 태그 이름이 아닌 두 가지.
 ///   보는 중: 관심·임장·입찰예정을 한 번에(달력의 첫 화면).
 ///   미표시: 아직 아무 표시도 안 한 물건.
@@ -129,8 +152,8 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     super.dispose();
   }
 
-  bool _inMonth(SaleItem it) =>
-      it.saleDate.year == _month.year && it.saleDate.month == _month.month;
+  bool _inMonth(SaleItem it) => saleDaysOf(it)
+      .any((d) => d.year == _month.year && d.month == _month.month);
 
   Future<void> _patch(SaleItem it, Map<String, dynamic> patch) async {
     try {
@@ -212,6 +235,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
+                    '${it.source == '공매' ? '입찰 ${Dates.md(saleDaysOf(it).first)} ~ ' : ''}'
                     '${Dates.ymd(it.saleDate)} ${Dates.dday(it.saleDate)} · '
                     '감정 ${Won.compact(it.appraisal)} / 최저 ${Won.compact(it.minPrice)}'
                     '${it.fails > 0 ? ' · 유찰 ${it.fails}' : ''}'
@@ -644,12 +668,16 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   // ── 넓은 화면: 종이 달력처럼 주 단위 격자(월~금, 주말은 물건이 있을 때만) ──
   Widget _monthGrid(List<SaleItem> items, double width) {
     final byDay = <int, List<SaleItem>>{};
+    var hasWeekend = false;
     for (final it in items) {
-      byDay.putIfAbsent(it.saleDate.day, () => []).add(it);
+      for (final d in saleDaysOf(it)) {
+        if (d.year != _month.year || d.month != _month.month) continue;
+        byDay.putIfAbsent(d.day, () => []).add(it);
+        if (d.weekday >= 6) hasWeekend = true;
+      }
     }
     final first = DateTime(_month.year, _month.month, 1);
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
-    final hasWeekend = items.any((it) => it.saleDate.weekday >= 6);
     final cols = hasWeekend ? 7 : 5;
     const gap = 6.0;
     final w = (width - gap * (cols - 1)) / cols;
@@ -770,7 +798,10 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             ],
           ),
           const Gap(6),
-          for (final it in items) ...[_itemChip(it, dim: past), const Gap(5)],
+          for (final it in items) ...[
+            _itemChip(it, dim: past, day: d),
+            const Gap(5),
+          ],
         ],
       ),
     );
@@ -781,22 +812,24 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   Widget _dayList(List<SaleItem> items) {
     final days = <DateTime, List<SaleItem>>{};
     for (final it in items) {
-      final k = DateTime(it.saleDate.year, it.saleDate.month, it.saleDate.day);
-      days.putIfAbsent(k, () => []).add(it);
+      for (final k in saleDaysOf(it)) {
+        if (k.year != _month.year || k.month != _month.month) continue;
+        days.putIfAbsent(k, () => []).add(it);
+      }
     }
     final keys = days.keys.toList()..sort();
     const names = ['월', '화', '수', '목', '금', '토', '일'];
     final rows = <Object>[
-      for (final d in keys) ...[d, ...days[d]!],
+      for (final d in keys) ...[d, for (final it in days[d]!) (it, d)],
     ];
     return SliverList.builder(
       itemCount: rows.length,
       itemBuilder: (context, i) {
         final r = rows[i];
-        if (r is SaleItem) {
+        if (r is (SaleItem, DateTime)) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: _itemChip(r),
+            child: _itemChip(r.$1, day: r.$2),
           );
         }
         final d = r as DateTime;
@@ -835,7 +868,9 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   }
 
   /// 물건 한 칸. 누르면 상세·태그·메모 창(거기서 행크옥션·삭제).
-  Widget _itemChip(SaleItem it, {bool dim = false}) {
+  /// [day] — 그 칸의 날짜. 공매는 3일 입찰이라 날마다 «몇 일째»를 붙인다.
+  Widget _itemChip(SaleItem it, {bool dim = false, DateTime? day}) {
+    final bidNote = day == null ? null : gongmaeDayNote(it, day);
     final tagColor = kSaleTags[it.tag];
     final c = tagColor ?? AppColors.border;
     final isPass = it.tag == '패스';
@@ -946,6 +981,17 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (bidNote != null) ...[
+                        const Gap(2),
+                        Text(
+                          bidNote,
+                          style: const TextStyle(
+                            fontSize: AppFont.micro,
+                            color: AppColors.violet,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                       if ((it.memo ?? '').isNotEmpty) ...[
                         const Gap(2),
                         Text(
