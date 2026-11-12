@@ -79,20 +79,20 @@ List<DateTime> saleDaysOf(SaleItem it) {
   return [for (var i = 2; i >= 0; i--) DateTime(d.year, d.month, d.day - i)];
 }
 
-/// 공매 칸에 붙는 한 줄 — «입찰 시작 · 12/23 마감» · «입찰 2일째» · «오늘 마감 17시».
-String? gongmaeDayNote(SaleItem it, DateTime day) {
+/// 공매 입찰 기간 한 줄 — «입찰 12/21 14시 ~ 12/23 17시».
+String? gongmaePeriodNote(SaleItem it) {
   if (it.source != '공매') return null;
-  final days = saleDaysOf(it);
-  final i = days.indexWhere((d) =>
-      d.year == day.year && d.month == day.month && d.day == day.day);
-  if (i < 0) return null;
-  final end = days.last;
-  return switch (i) {
-    0 => '입찰 시작 14시 · ${end.month}/${end.day} 마감',
-    1 => '입찰 2일째 · ${end.month}/${end.day} 마감',
-    _ => '입찰 마감 17시',
-  };
+  final ds = saleDaysOf(it);
+  final s = ds.first, e = ds.last;
+  return '입찰 ${s.month}/${s.day} 14시 ~ ${e.month}/${e.day} 17시';
 }
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// 달력 칸 머리(날짜) 높이 · 공매 막대 높이 — 막대를 칸 위에 정확히 얹으려 고정한다.
+const _dayHeadH = 20.0;
+const _barH = 70.0;
 
 /// 필터 칸 — 태그 이름이 아닌 두 가지.
 ///   보는 중: 관심·임장·입찰예정을 한 번에(달력의 첫 화면).
@@ -667,12 +667,16 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
 
   // ── 넓은 화면: 종이 달력처럼 주 단위 격자(월~금, 주말은 물건이 있을 때만) ──
   Widget _monthGrid(List<SaleItem> items, double width) {
+    // 하루짜리(경매)는 칸 안에, 여러 날(공매 3일 입찰)은 주 위에 걸친 막대 하나로.
     final byDay = <int, List<SaleItem>>{};
+    final spans = <SaleItem>[];
     var hasWeekend = false;
     for (final it in items) {
-      for (final d in saleDaysOf(it)) {
+      final ds = saleDaysOf(it);
+      if (ds.length > 1) spans.add(it);
+      for (final d in ds) {
         if (d.year != _month.year || d.month != _month.month) continue;
-        byDay.putIfAbsent(d.day, () => []).add(it);
+        if (ds.length == 1) byDay.putIfAbsent(d.day, () => []).add(it);
         if (d.weekday >= 6) hasWeekend = true;
       }
     }
@@ -720,40 +724,85 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
         const SizedBox(height: 6),
         for (final week in weeks)
           if (week.any((d) => d != null))
-            Padding(
-              padding: const EdgeInsets.only(bottom: gap),
-              // 한 주의 칸 높이를 맞추려 stretch — 세로가 무한인 Column 안이라
-              // IntrinsicHeight 로 높이를 먼저 잰다(없으면 h=Infinity 로 터진다).
-              child: IntrinsicHeight(
-                key: ValueKey(_fontEpoch),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            Builder(builder: (_) {
+              // 이 주에 걸친 공매 막대 — 몇 번째 칸부터 몇 번째 칸까지.
+              final bars = <(SaleItem, int, int)>[];
+              for (final it in spans) {
+                final on = [
+                  for (var i = 0; i < cols; i++)
+                    if (week[i] != null &&
+                        saleDaysOf(it).any((d) => _sameDay(d, week[i]!)))
+                      i,
+                ];
+                if (on.isNotEmpty) bars.add((it, on.first, on.last));
+              }
+              const lane = _barH + 5;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: gap),
+                child: Stack(
                   children: [
-                    for (var i = 0; i < cols; i++) ...[
-                      SizedBox(
-                        width: w,
-                        child: week[i] == null
-                            ? const SizedBox.shrink()
-                            : _dayCell(
-                                week[i]!,
-                                byDay[week[i]!.day] ?? const [],
-                                isToday:
-                                    week[i]!.year == today.year &&
-                                    week[i]!.month == today.month &&
-                                    week[i]!.day == today.day,
-                              ),
+                    // 한 주의 칸 높이를 맞추려 stretch — 세로가 무한인 Column 안이라
+                    // IntrinsicHeight 로 높이를 먼저 잰다(없으면 h=Infinity 로 터진다).
+                    IntrinsicHeight(
+                      key: ValueKey(_fontEpoch),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < cols; i++) ...[
+                            SizedBox(
+                              width: w,
+                              child: week[i] == null
+                                  ? const SizedBox.shrink()
+                                  : _dayCell(
+                                      week[i]!,
+                                      byDay[week[i]!.day] ?? const [],
+                                      isToday: _sameDay(week[i]!, today),
+                                      // 막대가 지나가는 칸은 그 자리를 비워 둔다.
+                                      reserve: bars.any(
+                                        (b) => b.$2 <= i && i <= b.$3,
+                                      )
+                                          ? bars.length * lane
+                                          : 0,
+                                    ),
+                            ),
+                            if (i < cols - 1) const SizedBox(width: gap),
+                          ],
+                        ],
                       ),
-                      if (i < cols - 1) const SizedBox(width: gap),
-                    ],
+                    ),
+                    for (var k = 0; k < bars.length; k++)
+                      Positioned(
+                        left: bars[k].$2 * (w + gap) + 8,
+                        width:
+                            (bars[k].$3 - bars[k].$2 + 1) * (w + gap) - gap - 16,
+                        top: 8 + _dayHeadH + 6 + k * lane,
+                        height: _barH,
+                        // 달이 바뀌는 주엔 막대가 한 칸뿐일 수 있다 — 넘치면 자른다.
+                        child: ClipRect(
+                          child: _itemChip(
+                            bars[k].$1,
+                            dim: saleDaysOf(bars[k].$1).last.isBefore(
+                              DateTime(today.year, today.month, today.day),
+                            ),
+                            span: true,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
       ],
     );
   }
 
-  Widget _dayCell(DateTime d, List<SaleItem> items, {required bool isToday}) {
+  /// [reserve] — 주 위에 걸친 공매 막대가 지나갈 자리(높이).
+  Widget _dayCell(
+    DateTime d,
+    List<SaleItem> items, {
+    required bool isToday,
+    double reserve = 0,
+  }) {
     final past = d.isBefore(
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
     );
@@ -773,7 +822,9 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          SizedBox(
+            height: _dayHeadH, // 막대를 칸 위에 맞춰 얹으려 머리 높이를 고정한다
+            child: Row(
             children: [
               Text(
                 '${d.day}',
@@ -796,12 +847,11 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 ),
               ],
             ],
+            ),
           ),
           const Gap(6),
-          for (final it in items) ...[
-            _itemChip(it, dim: past, day: d),
-            const Gap(5),
-          ],
+          if (reserve > 0) SizedBox(height: reserve),
+          for (final it in items) ...[_itemChip(it, dim: past), const Gap(5)],
         ],
       ),
     );
@@ -811,25 +861,27 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   // 날짜 머리와 물건을 한 줄씩 펴서, 화면에 보이는 줄만 만든다.
   Widget _dayList(List<SaleItem> items) {
     final days = <DateTime, List<SaleItem>>{};
+    // 공매는 3일 입찰이지만 목록엔 한 번 — 이 달 안의 첫날에(기간은 칸에 적는다).
     for (final it in items) {
-      for (final k in saleDaysOf(it)) {
-        if (k.year != _month.year || k.month != _month.month) continue;
-        days.putIfAbsent(k, () => []).add(it);
-      }
+      final k = saleDaysOf(it).firstWhere(
+        (d) => d.year == _month.year && d.month == _month.month,
+        orElse: () => it.saleDate,
+      );
+      days.putIfAbsent(k, () => []).add(it);
     }
     final keys = days.keys.toList()..sort();
     const names = ['월', '화', '수', '목', '금', '토', '일'];
     final rows = <Object>[
-      for (final d in keys) ...[d, for (final it in days[d]!) (it, d)],
+      for (final d in keys) ...[d, ...days[d]!],
     ];
     return SliverList.builder(
       itemCount: rows.length,
       itemBuilder: (context, i) {
         final r = rows[i];
-        if (r is (SaleItem, DateTime)) {
+        if (r is SaleItem) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: _itemChip(r.$1, day: r.$2),
+            child: _itemChip(r, span: true),
           );
         }
         final d = r as DateTime;
@@ -868,9 +920,9 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
   }
 
   /// 물건 한 칸. 누르면 상세·태그·메모 창(거기서 행크옥션·삭제).
-  /// [day] — 그 칸의 날짜. 공매는 3일 입찰이라 날마다 «몇 일째»를 붙인다.
-  Widget _itemChip(SaleItem it, {bool dim = false, DateTime? day}) {
-    final bidNote = day == null ? null : gongmaeDayNote(it, day);
+  /// [span] — 공매 막대·목록: 입찰 기간을 한 줄 붙인다.
+  Widget _itemChip(SaleItem it, {bool dim = false, bool span = false}) {
+    final bidNote = span ? gongmaePeriodNote(it) : null;
     final tagColor = kSaleTags[it.tag];
     final c = tagColor ?? AppColors.border;
     final isPass = it.tag == '패스';

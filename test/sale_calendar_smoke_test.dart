@@ -139,7 +139,7 @@ void main() {
     expect(hankUrlOf(it), 'https://www.hauction.co.kr/search/auction/1420766');
   });
 
-  test('공매는 3일 입찰 — 월·화·수에 다 꽂히고 날마다 한 줄', () {
+  test('공매는 3일 입찰 — 월·화·수가 한 막대, 기간은 한 줄', () {
     final g = SaleItem(
       id: 'g',
       zone: '(가)독산4',
@@ -151,9 +151,33 @@ void main() {
       saleDate: DateTime(2026, 12, 23),
     );
     expect(saleDaysOf(g), [DateTime(2026, 12, 21), DateTime(2026, 12, 22), DateTime(2026, 12, 23)]);
-    expect(gongmaeDayNote(g, DateTime(2026, 12, 21)), '입찰 시작 14시 · 12/23 마감');
-    expect(gongmaeDayNote(g, DateTime(2026, 12, 22)), '입찰 2일째 · 12/23 마감');
-    expect(gongmaeDayNote(g, DateTime(2026, 12, 23)), '입찰 마감 17시');
+    expect(gongmaePeriodNote(g), '입찰 12/21 14시 ~ 12/23 17시');
     expect(saleDaysOf(it('a', DateTime(2026, 12, 23))), [DateTime(2026, 12, 23)]); // 경매는 하루
+  });
+
+  testWidgets('공매는 달력에 한 번만 — 넓은 화면 막대 · 좁은 화면 목록', (t) async {
+    final now = DateTime.now();
+    // 이 달 안에서 월요일까지 들어가는 수요일
+    var wed = DateTime(now.year, now.month, 3);
+    while (wed.weekday != DateTime.wednesday) {
+      wed = wed.add(const Duration(days: 1));
+    }
+    final g = SaleItem(
+      id: 'g',
+      zone: '(가)독산4',
+      caseNo: '2026-02835-001',
+      source: '공매',
+      appraisal: 217000000,
+      minPrice: 173600000,
+      fails: 2,
+      saleDate: wed,
+      tag: '입찰예정',
+    );
+    for (final width in [1200.0, 400.0]) {
+      await pump(t, [g, it('a', wed, tag: '관심')], width);
+      expect(find.textContaining('2026-02835-001', findRichText: true), findsOneWidget);
+      expect(find.text(gongmaePeriodNote(g)!), findsOneWidget);
+      expect(t.takeException(), isNull);
+    }
   });
 }
