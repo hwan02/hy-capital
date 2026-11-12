@@ -778,7 +778,13 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                         top: 8 + _dayHeadH + 6 + k * lane,
                         height: _barH,
                         // 달이 바뀌는 주엔 막대가 한 칸뿐일 수 있다 — 넘치면 자른다.
-                        child: ClipRect(
+                        child: Container(
+                          clipBehavior: Clip.hardEdge,
+                          // 막대 밑으로 칸 테두리가 비치지 않게 바탕을 깐다.
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           child: _itemChip(
                             bars[k].$1,
                             dim: saleDaysOf(bars[k].$1).last.isBefore(
