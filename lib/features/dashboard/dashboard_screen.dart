@@ -868,6 +868,8 @@ class _TodayTasksState extends ConsumerState<_TodayTasks> {
       ]);
     } catch (e) {
       if (mounted) {
+        // 저장 못 한 순서를 남겨 두면 저장된 것처럼 보인다 — 되돌린다.
+        setState(() => _order = null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('순서 저장 실패 — $e'),
             backgroundColor: AppColors.rose));
