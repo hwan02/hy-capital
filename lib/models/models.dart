@@ -954,6 +954,9 @@ class TodoTask {
   /// timestamptz 라 UTC 로 들어온다 — 날짜로 묶으려면 로컬이어야 한다.
   final DateTime? doneAt;
 
+  /// 대시보드에서 끌어 옮긴 순서(0072). 없으면 맨 아래.
+  final int? sortOrder;
+
   TodoTask({
     required this.id,
     required this.title,
@@ -961,6 +964,7 @@ class TodoTask {
     this.dueDate,
     required this.done,
     this.doneAt,
+    this.sortOrder,
   });
 
   factory TodoTask.fromMap(Map<String, dynamic> m) => TodoTask(
@@ -970,6 +974,7 @@ class TodoTask {
         dueDate: _date(m['due_date']),
         done: m['done'] ?? false,
         doneAt: _date(m['done_at'])?.toLocal(),
+        sortOrder: m['sort_order'] as int?,
       );
 }
 

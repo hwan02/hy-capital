@@ -196,7 +196,12 @@ final tasksProvider = FutureProvider<List<TodoTask>>((ref) async {
       .select()
       .order('done')
       .order('due_date', ascending: true);
-  return rows.map<TodoTask>(TodoTask.fromMap).toList();
+  // 끌어 옮긴 순서가 먼저, 순서가 없는 것(새로 적은 것)은 기한 순으로 맨 아래.
+  // 정렬은 여기서 — 0072 전엔 sort_order 칸이 없어 서버 정렬이 깨진다.
+  final list = rows.map<TodoTask>(TodoTask.fromMap).toList();
+  final ordered = list.where((t) => t.sortOrder != null).toList()
+    ..sort((a, b) => a.sortOrder!.compareTo(b.sortOrder!));
+  return [...ordered, ...list.where((t) => t.sortOrder == null)];
 });
 
 /// 「지난 완료」 — 체크해서 목록에서 사라진 할 일.

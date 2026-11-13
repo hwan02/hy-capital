@@ -832,8 +832,50 @@ class _Engine {
 // 끝낸 줄이 줄줄이 남아 있으면 남은 게 몇 개인지 한눈에 안 들어온다.
 // 사라진 것은 헤더의 시계 아이콘 →「지난 완료」에서 날짜별로 본다.
 // 잘못 눌렀을 때를 위해 체크 직후 스낵바에 되돌리기를 띄운다.
-class _TodayTasks extends ConsumerWidget {
+// 왼쪽 손잡이(⋮⋮)를 끌어 순서를 바꾼다 — tasks.sort_order(0072).
+class _TodayTasks extends ConsumerStatefulWidget {
   const _TodayTasks();
+
+  @override
+  ConsumerState<_TodayTasks> createState() => _TodayTasksState();
+}
+
+class _TodayTasksState extends ConsumerState<_TodayTasks> {
+  /// 끌어 놓은 직후 보여 줄 순서 — 다시 불러오기 전에 제자리로 튀지 않게.
+  List<String>? _order;
+
+  List<TodoTask> _sorted(List<TodoTask> tasks) {
+    final o = _order;
+    if (o == null) return tasks;
+    final byId = {for (final t in tasks) t.id: t};
+    return [
+      for (final id in o)
+        if (byId[id] != null) byId[id]!,
+      ...tasks.where((t) => !o.contains(t.id)),
+    ];
+  }
+
+  Future<void> _move(List<TodoTask> shown, int from, int to) async {
+    final ids = [for (final t in shown) t.id];
+    if (to > from) to -= 1; // ReorderableListView 는 «끼울 자리»를 준다
+    ids.insert(to, ids.removeAt(from));
+    setState(() => _order = ids);
+    final sb = ref.read(supabaseProvider);
+    try {
+      await Future.wait([
+        for (var i = 0; i < ids.length; i++)
+          sb.from('tasks').update({'sort_order': i}).eq('id', ids[i]),
+      ]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('순서 저장 실패 — $e'),
+            backgroundColor: AppColors.rose));
+      }
+      return;
+    }
+    ref.invalidate(tasksProvider);
+  }
 
   /// 체크 → done + done_at. 해제 → 둘 다 되돌린다.
   Future<void> _setDone(WidgetRef ref, TodoTask t, bool done) async {
@@ -863,7 +905,7 @@ class _TodayTasks extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final tasksAsync = ref.watch(tasksProvider);
     return GlassCard(
       child: Column(
@@ -894,18 +936,44 @@ class _TodayTasks extends ConsumerWidget {
                 error: AsyncStatus.error,
                 data: (all) {
                   // 체크한 것은 여기 남지 않는다 —「지난 완료」로 간다.
-                  final tasks = all.where((t) => !t.done).toList();
+                  final tasks = _sorted(all.where((t) => !t.done).toList());
                   if (tasks.isEmpty) {
                     return const EmptyState(
                         icon: Icons.task_alt_rounded, message: '오늘 할 일을 다 끝냈습니다');
                   }
-                  return Column(
+                  return ReorderableListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    onReorder: (from, to) => _move(tasks, from, to),
+                    // 끄는 동안 줄이 카드 색으로 떠 보이게.
+                    proxyDecorator: (child, _, _) => Material(
+                      color: AppColors.surfaceAlt,
+                      elevation: 6,
+                      borderRadius: BorderRadius.circular(10),
+                      child: child,
+                    ),
                     children: [
-                      for (final t in tasks)
+                      for (var i = 0; i < tasks.length; i++)
                         Padding(
+                          key: ValueKey(tasks[i].id),
                           padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
+                          child: Builder(builder: (context) {
+                            final t = tasks[i];
+                            return Row(
                             children: [
+                              ReorderableDragStartListener(
+                                index: i,
+                                child: const MouseRegion(
+                                  cursor: SystemMouseCursors.grab,
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 2, vertical: 8),
+                                    child: Icon(Icons.drag_indicator_rounded,
+                                        size: 18, color: AppColors.textFaint),
+                                  ),
+                                ),
+                              ),
                               Checkbox(
                                 value: false,
                                 onChanged: (_) => _check(context, ref, t),
@@ -947,7 +1015,8 @@ class _TodayTasks extends ConsumerWidget {
                                     name: t.title),
                               ),
                             ],
-                          ),
+                          );
+                          }),
                         ),
                     ],
                   );
