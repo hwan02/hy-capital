@@ -16,6 +16,12 @@
     같은 날·같은 박수의 예약이 이미 있으면(손으로 넣은 것) 넣지 않는다.
   · «예약 취소» → 이 스크립트가 넣은 줄(메모에 «메일»)만 지운다.
     손으로 넣은 줄은 건드리지 않는다.
+  · 카카오 메일함은 IMAP 으로 «최근 400통»만 보인다. 몇 달 앞서 잡힌 예약은
+    체크인 전에 확정 메일이 밀려난다(11/12~18 예약이 그렇게 빠졌다). 그래서
+      ① 확정 메일을 처음 본 순간 airbnb_reservations 표에 적어 두고(0073),
+         체크인 날에는 메일이 아니라 그 표를 보고 넣는다.
+      ② 그래도 없는 예약은 체크인 다음 날 오는 «대금 지급» 메일(확인 코드·수령액)과
+         게스트 대화 메일 제목의 「예약(11월 12일~18일)」로 체크인일·박수를 찾아 넣는다.
   · 로그도 공개다 — 게스트 이름·금액은 찍지 않는다. 건수만.
 
     python3 scripts/airbnb_mail.py              # 넣는다
@@ -33,6 +39,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from import_moa_pdf import login, sb  # noqa: E402
@@ -55,6 +62,11 @@ PAYOUT_KEYS = ('호스트 수입', 'You earn', 'Host payout')
 # «예약 확정»만 보면 내가 «게스트»로 묵은 영수증(「예약 확정: … 영수증」)까지 걸린다.
 CONFIRM = ('체크인할 예정', 'Reservation confirmed')
 CANCEL = ('취소', 'cancel')
+# 체크인 다음 날 오는 대금 지급 메일 — 확인 코드와 «지급 총액»이 있다(날짜·박수는 없다).
+PAYOUT_SUBJ = ('금액을 지급해 드렸습니다',)
+PAID = re.compile(r'지급 총액\s*:?\s*₩\s?([\d,]+)')
+# 게스트 대화 메일 제목 — 「… 예약(11월 12일~18일)」「… 예약(10월 31일 ~ 11월 6일)」
+STAY = re.compile(r'예약\((\d{1,2})월\s*(\d{1,2})일\s*~\s*(?:(\d{1,2})월\s*)?(\d{1,2})일\)')
 
 
 def env(key):
@@ -122,6 +134,8 @@ def parse(subject, text, sent):
         kind = 'cancel'
     elif any(k.lower() in subject.lower() for k in CONFIRM):
         kind = 'confirm'
+    elif any(k in subject for k in PAYOUT_SUBJ):
+        kind = 'payout'
 
     code = CODE.search(subject + '\n' + flat)
     out = {'kind': kind, 'code': code.group(1) if code else None,
@@ -154,6 +168,12 @@ def parse(subject, text, sent):
         n = NIGHTS.search(flat)
         out['nights'] = int(n.group(1)) if n else None
 
+    if kind == 'payout':
+        m = PAID.search(flat)
+        out['payout'] = int(m.group(1).replace(',', '')) if m else None
+        out['paid_on'] = sent
+        return out
+
     # 호스트가 «받는» 돈 — 「호스트 수령 대금」 표의 마지막 줄 「호스트 수입 ₩…」.
     # (그 위 「8박 숙박료」는 수수료 떼기 전이라 쓰면 안 된다)
     for key in PAYOUT_KEYS:
@@ -177,15 +197,19 @@ def fetch(days):
     im.login(user, pw)
     im.select('INBOX', readonly=True)    # 읽음 표시를 바꾸지 않는다
     _, data = im.search(None, 'SINCE', since, 'FROM', '"airbnb"')
-    mails = []
+    mails, stays = [], set()
     for num in data[0].split():
         # 제목만 먼저 본다 — 후기·홍보 메일까지 본문을 다 받으면 느리다.
         # BODY.PEEK 라 읽음 표시는 그대로. 응답 모양이 서버마다 달라서
         # (카카오는 앞에 None 이 끼어 온다) 바이트가 든 튜플을 찾아 쓴다.
-        _, hd = im.fetch(num, '(BODY.PEEK[HEADER.FIELDS (SUBJECT)])')
+        _, hd = im.fetch(num, '(BODY.PEEK[HEADER.FIELDS (SUBJECT DATE)])')
         raw = next((x[1] for x in hd if isinstance(x, tuple)), b'')
-        subj = decode(email.message_from_bytes(raw)['Subject'])
-        if not any(k.lower() in subj.lower() for k in CONFIRM + CANCEL):
+        hdr = email.message_from_bytes(raw)
+        subj = decode(hdr['Subject'])
+        st = STAY.search(subj)
+        if st:
+            stays.add((st.groups(), hdr['Date']))
+        if not any(k.lower() in subj.lower() for k in CONFIRM + CANCEL) and not any(k in subj for k in PAYOUT_SUBJ):
             continue
         _, msg_data = im.fetch(num, '(BODY.PEEK[])')
         raw = next((x[1] for x in msg_data if isinstance(x, tuple)), None)
@@ -195,7 +219,35 @@ def fetch(days):
         sent = email.utils.parsedate_to_datetime(msg['Date']).astimezone(KST).date()
         mails.append((decode(msg['Subject']), body_text(msg), sent))
     im.logout()
-    return mails
+    return mails, stay_dates(stays)
+
+
+def stay_dates(raw):
+    """제목의 「11월 12일~18일」 → (체크인, 체크아웃). 연도는 메일 날짜로 짐작한다."""
+    out = set()
+    for (m1, d1, m2, d2), date_hdr in raw:
+        try:
+            sent = email.utils.parsedate_to_datetime(date_hdr).astimezone(KST).date()
+            a = datetime.date(sent.year, int(m1), int(d1))
+            b = datetime.date(sent.year, int(m2 or m1), int(d2))
+        except (TypeError, ValueError):
+            continue
+        if a < sent - datetime.timedelta(days=60):
+            a, b = a.replace(year=a.year + 1), b.replace(year=b.year + 1)
+        if b < a:
+            b = b.replace(year=b.year + 1)
+        out.add((a, b))
+    return sorted(out)
+
+
+def stay_for_payout(paid_on, stays):
+    """지급 메일 날짜 → 그 예약의 (체크인, 체크아웃). 에어비앤비는 체크인 약 24시간 뒤에
+    지급한다 — 지급일 하루 전 체크인을 먼저, 없으면 사흘 안쪽에서 하나뿐일 때만."""
+    exact = [s for s in stays if s[0] == paid_on - datetime.timedelta(days=1)]
+    if len(exact) == 1:
+        return exact[0]
+    near = [s for s in stays if paid_on - datetime.timedelta(days=3) <= s[0] < paid_on]
+    return near[0] if len(near) == 1 else None
 
 
 def main():
@@ -206,13 +258,16 @@ def main():
     if '--days' in sys.argv:
         days = int(sys.argv[sys.argv.index('--days') + 1])
 
-    mails = fetch(days)
+    mails, stays = fetch(days)
     parsed = [(s, parse(s, t, d)) for s, t, d in mails]
     if dump:
         # 로컬에서만 — 메일을 어떻게 읽었는지 본다(게스트 이름은 제목에서 가린다).
         for s, p in parsed:
             print(re.sub(r'[가-힣A-Za-z]+님', '○○님', s)[:70])
             print('   ', {k: (str(v) if v is not None else None) for k, v in p.items()})
+            if p['kind'] == 'payout':
+                print('    → 대화 제목으로 찾은 숙박:', stay_for_payout(p['paid_on'], stays))
+        print('대화 제목의 숙박:', [(str(a), str(b)) for a, b in stays])
         return
 
     tok, uid = login()
@@ -221,67 +276,158 @@ def main():
         print('호점 없음 — 건너뜀')
         return
     default = next((u for u in units if u.get('status') == 'open'), units[0])
-
     today = datetime.datetime.now(KST).date()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    # ① 예약 표 — 확정 메일을 처음 본 순간 적어 둔다(메일함이 최근 400통만 보여서).
+    try:
+        saved = {r['code']: r for r in sb(
+            '/rest/v1/airbnb_reservations?select=id,code,checkin,nights,payout,status,entered_at',
+            token=tok) or []}
+        has_table = True
+    except urllib.error.HTTPError:
+        saved, has_table = {}, False
+        print('예약 표 없음(0073 실행 전?) — 메일만 본다')
+
     cancelled = {p['code'] for _, p in parsed if p['kind'] == 'cancel' and p['code']}
-    added = removed = skipped = unread = waiting = 0
-    # 로그에 남길 체크인 날짜 — 금액·이름은 안 찍는다(공개 로그). «왜 안 들어갔나»를 날짜로 본다.
-    wait_days, early_days = [], []
+    stored = 0
     for _, p in parsed:
-        if p['kind'] == 'cancel' and p['code']:
-            rows = sb(f"/rest/v1/airbnb_transactions?select=id"
-                      f"&memo=ilike.*{p['code']}*&memo=ilike.*{TAG}*", token=tok)
-            for r in rows:
-                if not dry:
-                    sb(f"/rest/v1/airbnb_transactions?id=eq.{r['id']}", 'DELETE', token=tok)
-                removed += 1
+        if not has_table or p['kind'] != 'confirm':
             continue
+        if not (p['code'] and p['checkin'] and p['nights'] and p['payout']):
+            continue
+        row = {'checkin': p['checkin'].isoformat(),
+               'checkout': p['checkout'].isoformat() if p['checkout'] else None,
+               'nights': p['nights'], 'payout': p['payout'],
+               'status': 'cancelled' if p['code'] in cancelled else 'confirmed'}
+        old = saved.get(p['code'])
+        if old is None:
+            if not dry:
+                got = sb('/rest/v1/airbnb_reservations', 'POST',
+                         {'user_id': uid, 'code': p['code'], **row}, token=tok)
+                saved[p['code']] = got[0] if got else {'code': p['code'], **row}
+            stored += 1
+        elif old.get('status') != row['status'] and not dry:
+            sb(f"/rest/v1/airbnb_reservations?id=eq.{old['id']}", 'PATCH',
+               {'status': row['status']}, token=tok)
+            old['status'] = row['status']
+    for code in cancelled:
+        old = saved.get(code)
+        if old and old.get('status') != 'cancelled' and not dry:
+            sb(f"/rest/v1/airbnb_reservations?id=eq.{old['id']}", 'PATCH', {'status': 'cancelled'}, token=tok)
+            old['status'] = 'cancelled'
+
+    def mark(code):
+        r = saved.get(code)
+        if has_table and r and r.get('id') and not r.get('entered_at') and not dry:
+            sb(f"/rest/v1/airbnb_reservations?id=eq.{r['id']}", 'PATCH', {'entered_at': now}, token=tok)
+            r['entered_at'] = now
+
+    def already(code, unit, checkin, nights):
+        dup = sb(f"/rest/v1/airbnb_transactions?select=id&memo=ilike.*{code}*", token=tok)
+        if not dup:
+            # 손으로 먼저 넣은 같은 예약 — 같은 체크인일·같은 박수
+            dup = sb(f"/rest/v1/airbnb_transactions?select=id&unit_id=eq.{unit['id']}"
+                     f"&txn_date=eq.{checkin}&nights=eq.{nights}&payout=gt.0", token=tok)
+        return bool(dup)
+
+    def insert(code, unit, checkin, nights, payout, how):
+        if not dry:
+            sb('/rest/v1/airbnb_transactions', 'POST', {
+                'user_id': uid,
+                'unit_id': unit['id'],
+                'txn_date': checkin.isoformat(),
+                'nights': nights,
+                'payout': payout,
+                'cleaning_cost': CLEANING,
+                'memo': f"예약 {code} ({how})",
+            }, token=tok)
+
+    # ② 넣을 예약 — 이번에 읽은 확정 메일 + 표에 남아 있는(메일은 밀려난) 예약
+    todo = {}
+    unread = 0
+    early_days, wait_days = [], []
+    for _, p in parsed:
         if p['kind'] != 'confirm':
             continue
         if not (p['code'] and p['checkin'] and p['nights'] and p['payout']):
             unread += 1              # 확정 메일인데 칸을 다 못 읽었다 — 형식이 바뀌었나
             continue
-        if p['code'] in cancelled:
+        todo[p['code']] = (p['checkin'], p['nights'], p['payout'])
+    from_table = 0
+    for code, r in saved.items():
+        if r.get('status') != 'confirmed' or r.get('entered_at') or code in todo:
             continue
-        if p['checkin'] < START:
-            early_days.append(p['checkin'])
+        checkin = datetime.date.fromisoformat(r['checkin'])
+        if checkin < START:
+            continue
+        todo[code] = (checkin, int(r['nights']), int(float(r['payout'])))
+        from_table += 1
+
+    added = skipped = removed = 0
+    for p in (p for _, p in parsed if p['kind'] == 'cancel' and p['code']):
+        rows = sb(f"/rest/v1/airbnb_transactions?select=id"
+                  f"&memo=ilike.*{p['code']}*&memo=ilike.*{TAG}*", token=tok)
+        for r in rows:
+            if not dry:
+                sb(f"/rest/v1/airbnb_transactions?id=eq.{r['id']}", 'DELETE', token=tok)
+            removed += 1
+    for code, (checkin, nights, payout) in todo.items():
+        if code in cancelled:
+            continue
+        if checkin < START:
+            early_days.append(checkin)
             continue
         # 체크인 날 넣는다 — 손으로 넣던 방식 그대로. 미리 넣으면 아직 안 온
         # 달의 매출이 «누적»에 섞이고, 취소되면 숫자가 출렁인다.
-        if p['checkin'] > today:
-            waiting += 1
-            wait_days.append(p['checkin'])
+        if checkin > today:
+            wait_days.append(checkin)
             continue
-        unit = default
-        if p['listing']:
-            unit = next((u for u in units if u['name'] in p['listing']), default)
-        dup = sb(f"/rest/v1/airbnb_transactions?select=id"
-                 f"&memo=ilike.*{p['code']}*", token=tok)
-        if not dup:
-            # 손으로 먼저 넣은 같은 예약 — 같은 체크인일·같은 박수
-            dup = sb(f"/rest/v1/airbnb_transactions?select=id&unit_id=eq.{unit['id']}"
-                     f"&txn_date=eq.{p['checkin']}&nights=eq.{p['nights']}"
-                     f"&payout=gt.0", token=tok)
-        if dup:
+        if already(code, default, checkin, nights):
             skipped += 1
+            mark(code)
             continue
-        if not dry:
-            sb('/rest/v1/airbnb_transactions', 'POST', {
-                'user_id': uid,
-                'unit_id': unit['id'],
-                'txn_date': p['checkin'].isoformat(),
-                'nights': p['nights'],
-                'payout': p['payout'],
-                'cleaning_cost': CLEANING,
-                'memo': f"예약 {p['code']} ({TAG})",
-            }, token=tok)
+        insert(code, default, checkin, nights, payout, TAG)
+        mark(code)
         added += 1
 
+    # ③ 그래도 없는 예약 — 체크인 다음 날 오는 «대금 지급» 메일로 채운다.
+    #    확인 코드·수령액은 지급 메일에서, 체크인일·박수는 게스트 대화 제목에서.
+    by_payout = 0
+    lost_days = []
+    for _, p in parsed:
+        if p['kind'] != 'payout' or not (p['code'] and p['payout']):
+            continue
+        if p['code'] in todo or p['code'] in cancelled or p['code'] in saved:
+            continue                 # 확정 메일·표로 이미 다룬 예약 (표에서 취소된 것 포함)
+        stay = stay_for_payout(p['paid_on'], stays)
+        if not stay:
+            if p['paid_on'] - datetime.timedelta(days=1) >= START:
+                lost_days.append(p['paid_on'])
+            continue
+        checkin, checkout = stay
+        nights = (checkout - checkin).days
+        if checkin < START:
+            continue
+        if already(p['code'], default, checkin, nights):
+            continue
+        insert(p['code'], default, checkin, nights, p['payout'], f'{TAG}·지급')
+        if has_table and not dry:
+            got = sb('/rest/v1/airbnb_reservations', 'POST', {
+                'user_id': uid, 'code': p['code'], 'checkin': checkin.isoformat(),
+                'checkout': checkout.isoformat(), 'nights': nights, 'payout': p['payout'],
+                'status': 'confirmed', 'entered_at': now}, token=tok)
+        by_payout += 1
+
     pre = '[dry] ' if dry else ''
-    print(f'{pre}에비 메일 {len(mails)}통 — 예약 추가 {added} · 이미 있음 {skipped}'
-          f' · 체크인 전 {waiting} · 취소 반영 {removed} · 못 읽음 {unread}')
+    print(f'{pre}에비 메일 {len(mails)}통 — 예약 추가 {added} · 지급 메일로 추가 {by_payout}'
+          f' · 이미 있음 {skipped} · 체크인 전 {len(wait_days)} · 취소 반영 {removed} · 못 읽음 {unread}')
+    if has_table:
+        print(f'  예약 표: 새로 적음 {stored} · 메일이 밀려나 표에서 꺼냄 {from_table}')
     md = lambda ds: ', '.join(f'{d.month}/{d.day}' for d in sorted(set(ds))) or '없음'
     print(f'  체크인 기다리는 날: {md(wait_days)}')
+    if lost_days:
+        print(f'  지급 메일은 왔는데 박수를 못 찾은 날(손으로 확인): {md(lost_days)}')
     print(f'  {START.month}/{START.day} 전 체크인(손으로 넣던 것, 건너뜀) 최근: {md(sorted(early_days)[-5:])}')
 
 
