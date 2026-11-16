@@ -199,6 +199,15 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
             : '«${c.text}» 복사됨 — 행크옥션 앱에서 연도 ${c.year} 고르고 붙여넣기')));
   }
 
+  /// 사건번호 전부 복사 — «2025타경12914(2)» 그대로(법원 사이트·메모·문자용).
+  Future<void> _copyFull(SaleItem it) async {
+    final t = it.caseNo.trim();
+    await Clipboard.setData(ClipboardData(text: t));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('«$t» 복사됨')));
+  }
+
   /// 물건 상세 — 정보·태그·메모·링크 한 창에서. 행크옥션 열기와 삭제도 여기서.
   Future<void> _editTag(SaleItem it) async {
     var tag = it.tag;
@@ -211,10 +220,22 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
           backgroundColor: AppColors.surface,
           // 폰에서 좌우 여백이 커서 창이 좁았다 — 16 만 남긴다.
           insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          title: Text(
-            '${it.zone} · ${it.caseNo}',
-            style: const TextStyle(fontSize: AppFont.section),
-          ),
+          // 제목 옆 복사 = 사건번호 «전부»(2025타경12914(2) 그대로). 아래 «사건번호 복사»는
+          // 행크옥션 앱 검색칸용으로 번호만(12914) 넣는다.
+          title: Row(children: [
+            Expanded(
+              child: Text(
+                '${it.zone} · ${it.caseNo}',
+                style: const TextStyle(fontSize: AppFont.section),
+              ),
+            ),
+            IconButton(
+              tooltip: '사건번호 전체 복사',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _copyFull(it),
+              icon: const Icon(Icons.copy_rounded, size: 18),
+            ),
+          ]),
           content: SizedBox(
             width: 380,
             child: Column(
