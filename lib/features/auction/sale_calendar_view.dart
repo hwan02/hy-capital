@@ -213,6 +213,7 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
     var tag = it.tag;
     final memo = PlainController(text: it.memo ?? '');
     final url = PlainController(text: it.url ?? '');
+    var copied = false;
     final r = await showDialog<String>(
       context: context,
       builder: (dctx) => StatefulBuilder(
@@ -229,11 +230,21 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
                 style: const TextStyle(fontSize: AppFont.section),
               ),
             ),
+            // 스낵바는 창 뒤에 깔려 안 보인다 — 아이콘을 잠깐 체크로 바꿔 «됐다»를 보인다.
             IconButton(
               tooltip: '사건번호 전체 복사',
               visualDensity: VisualDensity.compact,
-              onPressed: () => _copyFull(it),
-              icon: const Icon(Icons.copy_rounded, size: 18),
+              onPressed: () async {
+                await _copyFull(it);
+                setS(() => copied = true);
+                await Future<void>.delayed(const Duration(milliseconds: 1500));
+                if (dctx.mounted) setS(() => copied = false);
+              },
+              icon: Icon(
+                copied ? Icons.check_rounded : Icons.copy_rounded,
+                size: 18,
+                color: copied ? AppColors.primary : null,
+              ),
             ),
           ]),
           content: SizedBox(
