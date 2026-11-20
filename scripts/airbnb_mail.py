@@ -67,6 +67,8 @@ PAYOUT_SUBJ = ('금액을 지급해 드렸습니다',)
 PAID = re.compile(r'지급 총액\s*:?\s*₩\s?([\d,]+)')
 # 게스트 대화 메일 제목 — 「… 예약(11월 12일~18일)」「… 예약(10월 31일 ~ 11월 6일)」
 STAY = re.compile(r'예약\((\d{1,2})월\s*(\d{1,2})일\s*~\s*(?:(\d{1,2})월\s*)?(\d{1,2})일\)')
+# 확정 메일 「게스트」 아래 줄 — 「성인 4명」「성인 2명, 어린이 1명」「2 adults」
+GUESTS = re.compile(r'(성인|어린이|유아|반려동물)\s*\d+\s*명|\d+\s*(adults?|guests?)', re.I)
 
 
 def env(key):
@@ -140,7 +142,14 @@ def parse(subject, text, sent):
     code = CODE.search(subject + '\n' + flat)
     out = {'kind': kind, 'code': code.group(1) if code else None,
            'checkin': None, 'checkout': None, 'nights': None,
-           'payout': None, 'listing': None}
+           'payout': None, 'listing': None, 'guests': None}
+
+    # 인원 — 「게스트」 머리 줄 «다음 줄»에 「성인 4명」「성인 2명, 어린이 1명」.
+    for i, ln in enumerate(lines):
+        if ln in ('게스트', 'Guests') and i + 1 < len(lines) \
+                and GUESTS.search(lines[i + 1]):
+            out['guests'] = lines[i + 1][:40]
+            break
 
     # 체크인 / 체크아웃 — 「체크인 체크아웃」 머리 줄 «다음 줄»에 두 날짜가 나란히 온다.
     #   체크인 체크아웃
@@ -280,10 +289,17 @@ def main():
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     # ① 예약 표 — 확정 메일을 처음 본 순간 적어 둔다(메일함이 최근 400통만 보여서).
+    cols = 'id,code,checkin,nights,payout,status,entered_at'
+    has_guests = True            # 인원 칸(0076) — 없으면 인원만 빼고 예전처럼 돈다
     try:
-        saved = {r['code']: r for r in sb(
-            '/rest/v1/airbnb_reservations?select=id,code,checkin,nights,payout,status,entered_at',
-            token=tok) or []}
+        try:
+            rows = sb(f'/rest/v1/airbnb_reservations?select={cols},guests', token=tok)
+        except urllib.error.HTTPError as ex:
+            if ex.code != 400:
+                raise
+            has_guests = False
+            rows = sb(f'/rest/v1/airbnb_reservations?select={cols}', token=tok)
+        saved = {r['code']: r for r in rows or []}
         has_table = True
     except urllib.error.HTTPError:
         saved, has_table = {}, False
@@ -300,7 +316,15 @@ def main():
                'checkout': p['checkout'].isoformat() if p['checkout'] else None,
                'nights': p['nights'], 'payout': p['payout'],
                'status': 'cancelled' if p['code'] in cancelled else 'confirmed'}
+        if has_guests and p['guests']:
+            row['guests'] = p['guests']
         old = saved.get(p['code'])
+        # 인원 칸을 나중에 만들었으면 이미 적힌 예약에도 채운다.
+        if old is not None and row.get('guests') and not old.get('guests') \
+                and old.get('id') and not dry:
+            sb(f"/rest/v1/airbnb_reservations?id=eq.{old['id']}", 'PATCH',
+               {'guests': row['guests']}, token=tok)
+            old['guests'] = row['guests']
         if old is None:
             if not dry:
                 got = sb('/rest/v1/airbnb_reservations', 'POST',
