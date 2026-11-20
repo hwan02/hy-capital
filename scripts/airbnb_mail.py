@@ -407,6 +407,12 @@ def main():
         if checkin > today:
             wait_days.append(checkin)
             continue
+        # 한 번 넣은 예약은 다시 넣지 않는다. 사용자가 그 줄을 고쳐 놓으면
+        # (후기 작업 숙박 → 수입 0·메모 변경) 아래 «already» 가 같은 예약을
+        # 못 알아보고 매시간 원래 줄을 또 넣었다 — 11/18·11/19.
+        if (saved.get(code) or {}).get('entered_at'):
+            skipped += 1
+            continue
         if already(code, default, checkin, nights):
             skipped += 1
             mark(code)
