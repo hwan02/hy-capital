@@ -258,9 +258,10 @@ class _SideNav extends ConsumerWidget {
                   ),
                   _NavFootButton(
                     icon: Icons.tune_rounded,
+                    // 사이드바 폭(236)에 들어가게 짧게.
                     label: hidden.isEmpty
                         ? '메뉴 보이기·숨기기'
-                        : '메뉴 보이기·숨기기 (${hidden.length}개 숨김)',
+                        : '숨긴 메뉴 ${hidden.length}개',
                     collapsed: collapsed,
                     onTap: () => _pickMenus(context),
                   ),
