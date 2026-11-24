@@ -9,7 +9,8 @@ class ModuleDef {
   final IconData icon;
   final Color color;
 
-  /// 메뉴에서 숨긴다. 주소(라우트)는 살아 있어서 링크로는 들어갈 수 있다.
+  /// 처음엔 메뉴에서 숨긴다. 사이드바 「메뉴 보이기·숨기기」로 켜고 끈다
+  /// (nav_visibility.dart). 주소(라우트)는 늘 살아 있다.
   final bool hidden;
   const ModuleDef(this.path, this.label, this.icon, this.color,
       {this.hidden = false});

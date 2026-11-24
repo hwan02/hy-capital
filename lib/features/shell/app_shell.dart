@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/custom.dart';
 import '../custom/module_editor.dart';
 import 'modules.dart';
+import 'nav_visibility.dart';
 
 /// 반응형 셸: 넓은 화면은 사이드바(접으면 아이콘만), 좁은 화면은 Drawer.
 class AppShell extends ConsumerWidget {
@@ -149,6 +150,7 @@ class _SideNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(hiddenMenusProvider);
     // 황금 모노그램 «HY». 전엔 초록·파랑 지갑 아이콘이었다.
     final logo = Container(
       height: 34,
@@ -223,7 +225,9 @@ class _SideNav extends ConsumerWidget {
               child: ListView(
                 padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 12),
                 children: [
-                  for (final m in kModules.where((m) => !m.hidden))
+                  // 숨긴 메뉴라도 지금 보고 있는 화면이면 남겨 둔다 — 어디 있는지 보이게.
+                  for (final m in kModules.where((m) =>
+                      !hidden.contains(m.path) || location.startsWith(m.path)))
                     _NavItem(
                       icon: m.icon,
                       label: m.label,
@@ -243,12 +247,22 @@ class _SideNav extends ConsumerWidget {
                       onTap: () => _go(context, m.route),
                     ),
                   const Gap(6),
-                  _AddModuleButton(
+                  _NavFootButton(
+                    icon: Icons.add_rounded,
+                    label: '메뉴 추가',
                     collapsed: collapsed,
                     onTap: () {
                       onNavigate?.call();
                       showModuleEditor(context, ref);
                     },
+                  ),
+                  _NavFootButton(
+                    icon: Icons.tune_rounded,
+                    label: hidden.isEmpty
+                        ? '메뉴 보이기·숨기기'
+                        : '메뉴 보이기·숨기기 (${hidden.length}개 숨김)',
+                    collapsed: collapsed,
+                    onTap: () => _pickMenus(context),
                   ),
                 ],
               ),
@@ -337,15 +351,21 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _AddModuleButton extends StatelessWidget {
+class _NavFootButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
   final bool collapsed;
-  const _AddModuleButton({required this.onTap, this.collapsed = false});
+  const _NavFootButton(
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.collapsed = false});
   @override
   Widget build(BuildContext context) {
     if (collapsed) {
       return Tooltip(
-        message: '메뉴 추가',
+        message: label,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
@@ -356,9 +376,8 @@ class _AddModuleButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Center(
-              child: Icon(Icons.add_rounded,
-                  size: 19, color: AppColors.textSecondary),
+            child: Center(
+              child: Icon(icon, size: 19, color: AppColors.textSecondary),
             ),
           ),
         ),
@@ -374,15 +393,18 @@ class _AddModuleButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.add_rounded, size: 19, color: AppColors.textSecondary),
-            Gap(12),
-            Text('메뉴 추가',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: AppFont.body)),
+            Icon(icon, size: 19, color: AppColors.textSecondary),
+            const Gap(12),
+            Expanded(
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: AppFont.body)),
+            ),
           ],
         ),
       ),
@@ -390,3 +412,58 @@ class _AddModuleButton extends StatelessWidget {
   }
 }
 
+/// 사이드바에 띄울 메뉴를 고른다. 켜고 끄면 «즉시» 반영되고 이 브라우저에 남는다.
+Future<void> _pickMenus(BuildContext context) => showDialog<void>(
+      context: context,
+      builder: (dctx) => Consumer(builder: (dctx, ref, _) {
+        final hidden = ref.watch(hiddenMenusProvider);
+        final ctl = ref.read(hiddenMenusProvider.notifier);
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('보여줄 메뉴',
+              style: TextStyle(fontSize: AppFont.section)),
+          content: SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final m in kModules)
+                  Builder(builder: (_) {
+                    final on = !hidden.contains(m.path);
+                    // 다 끄면 사이드바가 텅 빈다 — 마지막 하나는 못 끈다.
+                    final last = on && hidden.length == kModules.length - 1;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      child: Row(children: [
+                        Icon(m.icon,
+                            size: 17,
+                            color: on ? m.color : AppColors.textFaint),
+                        const Gap(10),
+                        Expanded(
+                          child: Text(m.label,
+                              style: TextStyle(
+                                  fontSize: AppFont.body,
+                                  fontWeight: FontWeight.w700,
+                                  color: on
+                                      ? AppColors.textPrimary
+                                      : AppColors.textFaint)),
+                        ),
+                        Switch(
+                          value: on,
+                          onChanged: last ? null : (_) => ctl.toggle(m.path),
+                        ),
+                      ]),
+                    );
+                  }),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: ctl.reset, child: const Text('기본값으로')),
+            FilledButton(
+                onPressed: () => Navigator.pop(dctx),
+                child: const Text('닫기')),
+          ],
+        );
+      }),
+    );
