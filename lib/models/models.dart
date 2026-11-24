@@ -585,6 +585,9 @@ class DividendHolding {
   final double annualYield; // 연배당률 %
   final String? symbol; // 티커/코드 (국장=6자리, 미장=심볼) — 실시간 시세용
 
+  /// 앱에 등록한 날. 산 날로 본다 — 이보다 앞선 분배락의 분배금은 못 받는다.
+  final DateTime? createdAt;
+
   DividendHolding({
     required this.id,
     required this.ticker,
@@ -594,6 +597,7 @@ class DividendHolding {
     required this.shares,
     required this.annualYield,
     this.symbol,
+    this.createdAt,
   });
 
   bool get isUsd => market == '미장';
@@ -620,6 +624,9 @@ class DividendHolding {
         shares: _d(m['shares']),
         annualYield: _d(m['annual_yield']),
         symbol: m['symbol'],
+        createdAt: m['created_at'] == null
+            ? null
+            : DateTime.tryParse(m['created_at'].toString())?.toLocal(),
       );
 }
 

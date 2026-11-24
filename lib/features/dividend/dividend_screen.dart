@@ -51,8 +51,6 @@ class DividendScreen extends ConsumerWidget {
       final res = await sb.functions.invoke('stock-price',
           body: {'symbols': withSym.map((d) => d.symbol!.trim()).toList()});
       final data = (res.data as Map).cast<String, dynamic>();
-      final now = DateTime.now();
-      final m0 = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
       final uid = sb.auth.currentUser!.id;
       var updated = 0;
       for (final d in withSym) {
@@ -69,7 +67,22 @@ class DividendScreen extends ConsumerWidget {
           await sb.from('dividend_holdings').update(upd).eq('id', d.id);
           updated++;
         }
-        if (div != null) {
+        // 월별 실적에는 «받은» 분배금만 넣는다. 전엔 가장 최근 분배금을
+        // 무조건 이번 달 칸에 넣어서, 분배락 뒤에 산 종목도 그 달에 받은
+        // 것처럼 찍혔다(코플배 11/24 매수 → 10월분이 11월에 1.2만).
+        final exDate = DateTime.tryParse('${info['dividendDate'] ?? ''}');
+        final bought = d.createdAt;
+        final eligible = exDate != null &&
+            (bought == null ||
+                DateTime(bought.year, bought.month, bought.day)
+                    .isBefore(exDate));
+        if (div != null && eligible) {
+          // 지급은 분배락 며칠 뒤다(국장 월배당: 월말 기준일 → 다음 달 2일쯤).
+          // 현금흐름은 «들어온 달»로 적는다.
+          final pay = exDate.add(const Duration(days: 5));
+          final m0 = DateTime(pay.year, pay.month)
+              .toIso8601String()
+              .substring(0, 10);
           await sb.from('monthly_entries').upsert({
             'user_id': uid,
             'category': 'dividend',
@@ -480,7 +493,7 @@ class _DividendMonthly extends ConsumerWidget {
     }
     if (!context.mounted) return;
     final values = await showRecordForm(context,
-        title: '${Dates.ym(month)} 주당 분배금',
+        title: '${Dates.ym(month)} 주당 분배금 (비우면 지움)',
         fields: fields,
         initial: initial,
         accent: AppColors.primary);
@@ -490,7 +503,19 @@ class _DividendMonthly extends ConsumerWidget {
     final rows = <Map<String, dynamic>>[];
     for (final d in holdings) {
       final v = values[d.id];
-      if (v == null) continue;
+      if (v == null) {
+        // 있던 칸을 비웠으면 그 달 기록을 지운다 — 잘못 찍힌 달을 고칠 길.
+        if (initial.containsKey(d.id)) {
+          await sb
+              .from('monthly_entries')
+              .delete()
+              .eq('user_id', uid)
+              .eq('category', 'dividend')
+              .eq('ref_id', d.id)
+              .eq('month', monthStr);
+        }
+        continue;
+      }
       rows.add({
         'user_id': uid,
         'category': 'dividend',
