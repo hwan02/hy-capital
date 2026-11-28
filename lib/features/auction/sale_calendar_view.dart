@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/data_providers.dart';
@@ -496,9 +497,18 @@ class _SaleCalendarViewState extends ConsumerState<SaleCalendarView> {
       });
     } catch (e) {
       if (!mounted) return;
+      // 409 — 같은 사건·주소·매각기일 칸이 이미 있다(유일 조건 0075).
+      // 날 에러 대신 무엇이 겹쳤는지 알려 준다. 다음 회차면 매각기일을 바꿔 넣는다.
+      final dup = e is PostgrestException && e.code == '23505';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('추가 실패 — $e'), backgroundColor: AppColors.rose),
+        SnackBar(
+          content: Text(dup
+              ? '이미 있는 칸이에요 — ${v['case_no']} · ${v['sale_date']} (다음 회차면 매각기일을 바꿔서 넣어요)'
+              : '추가 실패 — $e'),
+          backgroundColor: AppColors.rose,
+        ),
       );
+      if (dup) ref.invalidate(saleItemsProvider);
       return;
     }
     ref.invalidate(saleItemsProvider);
